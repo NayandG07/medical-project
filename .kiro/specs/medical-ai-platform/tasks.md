@@ -10,7 +10,7 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
 
 ### PHASE 1: Local Core App - Foundation
 
-- [ ] 1. Set up project structure and development environment
+- [x] 1. Set up project structure and development environment
   - Create backend/ directory with FastAPI project structure
   - Create frontend/ directory with Next.js project
   - Set up Python virtual environment and install FastAPI, Supabase client, Hypothesis
@@ -19,12 +19,12 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - Set up .gitignore files
   - _Requirements: 25.1, 25.2, 25.3, 25.5_
 
-- [ ] 1.1 Write unit tests for project setup
+- [x] 1.1 Write unit tests for project setup
   - Test environment variable loading
   - Test basic FastAPI app initialization
   - _Requirements: 25.1_
 
-- [ ] 2. Set up Supabase database schema
+- [x] 2. Set up Supabase database schema
   - Create Supabase project (cloud or local)
   - Create users table with plan and role fields
   - Create admin_allowlist table
@@ -39,12 +39,12 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - _Requirements: 23.2, 23.3_
 
 
-- [ ] 2.1 Write unit tests for database schema
+- [x] 2.1 Write unit tests for database schema
   - Test table creation and constraints
   - Test foreign key relationships
   - _Requirements: 23.2_
 
-- [ ] 3. Implement Supabase RLS policies
+- [x] 3. Implement Supabase RLS policies
   - Create RLS policy for users table (users can read own, admins can read all)
   - Create RLS policy for usage_counters (users can read own, admins can read all)
   - Create RLS policy for admin tables (admin-only access)
@@ -52,13 +52,13 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - Enable RLS on all tables
   - _Requirements: 23.4, 23.5_
 
-- [ ] 3.1 Write unit tests for RLS policies
+- [x] 3.1 Write unit tests for RLS policies
   - Test user can access own data
   - Test user cannot access other user's data
   - Test admin can access all data
   - _Requirements: 23.4_
 
-- [ ] 4. Implement authentication service
+- [x] 4. Implement authentication service
   - Create services/auth.py with Supabase Auth integration
   - Implement authenticate_user(email, password) function
   - Implement register_user(email, password, name) function with default "free" plan
@@ -67,20 +67,20 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - Implement emergency admin check via SUPER_ADMIN_EMAIL environment variable
   - _Requirements: 1.1, 1.2, 1.3, 2.2, 2.4_
 
-- [ ] 4.1 Write property test for user registration default plan
+- [x] 4.1 Write property test for user registration default plan
   - **Property 1: User registration assigns default plan**
   - **Validates: Requirements 1.2**
 
-- [ ] 4.2 Write property test for admin access control
+- [x] 4.2 Write property test for admin access control
   - **Property 2: Admin access requires allowlist and role**
   - **Validates: Requirements 2.2**
 
-- [ ] 4.3 Write property test for emergency admin access
+- [x] 4.3 Write property test for emergency admin access
   - **Property 3: Emergency admin access via environment variable**
   - **Validates: Requirements 2.4**
 
 
-- [ ] 5. Implement basic FastAPI routes and middleware
+- [x] 5. Implement basic FastAPI routes and middleware
   - Create main.py with FastAPI app initialization
   - Set up CORS middleware for Next.js frontend
   - Create /api/auth/register endpoint
@@ -90,13 +90,13 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - Add global exception handler
   - _Requirements: 20.1, 20.6, 20.7_
 
-- [ ] 5.1 Write unit tests for auth endpoints
+- [x] 5.1 Write unit tests for auth endpoints
   - Test registration creates user with free plan
   - Test login returns valid token
   - Test invalid credentials return 401
   - _Requirements: 1.1, 1.2_
 
-- [ ] 6. Implement basic Next.js frontend with authentication
+- [x] 6. Implement basic Next.js frontend with authentication
   - Create pages/index.tsx with login/register forms
   - Create pages/chat.tsx as main chat interface (protected route)
   - Create lib/supabase.ts for Supabase client
@@ -105,17 +105,17 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - Add protected route logic (redirect to login if not authenticated)
   - _Requirements: 22.1, 22.3, 22.6_
 
-- [ ] 6.1 Write unit tests for authentication components
+- [x] 6.1 Write unit tests for authentication components
   - Test AuthForm renders correctly
   - Test protected route redirects unauthenticated users
   - _Requirements: 22.3_
 
-- [ ] 7. Checkpoint - Ensure authentication works end-to-end
+- [x] 7. Checkpoint - Ensure authentication works end-to-end
   - Ensure all tests pass, ask the user if questions arise.
 
 ### PHASE 1: Local Core App - Chat Interface
 
-- [ ] 8. Implement chat service backend
+- [x] 8. Implement chat service backend
   - Create services/chat.py
   - Implement create_session(user_id, title) function
   - Implement get_user_sessions(user_id) function
@@ -125,21 +125,21 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - _Requirements: 3.2, 3.4_
 
 
-- [ ] 8.1 Write property test for message persistence
+- [x] 8.1 Write property test for message persistence
   - **Property 8: Messages persist to database**
   - **Validates: Requirements 3.4**
 
-- [ ] 9. Create chat API endpoints
+- [x] 9. Create chat API endpoints
   - Create /api/chat/sessions endpoint (GET, POST)
   - Create /api/chat/sessions/{session_id}/messages endpoint (GET, POST)
   - Add authentication middleware to verify user
   - _Requirements: 3.2_
 
-- [ ] 9.1 Write property test for message routing
+- [x] 9.1 Write property test for message routing
   - **Property 6: Messages are routed to backend**
   - **Validates: Requirements 3.2**
 
-- [ ] 10. Implement chat UI components
+- [x] 10. Implement chat UI components
   - Create components/ChatWindow.tsx for message display
   - Create components/ChatInput.tsx for message input
   - Create components/SessionSidebar.tsx for session list
@@ -147,29 +147,29 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - Add loading states and error handling
   - _Requirements: 22.3, 3.5_
 
-- [ ] 10.1 Write property test for message rendering
+- [x] 10.1 Write property test for message rendering
   - **Property 9: Message rendering includes metadata**
   - **Validates: Requirements 3.5**
 
-- [ ] 11. Wire chat components together
+- [x] 11. Wire chat components together
   - Connect ChatWindow to backend API
   - Implement session creation and switching
   - Implement message sending and receiving
   - Add real-time message updates
   - _Requirements: 3.2, 3.4_
 
-- [ ] 11.1 Write integration tests for chat flow
+- [x] 11.1 Write integration tests for chat flow
   - Test creating session, sending message, receiving response
   - Test session switching
   - _Requirements: 3.2, 3.4_
 
-- [ ] 12. Checkpoint - Ensure basic chat works locally
+- [x] 12. Checkpoint - Ensure basic chat works locally
   - Ensure all tests pass, ask the user if questions arise.
 
 ### PHASE 2: Backend Intelligence - Rate Limiting
 
 
-- [ ] 13. Implement rate limiter service
+- [x] 13. Implement rate limiter service
   - Create services/rate_limiter.py
   - Define PLAN_LIMITS constants for free, student, pro, admin plans
   - Implement check_rate_limit(user_id, feature) function
@@ -178,19 +178,19 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - Implement admin bypass logic
   - _Requirements: 9.1, 9.2, 9.5, 9.6_
 
-- [ ] 13.1 Write property test for rate limit checking
+- [x] 13.1 Write property test for rate limit checking
   - **Property 21: Rate limits are checked before processing**
   - **Validates: Requirements 9.2**
 
-- [ ] 13.2 Write property test for request rejection over limit
+- [x] 13.2 Write property test for request rejection over limit
   - **Property 22: Requests over limit are rejected**
   - **Validates: Requirements 9.3**
 
-- [ ] 13.3 Write property test for admin bypass
+- [x] 13.3 Write property test for admin bypass
   - **Property 24: Admin users bypass rate limits**
   - **Validates: Requirements 9.5**
 
-- [ ] 13.4 Write property test for multi-level limiting
+- [x] 13.4 Write property test for multi-level limiting
   - **Property 25: Multi-level rate limiting**
   - **Validates: Requirements 9.6**
 
