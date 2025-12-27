@@ -560,6 +560,114 @@ class AdminService:
                 "valid": False,
                 "message": f"Validation error: {str(e)}"
             }
+    
+    async def toggle_feature(
+        self,
+        admin_id: str,
+        feature: str,
+        enabled: bool
+    ) -> Dict[str, Any]:
+        """
+        Toggle a feature on or off globally
+        
+        Args:
+            admin_id: ID of the admin performing the action
+            feature: Feature name to toggle
+            enabled: True to enable, False to disable
+            
+        Returns:
+            Dict with feature status
+            
+        Requirements: 16.2, 16.4
+        """
+        try:
+            # Create flag name
+            flag_name = f"feature_{feature}_enabled"
+            
+            # Check if flag exists
+            existing_flag = self.supabase.table("system_flags") \
+                .select("id") \
+                .eq("flag_name", flag_name) \
+                .execute()
+            
+            if existing_flag.data:
+                # Update existing flag
+                self.supabase.table("system_flags") \
+                    .update({
+                        "flag_value": str(enabled),
+                        "updated_at": datetime.now().isoformat(),
+                        "updated_by": admin_id
+                    }) \
+                    .eq("flag_name", flag_name) \
+                    .execute()
+            else:
+                # Insert new flag
+                self.supabase.table("system_flags") \
+                    .insert({
+                        "flag_name": flag_name,
+                        "flag_value": str(enabled),
+                        "updated_by": admin_id,
+                        "updated_at": datetime.now().isoformat()
+                    }) \
+                    .execute()
+            
+            # Log the action (Requirement 16.4)
+            await self.audit_service.log_admin_action(
+                admin_id=admin_id,
+                action_type="toggle_feature",
+                target_type="feature",
+                target_id=feature,
+                details={
+                    "feature": feature,
+                    "enabled": enabled
+                }
+            )
+            
+            return {
+                "feature": feature,
+                "enabled": enabled,
+                "message": f"Feature '{feature}' {'enabled' if enabled else 'disabled'} successfully"
+            }
+        except Exception as e:
+            raise Exception(f"Failed to toggle feature: {str(e)}")
+    
+    async def get_feature_status(self) -> Dict[str, bool]:
+        """
+        Get the status of all feature toggles
+        
+        Returns:
+            Dict mapping feature names to their enabled status
+            
+        Requirements: 16.2, 16.4
+        """
+        try:
+            # Get all feature flags
+            flags_result = self.supabase.table("system_flags") \
+                .select("flag_name, flag_value") \
+                .like("flag_name", "feature_%_enabled") \
+                .execute()
+            
+            feature_status = {}
+            
+            if flags_result.data:
+                for flag in flags_result.data:
+                    # Extract feature name from flag_name (remove "feature_" prefix and "_enabled" suffix)
+                    feature_name = flag["flag_name"].replace("feature_", "").replace("_enabled", "")
+                    
+                    # Parse flag value
+                    enabled = flag["flag_value"].lower() == "true"
+                    
+                    feature_status[feature_name] = enabled
+            
+            # Add default features if not present
+            default_features = ["chat", "flashcard", "mcq", "highyield", "explain", "map", "image", "pdf"]
+            for feature in default_features:
+                if feature not in feature_status:
+                    feature_status[feature] = True  # Default to enabled
+            
+            return feature_status
+        except Exception as e:
+            raise Exception(f"Failed to get feature status: {str(e)}")
 
 
 # Singleton instance

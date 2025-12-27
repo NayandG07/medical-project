@@ -1346,3 +1346,525 @@ async def admin_test_api_key(
                 }
             }
         )
+
+
+# ============================================================================
+# MAINTENANCE CONTROL ENDPOINTS
+# ============================================================================
+
+class MaintenanceStatusResponse(BaseModel):
+    """Response model for maintenance status"""
+    in_maintenance: bool
+    level: Optional[str]
+    reason: Optional[str]
+    feature: Optional[str]
+    triggered_by: Optional[str]
+    triggered_at: Optional[str]
+
+
+class TriggerMaintenanceRequest(BaseModel):
+    """Request model for triggering maintenance"""
+    level: str  # soft or hard
+    reason: str
+    feature: Optional[str] = None
+
+
+@app.get("/api/admin/maintenance", response_model=MaintenanceStatusResponse)
+async def admin_get_maintenance_status(
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Get current maintenance status (admin only)
+    
+    Requirements: 17.1, 2.7
+    
+    Args:
+        authorization: Authorization header with Bearer token
+        
+    Returns:
+        Current maintenance status
+        
+    Raises:
+        HTTPException: If not authenticated, not admin, or retrieval fails
+    """
+    try:
+        # Verify admin access
+        await require_admin(authorization)
+        
+        # Get maintenance status
+        from services.maintenance import get_maintenance_service
+        
+        # Initialize Supabase client
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+        supabase_client = create_client(supabase_url, supabase_key)
+        
+        maintenance_service = get_maintenance_service(supabase_client)
+        status_data = await maintenance_service.get_maintenance_status()
+        
+        return status_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get maintenance status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "GET_MAINTENANCE_STATUS_FAILED",
+                    "message": "Failed to retrieve maintenance status"
+                }
+            }
+        )
+
+
+@app.post("/api/admin/maintenance", response_model=MaintenanceStatusResponse)
+async def admin_trigger_maintenance(
+    request: TriggerMaintenanceRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Manually trigger maintenance mode (admin only)
+    
+    Requirements: 17.2, 2.7
+    
+    Args:
+        request: Maintenance trigger request
+        authorization: Authorization header with Bearer token
+        
+    Returns:
+        Updated maintenance status
+        
+    Raises:
+        HTTPException: If not authenticated, not admin, or trigger fails
+    """
+    try:
+        # Verify admin access
+        admin_id = await require_admin(authorization)
+        
+        # Validate level
+        if request.level not in ["soft", "hard"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": {
+                        "code": "INVALID_MAINTENANCE_LEVEL",
+                        "message": "Maintenance level must be 'soft' or 'hard'"
+                    }
+                }
+            )
+        
+        # Trigger maintenance
+        from services.maintenance import get_maintenance_service
+        
+        # Initialize Supabase client
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+        supabase_client = create_client(supabase_url, supabase_key)
+        
+        maintenance_service = get_maintenance_service(supabase_client)
+        result = await maintenance_service.enter_maintenance(
+            level=request.level,
+            reason=request.reason,
+            feature=request.feature,
+            triggered_by=admin_id
+        )
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to trigger maintenance: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "TRIGGER_MAINTENANCE_FAILED",
+                    "message": str(e)
+                }
+            }
+        )
+
+
+@app.post("/api/admin/maintenance/override")
+async def admin_override_maintenance(
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Override maintenance mode and restore normal operation (admin only)
+    
+    Requirements: 17.3, 12.8, 2.7
+    
+    Args:
+        authorization: Authorization header with Bearer token
+        
+    Returns:
+        Confirmation of override
+        
+    Raises:
+        HTTPException: If not authenticated, not admin, or override fails
+    """
+    try:
+        # Verify admin access
+        admin_id = await require_admin(authorization)
+        
+        # Exit maintenance
+        from services.maintenance import get_maintenance_service
+        
+        # Initialize Supabase client
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+        supabase_client = create_client(supabase_url, supabase_key)
+        
+        maintenance_service = get_maintenance_service(supabase_client)
+        result = await maintenance_service.exit_maintenance(exited_by=admin_id)
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to override maintenance: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "OVERRIDE_MAINTENANCE_FAILED",
+                    "message": str(e)
+                }
+            }
+        )
+
+
+# ============================================================================
+# PROVIDER HEALTH ENDPOINTS
+# ============================================================================
+
+class ProviderHealthStatusResponse(BaseModel):
+    """Response model for provider health status"""
+    provider: str
+    feature: str
+    status: str
+    active_keys: int
+    degraded_keys: int
+    disabled_keys: int
+    recent_failures: List[dict]
+
+
+class HealthCheckResponse(BaseModel):
+    """Response model for health check"""
+    key_id: str
+    status: str
+    response_time_ms: Optional[int]
+    error_message: Optional[str]
+
+
+@app.get("/api/admin/provider-health", response_model=List[ProviderHealthStatusResponse])
+async def admin_get_provider_health(
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Get provider health status for all providers and features (admin only)
+    
+    Requirements: 15.1, 15.2, 15.3, 2.7
+    
+    Args:
+        authorization: Authorization header with Bearer token
+        
+    Returns:
+        List of provider health statuses
+        
+    Raises:
+        HTTPException: If not authenticated, not admin, or retrieval fails
+    """
+    try:
+        # Verify admin access
+        await require_admin(authorization)
+        
+        # Get all API keys grouped by provider/feature
+        from services.health_monitor import get_health_monitor
+        
+        # Initialize Supabase client
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+        supabase_client = create_client(supabase_url, supabase_key)
+        
+        # Get all keys
+        keys_result = supabase_client.table("api_keys") \
+            .select("id, provider, feature, status") \
+            .execute()
+        
+        if not keys_result.data:
+            return []
+        
+        # Group by provider/feature
+        provider_features = {}
+        for key in keys_result.data:
+            pf_key = f"{key['provider']}:{key['feature']}"
+            if pf_key not in provider_features:
+                provider_features[pf_key] = {
+                    "provider": key["provider"],
+                    "feature": key["feature"],
+                    "active_keys": 0,
+                    "degraded_keys": 0,
+                    "disabled_keys": 0,
+                    "key_ids": []
+                }
+            
+            if key["status"] == "active":
+                provider_features[pf_key]["active_keys"] += 1
+            elif key["status"] == "degraded":
+                provider_features[pf_key]["degraded_keys"] += 1
+            elif key["status"] == "disabled":
+                provider_features[pf_key]["disabled_keys"] += 1
+            
+            provider_features[pf_key]["key_ids"].append(key["id"])
+        
+        # Get recent failures for each provider/feature
+        health_monitor = get_health_monitor(supabase_client)
+        results = []
+        
+        for pf_data in provider_features.values():
+            # Get recent health checks
+            recent_checks = supabase_client.table("provider_health") \
+                .select("*") \
+                .in_("api_key_id", pf_data["key_ids"]) \
+                .order("checked_at", desc=True) \
+                .limit(10) \
+                .execute()
+            
+            # Filter for failures
+            recent_failures = [
+                {
+                    "checked_at": check["checked_at"],
+                    "status": check["status"],
+                    "error_message": check.get("error_message"),
+                    "response_time_ms": check.get("response_time_ms")
+                }
+                for check in recent_checks.data
+                if check["status"] in ["failed", "degraded"]
+            ]
+            
+            # Determine overall status
+            if pf_data["active_keys"] > 0:
+                status = "healthy"
+            elif pf_data["degraded_keys"] > 0:
+                status = "degraded"
+            else:
+                status = "failed"
+            
+            results.append({
+                "provider": pf_data["provider"],
+                "feature": pf_data["feature"],
+                "status": status,
+                "active_keys": pf_data["active_keys"],
+                "degraded_keys": pf_data["degraded_keys"],
+                "disabled_keys": pf_data["disabled_keys"],
+                "recent_failures": recent_failures
+            })
+        
+        return results
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get provider health: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "GET_PROVIDER_HEALTH_FAILED",
+                    "message": "Failed to retrieve provider health status"
+                }
+            }
+        )
+
+
+@app.post("/api/admin/provider-health/check")
+async def admin_trigger_health_check(
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Manually trigger health checks for all active API keys (admin only)
+    
+    Requirements: 15.4, 2.7
+    
+    Args:
+        authorization: Authorization header with Bearer token
+        
+    Returns:
+        Confirmation of health check trigger
+        
+    Raises:
+        HTTPException: If not authenticated, not admin, or trigger fails
+    """
+    try:
+        # Verify admin access
+        await require_admin(authorization)
+        
+        # Initialize services
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+        supabase_client = create_client(supabase_url, supabase_key)
+        
+        from services.health_monitor import get_health_monitor
+        health_monitor = get_health_monitor(supabase_client)
+        encryption_service = get_encryption_service()
+        
+        # Get all active API keys
+        keys_result = supabase_client.table("api_keys") \
+            .select("id, provider, feature, key_value, status") \
+            .eq("status", "active") \
+            .execute()
+        
+        if not keys_result.data:
+            return {
+                "message": "No active API keys to check",
+                "checked_count": 0
+            }
+        
+        # Perform health checks
+        checked_count = 0
+        for key_data in keys_result.data:
+            try:
+                # Decrypt the API key
+                decrypted_key = encryption_service.decrypt_key(key_data["key_value"])
+                
+                # Perform health check
+                health_result = await health_monitor.check_provider_health(
+                    provider=key_data["provider"],
+                    key=decrypted_key,
+                    feature=key_data["feature"]
+                )
+                
+                # Log the health check result
+                await health_monitor.log_health_check(
+                    key_id=key_data["id"],
+                    status=health_result["status"],
+                    response_time_ms=health_result["response_time_ms"],
+                    error_message=health_result["error_message"],
+                    quota_remaining=health_result["quota_remaining"]
+                )
+                
+                checked_count += 1
+            except Exception as e:
+                logger.error(f"Error checking health for key {key_data['id']}: {str(e)}")
+        
+        return {
+            "message": f"Health checks completed for {checked_count} keys",
+            "checked_count": checked_count
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to trigger health checks: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "TRIGGER_HEALTH_CHECK_FAILED",
+                    "message": str(e)
+                }
+            }
+        )
+
+
+# ============================================================================
+# FEATURE TOGGLE ENDPOINTS
+# ============================================================================
+
+class FeatureToggleRequest(BaseModel):
+    """Request model for toggling a feature"""
+    enabled: bool
+
+
+@app.get("/api/admin/features")
+async def admin_get_feature_status(
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Get the status of all feature toggles (admin only)
+    
+    Requirements: 16.1, 16.2, 2.7
+    
+    Args:
+        authorization: Authorization header with Bearer token
+        
+    Returns:
+        Dict mapping feature names to their enabled status
+        
+    Raises:
+        HTTPException: If not authenticated, not admin, or retrieval fails
+    """
+    try:
+        # Verify admin access
+        await require_admin(authorization)
+        
+        # Get feature status
+        from services.admin import get_admin_service
+        admin_service = get_admin_service()
+        features = await admin_service.get_feature_status()
+        
+        return features
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get feature status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "GET_FEATURE_STATUS_FAILED",
+                    "message": "Failed to retrieve feature status"
+                }
+            }
+        )
+
+
+@app.put("/api/admin/features/{feature}")
+async def admin_toggle_feature(
+    feature: str,
+    request: FeatureToggleRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Toggle a feature on or off globally (admin only)
+    
+    Requirements: 16.2, 2.7
+    
+    Args:
+        feature: Feature name to toggle
+        request: Feature toggle request with enabled status
+        authorization: Authorization header with Bearer token
+        
+    Returns:
+        Result of the toggle operation
+        
+    Raises:
+        HTTPException: If not authenticated, not admin, or toggle fails
+    """
+    try:
+        # Verify admin access
+        admin_id = await require_admin(authorization)
+        
+        # Toggle feature
+        from services.admin import get_admin_service
+        admin_service = get_admin_service()
+        result = await admin_service.toggle_feature(
+            admin_id=admin_id,
+            feature=feature,
+            enabled=request.enabled
+        )
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to toggle feature: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "TOGGLE_FEATURE_FAILED",
+                    "message": str(e)
+                }
+            }
+        )

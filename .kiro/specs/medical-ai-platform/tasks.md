@@ -626,7 +626,7 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - **Validates: Requirements 12.9**
 
 
-- [ ] 51. Implement maintenance middleware
+- [x] 51. Implement maintenance middleware
   - Create middleware/maintenance.py
   - Check maintenance status before processing requests
   - In soft maintenance: block heavy features, allow chat and admin
@@ -634,12 +634,12 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - Return 503 with maintenance message
   - _Requirements: 12.5, 12.6_
 
-- [ ] 51.1 Write unit tests for maintenance middleware
+- [x] 51.1 Write unit tests for maintenance middleware
   - Test soft maintenance blocks heavy features
   - Test hard maintenance blocks non-admin
   - _Requirements: 12.5, 12.6_
 
-- [ ] 52. Create maintenance control endpoints and UI
+- [x] 52. Create maintenance control endpoints and UI
   - Create /api/admin/maintenance endpoint (GET, POST) with admin middleware
   - Create /api/admin/maintenance/override endpoint (POST) with admin middleware
   - Create pages/admin/maintenance.tsx
@@ -649,15 +649,15 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - Display current maintenance status
   - _Requirements: 17.1, 17.2, 17.3, 17.4, 17.5_
 
-- [ ] 52.1 Write property test for manual maintenance trigger
+- [x] 52.1 Write property test for manual maintenance trigger
   - **Property 50: Admins can manually trigger maintenance**
   - **Validates: Requirements 17.2**
 
-- [ ] 52.2 Write property test for manual override
+- [x] 52.2 Write property test for manual override
   - **Property 40: Manual override restores operation**
   - **Validates: Requirements 12.8**
 
-- [ ] 53. Create provider health dashboard UI
+- [x] 53. Create provider health dashboard UI
   - Create pages/admin/provider-health.tsx
   - Create components/ProviderHealthTable.tsx
   - Display current health status per provider/feature
@@ -666,39 +666,39 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - Implement manual health check trigger button
   - _Requirements: 15.1, 15.2, 15.3, 15.4_
 
-- [ ] 53.1 Write unit tests for provider health UI
+- [x] 53.1 Write unit tests for provider health UI
   - Test ProviderHealthTable displays status correctly
   - Test manual health check triggers API call
   - _Requirements: 15.1, 15.4_
 
-- [ ] 54. Checkpoint - Ensure maintenance system works
+- [x] 54. Checkpoint - Ensure maintenance system works
   - Ensure all tests pass, ask the user if questions arise.
 
 
 ### PHASE 4: API Key Pool & Health Checks - Feature Toggles
 
-- [ ] 55. Implement feature toggle service
+- [x] 55. Implement feature toggle service
   - Add toggle_feature(feature, enabled) to admin.py
   - Add get_feature_status() to admin.py
   - Store feature toggles in system_flags table
   - Include audit logging
   - _Requirements: 16.2, 16.4_
 
-- [ ] 55.1 Write property test for feature toggles
+- [x] 55.1 Write property test for feature toggles
   - **Property 48: Admins can toggle features globally**
   - **Validates: Requirements 16.2**
 
-- [ ] 56. Implement feature toggle enforcement
+- [x] 56. Implement feature toggle enforcement
   - Create middleware/feature_toggle.py
   - Check feature status before processing feature-specific requests
   - Return clear error message when feature disabled
   - _Requirements: 16.3_
 
-- [ ] 56.1 Write property test for disabled feature rejection
+- [x] 56.1 Write property test for disabled feature rejection
   - **Property 49: Disabled features reject requests**
   - **Validates: Requirements 16.3**
 
-- [ ] 57. Create feature toggle UI
+- [x] 57. Create feature toggle UI
   - Create pages/admin/features.tsx
   - Create components/FeatureToggleList.tsx
   - Display all features with current status
@@ -706,17 +706,17 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - Connect to feature toggle endpoints
   - _Requirements: 16.1, 16.2_
 
-- [ ] 57.1 Write unit tests for feature toggle UI
+- [x] 57.1 Write unit tests for feature toggle UI
   - Test FeatureToggleList displays features correctly
   - Test toggle triggers API call
   - _Requirements: 16.1, 16.2_
 
-- [ ] 58. Checkpoint - Ensure feature toggles work
+- [x] 58. Checkpoint - Ensure feature toggles work
   - Ensure all tests pass, ask the user if questions arise.
 
 ### PHASE 4: Optional Features - User-Supplied API Keys
 
-- [ ] 59. Implement user API key management
+- [x] 59. Implement user API key management
   - Add set_user_api_key(user_id, key) to auth service
   - Add get_user_api_key(user_id) to auth service
   - Add remove_user_api_key(user_id) to auth service
@@ -725,7 +725,7 @@ Each task builds on previous work, with no orphaned code. All testing tasks are 
   - _Requirements: 27.1, 27.3, 27.5_
 
 
-- [ ] 59.1 Write property test for user key validation
+- [x] 59.1 Write property test for user key validation
   - **Property 55: User key validation before acceptance**
   - **Validates: Requirements 27.3**
 

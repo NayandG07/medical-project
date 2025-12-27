@@ -491,3 +491,288 @@ async def test_property_admins_can_toggle_key_status(admin_id, key_id, old_statu
         assert call_args.kwargs["target_id"] == key_id
         assert call_args.kwargs["details"]["old_status"] == old_status
         assert call_args.kwargs["details"]["new_status"] == new_status
+
+
+
+# Feature: medical-ai-platform, Property 48: Admins can toggle features globally
+@given(
+    admin_id=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_characters='\x00')),
+    feature=st.sampled_from(['chat', 'flashcard', 'mcq', 'highyield', 'explain', 'map', 'image', 'pdf']),
+    enabled=st.booleans()
+)
+@settings(max_examples=100, deadline=None)
+@pytest.mark.property_test
+@pytest.mark.asyncio
+async def test_property_admins_can_toggle_features_globally(admin_id, feature, enabled):
+    """
+    Property 48: For any admin user and any feature, the admin should be able to
+    toggle the feature on or off globally.
+    
+    Validates: Requirements 16.2
+    """
+    # Mock Supabase client
+    mock_supabase = Mock()
+    
+    # Mock table operations
+    mock_table = Mock()
+    mock_select = Mock()
+    mock_eq = Mock()
+    mock_update = Mock()
+    mock_insert = Mock()
+    
+    mock_supabase.table.return_value = mock_table
+    mock_table.select.return_value = mock_select
+    mock_select.eq.return_value = mock_eq
+    mock_table.update.return_value = mock_update
+    mock_table.insert.return_value = mock_insert
+    
+    # Mock existing flag check (no existing flag)
+    mock_eq.execute.return_value = Mock(data=[])
+    mock_insert.execute.return_value = Mock(data=[{"id": "flag-1"}])
+    
+    # Mock encryption and audit logging
+    with patch('services.admin.get_encryption_service') as mock_enc_getter, \
+         patch('services.admin.get_audit_service') as mock_audit_getter:
+        
+        mock_enc_service = Mock()
+        mock_enc_getter.return_value = mock_enc_service
+        
+        mock_audit_service = Mock()
+        mock_audit_service.log_admin_action = AsyncMock()
+        mock_audit_getter.return_value = mock_audit_service
+        
+        # Create admin service
+        admin_service = get_admin_service(mock_supabase)
+        
+        # Toggle feature
+        result = await admin_service.toggle_feature(
+            admin_id=admin_id,
+            feature=feature,
+            enabled=enabled
+        )
+        
+        # Property: Feature should be toggled successfully
+        assert result["feature"] == feature, "Feature name should match"
+        assert result["enabled"] == enabled, "Enabled status should match"
+        assert "message" in result, "Should include success message"
+        
+        # Property: Action should be logged in audit trail
+        assert mock_audit_service.log_admin_action.called, \
+            "Feature toggle should be logged in audit trail"
+        
+        # Verify audit log was called with correct parameters
+        call_args = mock_audit_service.log_admin_action.call_args
+        assert call_args[1]["admin_id"] == admin_id, "Audit log should include admin ID"
+        assert call_args[1]["action_type"] == "toggle_feature", "Audit log should specify action type"
+        assert call_args[1]["target_type"] == "feature", "Audit log should specify target type"
+        assert call_args[1]["target_id"] == feature, "Audit log should include feature name"
+        assert call_args[1]["details"]["enabled"] == enabled, "Audit log should include enabled status"
+
+
+@given(
+    admin_id=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_characters='\x00')),
+    feature=st.sampled_from(['chat', 'flashcard', 'mcq', 'highyield', 'explain', 'map', 'image', 'pdf']),
+    initial_enabled=st.booleans()
+)
+@settings(max_examples=100, deadline=None)
+@pytest.mark.property_test
+@pytest.mark.asyncio
+async def test_property_feature_toggle_updates_existing_flag(admin_id, feature, initial_enabled):
+    """
+    Property: For any feature that already has a toggle flag,
+    toggling it should update the existing flag rather than create a new one.
+    
+    Validates: Requirements 16.2
+    """
+    # Mock Supabase client
+    mock_supabase = Mock()
+    
+    # Mock table operations
+    mock_table = Mock()
+    mock_select = Mock()
+    mock_eq = Mock()
+    mock_update = Mock()
+    
+    mock_supabase.table.return_value = mock_table
+    mock_table.select.return_value = mock_select
+    mock_select.eq.return_value = mock_eq
+    mock_table.update.return_value = mock_update
+    
+    # Mock existing flag (flag already exists)
+    mock_eq.execute.return_value = Mock(data=[{"id": "existing-flag-1"}])
+    mock_update.eq.return_value.execute.return_value = Mock(data=[{"id": "existing-flag-1"}])
+    
+    # Mock encryption and audit logging
+    with patch('services.admin.get_encryption_service') as mock_enc_getter, \
+         patch('services.admin.get_audit_service') as mock_audit_getter:
+        
+        mock_enc_service = Mock()
+        mock_enc_getter.return_value = mock_enc_service
+        
+        mock_audit_service = Mock()
+        mock_audit_service.log_admin_action = AsyncMock()
+        mock_audit_getter.return_value = mock_audit_service
+        
+        # Create admin service
+        admin_service = get_admin_service(mock_supabase)
+        
+        # Toggle feature (should update existing flag)
+        new_enabled = not initial_enabled
+        result = await admin_service.toggle_feature(
+            admin_id=admin_id,
+            feature=feature,
+            enabled=new_enabled
+        )
+        
+        # Property: Should update existing flag
+        assert result["feature"] == feature, "Feature name should match"
+        assert result["enabled"] == new_enabled, "Enabled status should be updated"
+        
+        # Property: Update should be called (not insert)
+        assert mock_table.update.called, "Should update existing flag"
+
+
+@given(
+    features=st.lists(
+        st.sampled_from(['chat', 'flashcard', 'mcq', 'highyield', 'explain', 'map', 'image', 'pdf']),
+        min_size=1,
+        max_size=8,
+        unique=True
+    )
+)
+@settings(max_examples=100, deadline=None)
+@pytest.mark.property_test
+@pytest.mark.asyncio
+async def test_property_get_feature_status_returns_all_features(features):
+    """
+    Property: For any set of features, get_feature_status should return
+    the status of all features (including defaults for features not in database).
+    
+    Validates: Requirements 16.2, 16.4
+    """
+    # Mock Supabase client
+    mock_supabase = Mock()
+    
+    # Mock table operations
+    mock_table = Mock()
+    mock_select = Mock()
+    mock_like = Mock()
+    
+    mock_supabase.table.return_value = mock_table
+    mock_table.select.return_value = mock_select
+    mock_select.like.return_value = mock_like
+    
+    # Mock feature flags in database
+    mock_flags = [
+        {
+            "flag_name": f"feature_{feature}_enabled",
+            "flag_value": "True"
+        }
+        for feature in features
+    ]
+    
+    mock_like.execute.return_value = Mock(data=mock_flags)
+    
+    # Mock encryption and audit logging
+    with patch('services.admin.get_encryption_service') as mock_enc_getter, \
+         patch('services.admin.get_audit_service') as mock_audit_getter:
+        
+        mock_enc_service = Mock()
+        mock_enc_getter.return_value = mock_enc_service
+        
+        mock_audit_service = Mock()
+        mock_audit_getter.return_value = mock_audit_service
+        
+        # Create admin service
+        admin_service = get_admin_service(mock_supabase)
+        
+        # Get feature status
+        status = await admin_service.get_feature_status()
+        
+        # Property: Should return a dict
+        assert isinstance(status, dict), "Should return a dictionary"
+        
+        # Property: All features in database should be present
+        for feature in features:
+            assert feature in status, f"Feature {feature} should be in status"
+            assert status[feature] is True, f"Feature {feature} should be enabled"
+        
+        # Property: Default features should be present (even if not in database)
+        default_features = ["chat", "flashcard", "mcq", "highyield", "explain", "map", "image", "pdf"]
+        for feature in default_features:
+            assert feature in status, f"Default feature {feature} should be in status"
+
+
+@given(
+    admin_id=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_characters='\x00')),
+    feature=st.sampled_from(['chat', 'flashcard', 'mcq', 'highyield', 'explain', 'map', 'image', 'pdf'])
+)
+@settings(max_examples=100, deadline=None)
+@pytest.mark.property_test
+@pytest.mark.asyncio
+async def test_property_feature_toggle_round_trip(admin_id, feature):
+    """
+    Property: For any feature, toggling it on then off (or off then on)
+    should result in the final state being correct.
+    
+    Validates: Requirements 16.2
+    """
+    # Mock Supabase client
+    mock_supabase = Mock()
+    
+    # Mock table operations
+    mock_table = Mock()
+    mock_select = Mock()
+    mock_eq = Mock()
+    mock_insert = Mock()
+    mock_update = Mock()
+    
+    mock_supabase.table.return_value = mock_table
+    mock_table.select.return_value = mock_select
+    mock_select.eq.return_value = mock_eq
+    mock_table.insert.return_value = mock_insert
+    mock_table.update.return_value = mock_update
+    
+    # Mock encryption and audit logging
+    with patch('services.admin.get_encryption_service') as mock_enc_getter, \
+         patch('services.admin.get_audit_service') as mock_audit_getter:
+        
+        mock_enc_service = Mock()
+        mock_enc_getter.return_value = mock_enc_service
+        
+        mock_audit_service = Mock()
+        mock_audit_service.log_admin_action = AsyncMock()
+        mock_audit_getter.return_value = mock_audit_service
+        
+        # Create admin service
+        admin_service = get_admin_service(mock_supabase)
+        
+        # First toggle: enable
+        mock_eq.execute.return_value = Mock(data=[])
+        mock_insert.execute.return_value = Mock(data=[{"id": "flag-1"}])
+        
+        result1 = await admin_service.toggle_feature(
+            admin_id=admin_id,
+            feature=feature,
+            enabled=True
+        )
+        
+        # Property: First toggle should enable
+        assert result1["enabled"] is True, "First toggle should enable feature"
+        
+        # Second toggle: disable
+        mock_eq.execute.return_value = Mock(data=[{"id": "flag-1"}])
+        mock_update.eq.return_value.execute.return_value = Mock(data=[{"id": "flag-1"}])
+        
+        result2 = await admin_service.toggle_feature(
+            admin_id=admin_id,
+            feature=feature,
+            enabled=False
+        )
+        
+        # Property: Second toggle should disable (round trip complete)
+        assert result2["enabled"] is False, "Second toggle should disable feature"
+        
+        # Property: Both actions should be logged
+        assert mock_audit_service.log_admin_action.call_count == 2, \
+            "Both toggles should be logged"

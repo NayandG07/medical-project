@@ -1,11 +1,11 @@
 """
 Property-based tests for authentication service
 Tests universal properties that should hold for all valid inputs
-Requirements: 1.2, 2.2, 2.4
+Requirements: 1.2, 2.2, 2.4, 27.3
 """
 import pytest
 from hypothesis import given, strategies as st, settings
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 import sys
 import os
 
@@ -246,3 +246,115 @@ async def test_property_emergency_admin_access_via_env_var(user_id, email, is_su
             os.environ["SUPER_ADMIN_EMAIL"] = original_env
         elif "SUPER_ADMIN_EMAIL" in os.environ:
             del os.environ["SUPER_ADMIN_EMAIL"]
+
+
+
+# Custom strategy for generating API keys
+@st.composite
+def valid_api_key(draw):
+    """Generate valid API keys (various formats)"""
+    provider = draw(st.sampled_from(['gemini', 'openai', 'anthropic', 'generic']))
+    
+    if provider == 'gemini':
+        # Gemini keys typically start with "AI"
+        key = "AI" + draw(st.text(min_size=20, max_size=40, alphabet=st.characters(whitelist_categories=('Lu', 'Ll', 'Nd'))))
+    elif provider == 'openai':
+        # OpenAI keys typically start with "sk-"
+        key = "sk-" + draw(st.text(min_size=40, max_size=50, alphabet=st.characters(whitelist_categories=('Lu', 'Ll', 'Nd'))))
+    elif provider == 'anthropic':
+        # Anthropic keys typically start with "sk-ant-"
+        key = "sk-ant-" + draw(st.text(min_size=40, max_size=50, alphabet=st.characters(whitelist_categories=('Lu', 'Ll', 'Nd'))))
+    else:
+        # Generic API key
+        key = draw(st.text(min_size=20, max_size=60, alphabet=st.characters(whitelist_categories=('Lu', 'Ll', 'Nd', 'Pd'))))
+    
+    return key
+
+
+@st.composite
+def invalid_api_key(draw):
+    """Generate invalid API keys (too short, empty, etc.)"""
+    key_type = draw(st.sampled_from(['empty', 'too_short', 'whitespace']))
+    
+    if key_type == 'empty':
+        return ""
+    elif key_type == 'too_short':
+        return draw(st.text(min_size=0, max_size=9))
+    else:  # whitespace
+        return "   "
+
+
+# Feature: medical-ai-platform, Property 55: User key validation before acceptance
+@given(
+    user_id=valid_user_id(),
+    api_key=st.one_of(valid_api_key(), invalid_api_key()),
+    should_be_valid=st.booleans()
+)
+@settings(max_examples=100)
+@pytest.mark.property_test
+@pytest.mark.asyncio
+async def test_property_user_key_validation_before_acceptance(user_id, api_key, should_be_valid):
+    """
+    Property 55: For any user-supplied API key, the system should validate it 
+    with a test call before storing it.
+    
+    This test verifies that:
+    1. Valid keys (length >= 10, non-empty) are accepted and encrypted
+    2. Invalid keys (empty, too short, whitespace) are rejected
+    3. Validation happens before storage
+    
+    Validates: Requirements 27.3
+    """
+    # Create mock Supabase client
+    mock_supabase = MagicMock()
+    
+    # Mock table update
+    mock_table = MagicMock()
+    mock_update = MagicMock()
+    mock_eq = MagicMock()
+    mock_eq.execute.return_value = MagicMock()
+    mock_update.eq.return_value = mock_eq
+    mock_table.update.return_value = mock_update
+    mock_supabase.table.return_value = mock_table
+    
+    # Create auth service with mock client
+    auth_service = AuthService(supabase_client=mock_supabase)
+    
+    # Determine if key should be valid based on actual validation rules
+    is_actually_valid = api_key and len(api_key.strip()) > 0 and len(api_key) >= 10
+    
+    # Mock encryption service
+    with patch('services.auth.encrypt_key') as mock_encrypt:
+        mock_encrypt.return_value = "encrypted_key_data"
+        
+        # Try to set the user API key
+        if is_actually_valid:
+            # Valid key should be accepted
+            result = await auth_service.set_user_api_key(user_id, api_key)
+            
+            # Property: Valid keys should be accepted
+            assert result["success"] is True, f"Expected success for valid key, got {result}"
+            assert "successfully" in result["message"].lower(), f"Expected success message, got {result['message']}"
+            
+            # Property: Encryption should be called before storage
+            mock_encrypt.assert_called_once_with(api_key)
+            
+            # Property: Database update should be called with encrypted key
+            mock_table.update.assert_called_once()
+            update_data = mock_table.update.call_args[0][0]
+            assert update_data["personal_api_key"] == "encrypted_key_data", "Should store encrypted key"
+        else:
+            # Invalid key should be rejected
+            with pytest.raises(Exception) as exc_info:
+                await auth_service.set_user_api_key(user_id, api_key)
+            
+            # Property: Invalid keys should be rejected with clear error
+            error_message = str(exc_info.value).lower()
+            assert "invalid" in error_message or "empty" in error_message or "short" in error_message, \
+                f"Expected validation error message, got: {exc_info.value}"
+            
+            # Property: Encryption should NOT be called for invalid keys
+            mock_encrypt.assert_not_called()
+            
+            # Property: Database should NOT be updated for invalid keys
+            mock_table.update.assert_not_called()

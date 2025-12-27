@@ -1,12 +1,13 @@
 """
 Authentication Service
 Handles user authentication, registration, and admin verification
-Requirements: 1.1, 1.2, 1.3, 2.2, 2.4
+Requirements: 1.1, 1.2, 1.3, 2.2, 2.4, 27.1, 27.3, 27.5
 """
 import os
 from typing import Optional, Dict, Any
 from supabase import Client, create_client
 from dotenv import load_dotenv
+from services.encryption import encrypt_key, decrypt_key
 
 # Load environment variables
 load_dotenv()
@@ -175,6 +176,110 @@ class AuthService:
             # Log error but don't expose details
             print(f"Admin verification error: {str(e)}")
             return None
+    
+    async def set_user_api_key(self, user_id: str, key: str) -> Dict[str, Any]:
+        """
+        Set or update a user's personal API key
+        Encrypts the key before storage and validates it
+        
+        Args:
+            user_id: User's unique identifier
+            key: Plaintext API key to store
+            
+        Returns:
+            Dict with success status and message
+            
+        Raises:
+            Exception: If validation or storage fails
+            
+        Requirements: 27.1, 27.3, 27.5
+        """
+        try:
+            # Validate key is not empty
+            if not key or len(key.strip()) == 0:
+                raise Exception("API key cannot be empty")
+            
+            # Validate key format (basic validation)
+            if len(key) < 10:
+                raise Exception("API key appears to be invalid (too short)")
+            
+            # Encrypt the key before storage (Requirement 27.1)
+            encrypted_key = encrypt_key(key)
+            
+            # Update user record with encrypted personal API key
+            self.supabase.table("users").update({
+                "personal_api_key": encrypted_key
+            }).eq("id", user_id).execute()
+            
+            return {
+                "success": True,
+                "message": "Personal API key stored successfully"
+            }
+        except Exception as e:
+            raise Exception(f"Failed to set user API key: {str(e)}")
+    
+    async def get_user_api_key(self, user_id: str) -> Optional[str]:
+        """
+        Get a user's personal API key (decrypted)
+        
+        Args:
+            user_id: User's unique identifier
+            
+        Returns:
+            Decrypted API key if set, None otherwise
+            
+        Raises:
+            Exception: If retrieval or decryption fails
+            
+        Requirements: 27.1, 27.5
+        """
+        try:
+            # Get user record
+            response = self.supabase.table("users").select("personal_api_key").eq("id", user_id).execute()
+            
+            if not response.data or len(response.data) == 0:
+                raise Exception("User not found")
+            
+            encrypted_key = response.data[0].get("personal_api_key")
+            
+            # Return None if no key is set
+            if not encrypted_key:
+                return None
+            
+            # Decrypt and return the key
+            decrypted_key = decrypt_key(encrypted_key)
+            return decrypted_key
+            
+        except Exception as e:
+            raise Exception(f"Failed to get user API key: {str(e)}")
+    
+    async def remove_user_api_key(self, user_id: str) -> Dict[str, Any]:
+        """
+        Remove a user's personal API key
+        
+        Args:
+            user_id: User's unique identifier
+            
+        Returns:
+            Dict with success status and message
+            
+        Raises:
+            Exception: If removal fails
+            
+        Requirements: 27.5
+        """
+        try:
+            # Update user record to remove personal API key
+            self.supabase.table("users").update({
+                "personal_api_key": None
+            }).eq("id", user_id).execute()
+            
+            return {
+                "success": True,
+                "message": "Personal API key removed successfully"
+            }
+        except Exception as e:
+            raise Exception(f"Failed to remove user API key: {str(e)}")
 
 
 # Singleton instance for easy import

@@ -31,6 +31,11 @@ export default function AdminSidebar() {
       icon: '🔑'
     },
     {
+      label: 'Feature Toggles',
+      path: '/admin/features',
+      icon: '🎛️'
+    },
+    {
       label: 'System Health',
       path: '/admin/health',
       icon: '💚',
