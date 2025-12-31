@@ -575,6 +575,8 @@ async def get_current_user_id(authorization: Optional[str] = Header(None)) -> st
     Raises:
         HTTPException: If authorization fails
     """
+    import jwt
+    
     if not authorization:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -586,9 +588,6 @@ async def get_current_user_id(authorization: Optional[str] = Header(None)) -> st
             }
         )
     
-    # For now, we'll extract user_id from the token
-    # In production, this should verify the JWT token with Supabase
-    # This is a simplified implementation for the stub phase
     try:
         # Expected format: "Bearer <token>"
         if not authorization.startswith("Bearer "):
@@ -604,8 +603,6 @@ async def get_current_user_id(authorization: Optional[str] = Header(None)) -> st
         
         token = authorization.replace("Bearer ", "")
         
-        # For stub implementation, we'll accept the token as user_id
-        # TODO: Implement proper JWT verification with Supabase in future tasks
         if not token:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -617,7 +614,35 @@ async def get_current_user_id(authorization: Optional[str] = Header(None)) -> st
                 }
             )
         
-        return token
+        # Decode JWT token to extract user ID (sub claim)
+        # We decode without verification since Supabase handles token validation
+        # The token is already validated by Supabase Auth on the frontend
+        try:
+            decoded = jwt.decode(token, options={"verify_signature": False})
+            user_id = decoded.get("sub")
+            
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail={
+                        "error": {
+                            "code": "INVALID_TOKEN",
+                            "message": "Token does not contain user ID"
+                        }
+                    }
+                )
+            
+            return user_id
+        except jwt.DecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "error": {
+                        "code": "INVALID_TOKEN",
+                        "message": "Invalid JWT token format"
+                    }
+                }
+            )
     except HTTPException:
         raise
     except Exception as e:

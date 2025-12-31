@@ -66,8 +66,7 @@ class AuditService:
                 "action_type": action_type,
                 "target_type": target_type,
                 "target_id": target_id,
-                "details": details,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "details": details
             }
             
             response = self.supabase.table("audit_logs").insert(log_data).execute()
@@ -117,8 +116,8 @@ class AuditService:
             if target_type:
                 query = query.eq("target_type", target_type)
             
-            # Order by timestamp descending and limit results
-            query = query.order("timestamp", desc=True).limit(limit)
+            # Order by created_at descending and limit results
+            query = query.order("created_at", desc=True).limit(limit)
             
             response = query.execute()
             
