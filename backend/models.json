@@ -1,13 +1,13 @@
 {
   "gemini": {
-    "chat": "models/gemini-2.5-flash",
-    "flashcard": "models/gemini-3-flash-preview",
-    "mcq": "models/gemini-2.5-flash",
-    "highyield": "models/gemini-2.5-flash",
-    "explain": "models/gemini-2.5-flash",
-    "map": "models/gemini-2.5-flash",
-    "clinical": "models/gemini-2.5-flash",
-    "osce": "models/gemini-2.5-flash",
+    "chat": "models/gemini-3-flash-lite",
+    "flashcard": "models/gemini-3-flash-lite",
+    "mcq": "models/gemini-3-flash-lite",
+    "highyield": "models/gemini-3-flash-lite",
+    "explain": "models/gemini-3-flash-lite",
+    "map": "models/gemini-3-flash-lite",
+    "clinical": "models/gemini-3-flash-lite",
+    "osce": "models/gemini-3-flash-lite",
     "image": "models/nano-banana-pro-preview"
   },
   "openai": {
