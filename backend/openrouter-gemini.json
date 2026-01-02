@@ -1,0 +1,17 @@
+[
+  {
+    "id": "google/gemini-3-flash-preview",
+    "context_length": 1048576,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "google/gemini-3-pro-image-preview",
+    "context_length": 65536,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "google/gemini-3-pro-preview",
+    "context_length": 1048576,
+    "max_completion_tokens": null
+  }
+]

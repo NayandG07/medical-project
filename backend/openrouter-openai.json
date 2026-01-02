@@ -1,0 +1,82 @@
+[
+  {
+    "id": "openai/gpt-5.2-chat",
+    "context_length": 128000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5.2-pro",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5.2",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5.1-codex-max",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5.1",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5.1-chat",
+    "context_length": 128000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5.1-codex",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5.1-codex-mini",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5-image-mini",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5-image",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5-pro",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5-codex",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5-chat",
+    "context_length": 128000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5-mini",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  },
+  {
+    "id": "openai/gpt-5-nano",
+    "context_length": 400000,
+    "max_completion_tokens": null
+  }
+]

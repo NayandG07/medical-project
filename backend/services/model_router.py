@@ -45,36 +45,40 @@ class ModelRouterService:
     
     async def select_provider(self, feature: str) -> str:
         """
-        Select the best provider for a given feature
+        Select the best provider for a given feature based on available keys
         
-        Currently returns a default provider based on feature type.
-        Future implementations will consider health status and availability.
+        Checks which providers have active keys and selects the first available one.
         
         Args:
             feature: Feature name (chat, flashcard, mcq, image, etc.)
             
         Returns:
-            Provider name (gemini, openai, ollama, etc.)
+            Provider name (gemini, openai, anthropic, etc.)
             
         Requirements: 21.1
         """
-        # Default provider mapping by feature
-        # This is a simple implementation; future versions will check health status
-        provider_map = {
-            "chat": "gemini",
-            "flashcard": "gemini",
-            "mcq": "gemini",
-            "highyield": "gemini",
-            "explain": "gemini",
-            "map": "gemini",
-            "image": "gemini",  # Gemini supports image analysis
-            "clinical": "gemini",
-            "osce": "gemini"
-        }
-        
-        provider = provider_map.get(feature, "gemini")
-        logger.info(f"Selected provider '{provider}' for feature '{feature}'")
-        return provider
+        try:
+            # Query for active keys for this feature
+            response = self.supabase.table("api_keys") \
+                .select("provider") \
+                .eq("feature", feature) \
+                .eq("status", "active") \
+                .order("priority", desc=True) \
+                .limit(1) \
+                .execute()
+            
+            if response.data and len(response.data) > 0:
+                provider = response.data[0]["provider"]
+                logger.info(f"Selected provider '{provider}' for feature '{feature}' (has active keys)")
+                return provider
+            
+            # Fallback to default if no keys found
+            logger.warning(f"No active keys found for feature '{feature}', using default 'openai'")
+            return "openai"
+            
+        except Exception as e:
+            logger.error(f"Error selecting provider: {str(e)}, using default 'openai'")
+            return "openai"
     
     async def get_active_key(self, provider: str, feature: str) -> Optional[Dict[str, Any]]:
         """
@@ -364,44 +368,39 @@ class ModelRouterService:
             logger.info(f"Attempt 1/{max_retries}: Trying user's personal API key")
             
             try:
-                # Import provider module dynamically based on provider name
-                if provider == "gemini":
-                    from services.providers.gemini import get_gemini_provider
-                    provider_instance = get_gemini_provider()
+                # Use OpenRouter for all providers
+                from services.providers.openrouter import get_openrouter_provider
+                provider_instance = get_openrouter_provider()
+                
+                # Call OpenRouter with user's key
+                result = await provider_instance.call_openrouter(
+                    api_key=user_key,
+                    provider=provider,
+                    feature=feature,
+                    prompt=prompt,
+                    system_prompt=system_prompt
+                )
+                
+                if result["success"]:
+                    logger.info(
+                        f"Request succeeded with user's personal API key. "
+                        f"Tokens used: {result['tokens_used']}"
+                    )
+                        
+                    # Add metadata to result
+                    result["key_id"] = f"user_{user_id}"
+                    result["attempts"] = 1
+                    result["used_user_key"] = True
                     
-                    # Call the provider with user's key
-                    result = await provider_instance.call_gemini(
-                        api_key=user_key,
-                        prompt=prompt,
-                        system_prompt=system_prompt,
-                        feature=feature
+                    return result
+                else:
+                    # User's key failed, log and fall back to shared keys (Requirement 27.7)
+                    error_msg = result.get("error", "Unknown error")
+                    logger.warning(
+                        f"User's personal API key failed: {error_msg}. "
+                        f"Falling back to shared keys."
                     )
                     
-                    if result["success"]:
-                        logger.info(
-                            f"Request succeeded with user's personal API key. "
-                            f"Tokens used: {result['tokens_used']}"
-                        )
-                        
-                        # Add metadata to result
-                        result["key_id"] = f"user_{user_id}"
-                        result["attempts"] = 1
-                        result["used_user_key"] = True
-                        
-                        return result
-                    else:
-                        # User's key failed, log and fall back to shared keys (Requirement 27.7)
-                        error_msg = result.get("error", "Unknown error")
-                        logger.warning(
-                            f"User's personal API key failed: {error_msg}. "
-                            f"Falling back to shared keys."
-                        )
-                        
-                        # Continue to shared keys below
-                        
-                else:
-                    # Provider not yet implemented
-                    logger.error(f"Provider '{provider}' not yet implemented")
                     # Continue to shared keys below
                     
             except Exception as e:
@@ -447,107 +446,97 @@ class ModelRouterService:
             )
             
             try:
-                # Import provider module dynamically based on provider name
-                if provider == "gemini":
-                    from services.providers.gemini import get_gemini_provider
-                    provider_instance = get_gemini_provider()
-                    
-                    # Call the provider
-                    result = await provider_instance.call_gemini(
-                        api_key=api_key,
-                        prompt=prompt,
-                        system_prompt=system_prompt,
-                        feature=feature
+                # Use OpenRouter for all providers
+                from services.providers.openrouter import get_openrouter_provider
+                provider_instance = get_openrouter_provider()
+                
+                # Call OpenRouter
+                result = await provider_instance.call_openrouter(
+                    api_key=api_key,
+                    provider=provider,
+                    feature=feature,
+                    prompt=prompt,
+                    system_prompt=system_prompt
+                )
+                
+                if result["success"]:
+                    logger.info(
+                        f"Request succeeded with key {key_id} on attempt {actual_attempt}. "
+                        f"Tokens used: {result['tokens_used']}"
                     )
                     
-                    if result["success"]:
-                        logger.info(
-                            f"Request succeeded with key {key_id} on attempt {actual_attempt}. "
-                            f"Tokens used: {result['tokens_used']}"
+                    # If we had to fallback (attempt > 0 or user_key was tried), send notification (Requirement 18.2)
+                    if attempt > 0 or user_key:
+                        try:
+                            notification_service = get_notification_service()
+                            # If user key was tried, it was the first attempt that failed
+                            if user_key and attempt == 0:
+                                from_key_id = f"user_{user_id}"
+                            else:
+                                from_key_id = keys[0]["id"] if attempt > 0 else f"user_{user_id}"
+                            
+                            await notification_service.notify_fallback(
+                                from_key_id=from_key_id,
+                                to_key_id=key_id,
+                                provider=provider,
+                                feature=feature
+                            )
+                        except Exception as notif_error:
+                            logger.warning(f"Failed to send fallback notification: {str(notif_error)}")
+                    
+                    # Add metadata to result
+                    result["key_id"] = key_id
+                    result["attempts"] = actual_attempt
+                    result["used_user_key"] = False
+                    
+                    return result
+                else:
+                    # Provider call failed, record failure and try next key
+                    error_msg = result.get("error", "Unknown error")
+                    logger.warning(
+                        f"Key {key_id} failed on attempt {actual_attempt}: {error_msg}"
+                    )
+                    
+                    # Record the failure
+                    await self.record_failure(key_id, error_msg)
+                    
+                    # If this was the last attempt, trigger maintenance and return the error
+                    if attempt == max_attempts - 1:
+                        # All keys failed - trigger maintenance mode (Requirement 12.1)
+                        logger.error(
+                            f"All keys failed for provider '{provider}', feature '{feature}'. "
+                            f"Triggering maintenance mode."
                         )
                         
-                        # If we had to fallback (attempt > 0 or user_key was tried), send notification (Requirement 18.2)
-                        if attempt > 0 or user_key:
-                            try:
-                                notification_service = get_notification_service()
-                                # If user key was tried, it was the first attempt that failed
-                                if user_key and attempt == 0:
-                                    from_key_id = f"user_{user_id}"
-                                else:
-                                    from_key_id = keys[0]["id"] if attempt > 0 else f"user_{user_id}"
-                                
-                                await notification_service.notify_fallback(
-                                    from_key_id=from_key_id,
-                                    to_key_id=key_id,
-                                    provider=provider,
-                                    feature=feature
-                                )
-                            except Exception as notif_error:
-                                logger.warning(f"Failed to send fallback notification: {str(notif_error)}")
+                        # Import maintenance service
+                        from services.maintenance import get_maintenance_service
                         
-                        # Add metadata to result
-                        result["key_id"] = key_id
-                        result["attempts"] = actual_attempt
-                        result["used_user_key"] = False
-                        
-                        return result
-                    else:
-                        # Provider call failed, record failure and try next key
-                        error_msg = result.get("error", "Unknown error")
-                        logger.warning(
-                            f"Key {key_id} failed on attempt {actual_attempt}: {error_msg}"
-                        )
-                        
-                        # Record the failure
-                        await self.record_failure(key_id, error_msg)
-                        
-                        # If this was the last attempt, trigger maintenance and return the error
-                        if attempt == max_attempts - 1:
-                            # All keys failed - trigger maintenance mode (Requirement 12.1)
-                            logger.error(
-                                f"All keys failed for provider '{provider}', feature '{feature}'. "
-                                f"Triggering maintenance mode."
+                        try:
+                            maintenance_service = get_maintenance_service(self.supabase)
+                            
+                            # Evaluate if maintenance should be triggered
+                            maintenance_level = await maintenance_service.evaluate_maintenance_trigger(
+                                feature=feature,
+                                failures=actual_attempt
                             )
                             
-                            # Import maintenance service
-                            from services.maintenance import get_maintenance_service
-                            
-                            try:
-                                maintenance_service = get_maintenance_service(self.supabase)
-                                
-                                # Evaluate if maintenance should be triggered
-                                maintenance_level = await maintenance_service.evaluate_maintenance_trigger(
-                                    feature=feature,
-                                    failures=actual_attempt
+                            if maintenance_level:
+                                # Enter maintenance mode
+                                await maintenance_service.enter_maintenance(
+                                    level=maintenance_level,
+                                    reason=f"All API keys failed for {provider}/{feature}",
+                                    feature=feature
                                 )
-                                
-                                if maintenance_level:
-                                    # Enter maintenance mode
-                                    await maintenance_service.enter_maintenance(
-                                        level=maintenance_level,
-                                        reason=f"All API keys failed for {provider}/{feature}",
-                                        feature=feature
-                                    )
-                                    logger.info(f"Entered {maintenance_level} maintenance mode for {feature}")
-                            except Exception as maint_error:
-                                logger.error(f"Failed to trigger maintenance mode: {str(maint_error)}")
-                            
-                            result["attempts"] = actual_attempt
-                            result["used_user_key"] = False
-                            return result
+                                logger.info(f"Entered {maintenance_level} maintenance mode for {feature}")
+                        except Exception as maint_error:
+                            logger.error(f"Failed to trigger maintenance mode: {str(maint_error)}")
                         
-                        # Otherwise, continue to next key
-                        continue
-                else:
-                    # Provider not yet implemented
-                    logger.error(f"Provider '{provider}' not yet implemented")
-                    return {
-                        "success": False,
-                        "error": f"Provider '{provider}' not yet implemented",
-                        "tokens_used": 0,
-                        "attempts": actual_attempt,
-                        "used_user_key": False
-                    }
+                        result["attempts"] = actual_attempt
+                        result["used_user_key"] = False
+                        return result
+                    
+                    # Otherwise, continue to next key
+                    continue
                     
             except Exception as e:
                 error_msg = f"Unexpected error: {str(e)}"
