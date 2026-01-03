@@ -1,0 +1,16 @@
+.container {
+  display: flex;
+  min-height: calc(100vh - 70px);
+  background: #f8f9fa;
+}
+
+.main {
+  flex: 1;
+  overflow-y: auto;
+}
+
+@media (max-width: 968px) {
+  .container {
+    flex-direction: column;
+  }
+}

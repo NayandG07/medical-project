@@ -9,7 +9,7 @@ interface ChatInputProps {
 export default function ChatInput({ 
   onSendMessage, 
   disabled = false,
-  placeholder = 'Type your message or use /flashcard, /mcq, /explain...'
+  placeholder = 'Type your message...'
 }: ChatInputProps) {
   const [message, setMessage] = useState('')
 

@@ -61,7 +61,7 @@ export default function Dashboard() {
       title: 'Flashcards',
       description: 'Generate flashcards for any medical topic',
       icon: '🎴',
-      link: '/flashcards',
+      link: '/study-tools/flashcards',
       color: '#f093fb'
     },
     {
@@ -82,7 +82,7 @@ export default function Dashboard() {
       title: 'Concept Maps',
       description: 'Visualize relationships between medical concepts',
       icon: '🗺️',
-      link: '/study-tools?tool=conceptmap',
+      link: '/study-tools/conceptmap',
       color: '#fa709a'
     },
     {
@@ -176,7 +176,7 @@ export default function Dashboard() {
         <div className={styles.quickTips}>
           <h3>💡 Quick Tips</h3>
           <ul>
-            <li>Use slash commands in chat: <code>/flashcard anatomy</code>, <code>/mcq cardiology</code></li>
+            <li>Use study tools to generate flashcards, MCQs, and concept maps</li>
             <li>Upload your lecture PDFs to get personalized answers</li>
             <li>Practice clinical cases to improve diagnostic thinking</li>
             <li>Plan your study sessions for better time management</li>

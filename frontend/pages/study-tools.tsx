@@ -3,6 +3,8 @@ import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { supabase } from '@/lib/supabase'
 import Layout from '@/components/Layout'
+import ClinicalMapViewer, { parseClinicalMapData } from '@/components/ClinicalMapViewer'
+import { parseMarkdown } from '@/lib/markdown'
 import styles from '@/styles/StudyTools.module.css'
 
 type ToolType = 'flashcards' | 'mcq' | 'highyield' | 'explain' | 'conceptmap'
@@ -52,57 +54,47 @@ export default function StudyTools() {
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
 
-      // Create a chat session for this request
-      const sessionResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat/sessions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ title: `${selectedTool} - ${topic}` })
-      })
-
-      if (!sessionResponse.ok) {
-        throw new Error('Failed to create session')
-      }
-
-      const sessionData = await sessionResponse.json()
-
-      // Send command message
-      const commandMap: Record<ToolType, string> = {
-        flashcards: '/flashcard',
-        mcq: '/mcq',
-        highyield: '/highyield',
-        explain: '/explain',
-        conceptmap: '/map'
-      }
-
-      const command = `${commandMap[selectedTool]} ${topic}`
-
-      const messageResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/chat/sessions/${sessionData.id}/messages`,
+      // Call the appropriate study tool endpoint directly
+      const endpoint = getToolEndpoint(selectedTool)
+      
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/study-tools/${endpoint}`,
         {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ message: command })
+          body: JSON.stringify({ 
+            topic: topic,
+            format: 'interactive'  // Request interactive format
+          })
         }
       )
 
-      if (!messageResponse.ok) {
-        const errorData = await messageResponse.json()
+      if (!response.ok) {
+        const errorData = await response.json()
         throw new Error(errorData.detail?.error?.message || 'Failed to generate content')
       }
 
-      const messageData = await messageResponse.json()
-      setResult(messageData)
+      const data = await response.json()
+      setResult(data)
     } catch (err: any) {
       setError(err.message || 'Failed to generate content')
     } finally {
       setGenerating(false)
     }
+  }
+
+  const getToolEndpoint = (tool: ToolType): string => {
+    const endpointMap: Record<ToolType, string> = {
+      flashcards: 'flashcards',
+      mcq: 'mcq',
+      highyield: 'highyield',
+      explain: 'explain',
+      conceptmap: 'conceptmap'
+    }
+    return endpointMap[tool]
   }
 
   const tools = [
@@ -186,7 +178,20 @@ export default function StudyTools() {
               </button>
             </div>
             <div className={styles.resultContent}>
-              {result.content}
+              {selectedTool === 'conceptmap' ? (
+                (() => {
+                  const { nodes, connections } = parseClinicalMapData(result.content)
+                  return (
+                    <ClinicalMapViewer
+                      title={topic}
+                      nodes={nodes}
+                      connections={connections}
+                    />
+                  )
+                })()
+              ) : (
+                <div dangerouslySetInnerHTML={{ __html: parseMarkdown(result.content) }} />
+              )}
             </div>
             {result.citations && (
               <div className={styles.citations}>

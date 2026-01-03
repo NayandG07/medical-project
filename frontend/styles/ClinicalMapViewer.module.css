@@ -1,0 +1,107 @@
+.container {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header {
+  margin-bottom: 20px;
+}
+
+.header h3 {
+  margin: 0 0 15px 0;
+  color: #212529;
+  font-size: 20px;
+}
+
+.legend {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.legendColor {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  min-height: 500px;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  background: #f8f9fa;
+}
+
+.connections line {
+  transition: all 0.3s ease;
+}
+
+.connectionLabel {
+  pointer-events: none;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.nodes g {
+  transition: all 0.3s ease;
+}
+
+.nodeCircle {
+  transition: all 0.3s ease;
+}
+
+.nodeCircle:hover {
+  transform: scale(1.1);
+}
+
+.nodeText {
+  pointer-events: none;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.nodeDetails {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.nodeDetails h4 {
+  margin: 0 0 8px 0;
+  color: #212529;
+  font-size: 16px;
+}
+
+.nodeType {
+  margin: 0 0 12px 0;
+  color: #6c757d;
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+.closeBtn {
+  padding: 6px 12px;
+  font-size: 13px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.closeBtn:hover {
+  background: #5568d3;
+}

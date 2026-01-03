@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { parseMarkdown } from '@/lib/markdown'
 
 export interface Message {
   id: string
@@ -108,13 +109,13 @@ export default function ChatWindow({ messages, loading, error }: ChatWindowProps
             }}>
               {getSenderLabel(message.role)}
             </div>
-            <div style={{
-              fontSize: '15px',
-              lineHeight: '1.5',
-              whiteSpace: 'pre-wrap'
-            }}>
-              {message.content}
-            </div>
+            <div 
+              style={{
+                fontSize: '15px',
+                lineHeight: '1.5'
+              }}
+              dangerouslySetInnerHTML={{ __html: parseMarkdown(message.content) }}
+            />
             {message.citations && (
               <div style={{
                 marginTop: '8px',

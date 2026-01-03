@@ -70,7 +70,7 @@ export default function Layout({ children }: LayoutProps) {
             <Link href="/chat" className={isActive('/chat') ? styles.active : ''}>
               AI Chat
             </Link>
-            <Link href="/study-tools" className={isActive('/study-tools') ? styles.active : ''}>
+            <Link href="/study-tools/flashcards" className={isActive('/study-tools') ? styles.active : ''}>
               Study Tools
             </Link>
             <Link href="/documents" className={isActive('/documents') ? styles.active : ''}>

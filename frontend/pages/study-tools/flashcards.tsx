@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { supabase } from '@/lib/supabase'
-import Layout from '@/components/Layout'
+import StudyToolsLayout from '@/components/StudyToolsLayout'
 import FlashcardViewer from '@/components/FlashcardViewer'
-import styles from '@/styles/StudyTools.module.css'
+import styles from '@/styles/StudyToolPage.module.css'
 
 interface Session {
   id: string
@@ -25,7 +25,7 @@ interface Material {
   created_at: string
 }
 
-export default function Flashcards() {
+export default function FlashcardsPage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -102,7 +102,6 @@ export default function Flashcards() {
 
       if (response.ok) {
         const data = await response.json()
-        // Parse flashcards for each material
         const materialsWithFlashcards = data.map((material: any) => ({
           ...material,
           flashcards: parseFlashcardsFromContent(material.content)
@@ -112,6 +111,32 @@ export default function Flashcards() {
     } catch (err) {
       console.error('Failed to load materials:', err)
     }
+  }
+
+  const parseFlashcardsFromContent = (content: string): Flashcard[] => {
+    const cards: Flashcard[] = []
+    
+    const qaMatches = content.matchAll(/(?:Q:|Question:)\s*(.+?)\s*(?:A:|Answer:)\s*(.+?)(?=(?:Q:|Question:)|$)/gis)
+    for (const match of qaMatches) {
+      cards.push({
+        front: match[1].trim(),
+        back: match[2].trim()
+      })
+    }
+    
+    if (cards.length === 0) {
+      const sections = content.split('\n\n').filter(s => s.trim())
+      for (let i = 0; i < sections.length - 1; i += 2) {
+        if (sections[i] && sections[i + 1]) {
+          cards.push({
+            front: sections[i].trim(),
+            back: sections[i + 1].trim()
+          })
+        }
+      }
+    }
+    
+    return cards
   }
 
   const handleGenerate = async () => {
@@ -138,7 +163,7 @@ export default function Flashcards() {
           body: JSON.stringify({
             topic: topic,
             session_id: currentSession,
-            interactive: true  // Request interactive format
+            format: 'interactive'
           })
         }
       )
@@ -150,10 +175,6 @@ export default function Flashcards() {
 
       const data = await response.json()
       
-      // Parse flashcards from response
-      const flashcards = parseFlashcardsFromContent(data.content)
-      
-      // Reload sessions and materials
       await loadSessions()
       if (data.session_id) {
         setCurrentSession(data.session_id)
@@ -166,35 +187,6 @@ export default function Flashcards() {
     } finally {
       setGenerating(false)
     }
-  }
-
-  const parseFlashcardsFromContent = (content: string): Flashcard[] => {
-    // Parse flashcards from various formats
-    const cards: Flashcard[] = []
-    
-    // Try to parse Q&A format
-    const qaMatches = content.matchAll(/(?:Q:|Question:)\s*(.+?)\s*(?:A:|Answer:)\s*(.+?)(?=(?:Q:|Question:)|$)/gis)
-    for (const match of qaMatches) {
-      cards.push({
-        front: match[1].trim(),
-        back: match[2].trim()
-      })
-    }
-    
-    // If no Q&A format found, try to split by double newlines
-    if (cards.length === 0) {
-      const sections = content.split('\n\n').filter(s => s.trim())
-      for (let i = 0; i < sections.length - 1; i += 2) {
-        if (sections[i] && sections[i + 1]) {
-          cards.push({
-            front: sections[i].trim(),
-            back: sections[i + 1].trim()
-          })
-        }
-      }
-    }
-    
-    return cards
   }
 
   const handleStudyMaterial = (material: Material) => {
@@ -231,14 +223,14 @@ export default function Flashcards() {
 
   if (loading) {
     return (
-      <Layout>
+      <StudyToolsLayout>
         <div className={styles.loading}>Loading...</div>
-      </Layout>
+      </StudyToolsLayout>
     )
   }
 
   return (
-    <Layout>
+    <StudyToolsLayout>
       <Head>
         <title>Flashcards - VaidyaAI</title>
       </Head>
@@ -246,12 +238,14 @@ export default function Flashcards() {
       <div className={styles.container}>
         <div className={styles.header}>
           <h1>🎴 Flashcards</h1>
-          <p>Generate spaced repetition cards for any medical topic</p>
+          <p>Generate interactive spaced repetition cards for any medical topic</p>
         </div>
 
-        <div className={styles.twoColumn}>
-          <div className={styles.sidebar}>
-            <h3>Sessions</h3>
+        <div className={styles.content}>
+          <div className={styles.sessionSidebar}>
+            <div className={styles.sidebarHeader}>
+              <h3>Sessions</h3>
+            </div>
             <div className={styles.sessionList}>
               {sessions.map((session) => (
                 <div
@@ -280,69 +274,50 @@ export default function Flashcards() {
             </div>
           </div>
 
-          <div className={styles.mainContent}>
-            <div className={styles.inputSection}>
-              <input
-                type="text"
-                placeholder="Enter a medical topic (e.g., 'cardiac cycle')"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
-                className={styles.topicInput}
-              />
-              <button
-                onClick={handleGenerate}
-                disabled={generating}
-                className={styles.generateBtn}
-              >
-                {generating ? 'Generating...' : 'Generate'}
-              </button>
-            </div>
-
-            {error && (
-              <div className={styles.error}>
-                ⚠️ {error}
-              </div>
-            )}
-
-            <div className={styles.materialsContainer}>
-              {viewMode === 'study' && currentMaterial ? (
-                <div>
-                  <button
-                    onClick={() => {
-                      setViewMode('list')
-                      setCurrentMaterial(null)
-                    }}
-                    className={styles.backBtn}
-                  >
-                    ← Back to List
-                  </button>
-                  <FlashcardViewer
-                    cards={currentMaterial.flashcards}
-                    onComplete={() => {
-                      setViewMode('list')
-                      setCurrentMaterial(null)
-                    }}
+          <div className={styles.mainArea}>
+            {viewMode === 'list' && (
+              <>
+                <div className={styles.inputSection}>
+                  <input
+                    type="text"
+                    placeholder="Enter a medical topic (e.g., 'cardiac cycle')"
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
+                    className={styles.topicInput}
                   />
+                  <button
+                    onClick={handleGenerate}
+                    disabled={generating}
+                    className={styles.generateBtn}
+                  >
+                    {generating ? 'Generating...' : 'Generate Flashcards'}
+                  </button>
                 </div>
-              ) : (
-                <>
+
+                {error && (
+                  <div className={styles.error}>
+                    ⚠️ {error}
+                  </div>
+                )}
+
+                <div className={styles.materialsGrid}>
                   {materials.map((material) => (
                     <div key={material.id} className={styles.materialCard}>
-                      <div className={styles.materialHeader}>
+                      <div className={styles.cardHeader}>
                         <h3>{material.topic}</h3>
-                        <span className={styles.materialDate}>
-                          {new Date(material.created_at).toLocaleString()}
+                        <span className={styles.cardDate}>
+                          {new Date(material.created_at).toLocaleDateString()}
                         </span>
                       </div>
-                      <div className={styles.materialMeta}>
+                      <div className={styles.cardMeta}>
                         {material.flashcards?.length || 0} cards
                       </div>
                       <button
                         onClick={() => handleStudyMaterial(material)}
                         className={styles.studyBtn}
                       >
-                        Study Now
+                        Study Now →
                       </button>
                     </div>
                   ))}
@@ -353,12 +328,33 @@ export default function Flashcards() {
                       <p>Enter a topic above and click Generate</p>
                     </div>
                   )}
-                </>
-              )}
-            </div>
+                </div>
+              </>
+            )}
+
+            {viewMode === 'study' && currentMaterial && (
+              <div className={styles.studyView}>
+                <button
+                  onClick={() => {
+                    setViewMode('list')
+                    setCurrentMaterial(null)
+                  }}
+                  className={styles.backBtn}
+                >
+                  ← Back to List
+                </button>
+                <FlashcardViewer
+                  cards={currentMaterial.flashcards}
+                  onComplete={() => {
+                    setViewMode('list')
+                    setCurrentMaterial(null)
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
-    </Layout>
+    </StudyToolsLayout>
   )
 }
