@@ -1,9 +1,9 @@
 {
   "openrouter": {
-    "chat": "openai/gpt-5.2-chat",
+    "chat": "openai/gpt-5.2",
     "flashcard": "openai/gpt-5.2",
-    "mcq": "openai/gpt-5.2-chat",
-    "highyield": "openai/gpt-5.2-chat",
+    "mcq": "openai/gpt-5.2",
+    "highyield": "openai/gpt-5.2",
     "explain": "openai/gpt-5.2",
     "map": "openai/gpt-5.2",
     "clinical": "openai/gpt-5.2-pro",

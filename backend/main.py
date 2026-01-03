@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
+from contextlib import asynccontextmanager
 import os
 import logging
 import time
@@ -32,11 +33,49 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Background task control
+_health_check_task: Optional[asyncio.Task] = None
+_health_check_running = False
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    FastAPI lifespan event handler
+    Manages startup and shutdown of background tasks
+    
+    Requirements: 11.1
+    """
+    global _health_check_task
+    
+    # Startup
+    logger.info("Application starting up...")
+    _health_check_task = asyncio.create_task(periodic_health_check())
+    logger.info("Periodic health check task started")
+    
+    yield
+    
+    # Shutdown
+    global _health_check_running
+    logger.info("Application shutting down...")
+    
+    if _health_check_task:
+        _health_check_running = False
+        _health_check_task.cancel()
+        try:
+            await _health_check_task
+        except asyncio.CancelledError:
+            logger.info("Health check task cancelled")
+    
+    logger.info("Application shutdown complete")
+
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Medical AI Platform API",
     description="Production-grade AI medical education platform",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Configure CORS for Next.js frontend (Requirement 20.7)
@@ -47,11 +86,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# Background task control
-_health_check_task: Optional[asyncio.Task] = None
-_health_check_running = False
 
 
 async def periodic_health_check():
@@ -143,45 +177,6 @@ async def periodic_health_check():
         
         # Wait 5 minutes before next check
         await asyncio.sleep(300)  # 300 seconds = 5 minutes
-
-
-@app.on_event("startup")
-async def startup_event():
-    """
-    FastAPI startup event handler
-    Starts background tasks including periodic health checks
-    
-    Requirements: 11.1
-    """
-    global _health_check_task
-    
-    logger.info("Application starting up...")
-    
-    # Start periodic health check background task
-    _health_check_task = asyncio.create_task(periodic_health_check())
-    logger.info("Periodic health check task started")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """
-    FastAPI shutdown event handler
-    Stops background tasks gracefully
-    """
-    global _health_check_task, _health_check_running
-    
-    logger.info("Application shutting down...")
-    
-    # Stop health check task
-    if _health_check_task:
-        _health_check_running = False
-        _health_check_task.cancel()
-        try:
-            await _health_check_task
-        except asyncio.CancelledError:
-            logger.info("Health check task cancelled")
-    
-    logger.info("Application shutdown complete")
 
 
 # Request logging middleware (Requirement 20.6)
