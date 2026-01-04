@@ -292,7 +292,8 @@ class AdminService:
         provider: str,
         feature: str,
         key: str,
-        priority: int = 0
+        priority: int = 0,
+        status: str = "active"
     ) -> Dict[str, Any]:
         """
         Add a new API key with encryption and audit logging
@@ -303,6 +304,7 @@ class AdminService:
             feature: Feature name (e.g., 'chat', 'flashcard')
             key: Plaintext API key to encrypt and store
             priority: Priority level (higher = preferred, default 0)
+            status: Initial status (active, degraded, disabled, default 'active')
             
         Returns:
             Created API key data (with encrypted key)
@@ -313,6 +315,11 @@ class AdminService:
         Requirements: 14.2
         """
         try:
+            # Validate status
+            valid_statuses = ['active', 'degraded', 'disabled']
+            if status not in valid_statuses:
+                raise Exception(f"Invalid status: {status}. Must be one of {valid_statuses}")
+            
             # Encrypt the API key
             encrypted_key = self.encryption_service.encrypt_key(key)
             
@@ -322,7 +329,7 @@ class AdminService:
                 "feature": feature,
                 "key_value": encrypted_key,
                 "priority": priority,
-                "status": "active",
+                "status": status,
                 "failure_count": 0,
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
@@ -346,7 +353,8 @@ class AdminService:
                 details={
                     "provider": provider,
                     "feature": feature,
-                    "priority": priority
+                    "priority": priority,
+                    "status": status
                 }
             )
             
@@ -381,15 +389,17 @@ class AdminService:
         self,
         admin_id: str,
         key_id: str,
-        status: str
+        status: str,
+        priority: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Update an API key's status with audit logging
+        Update an API key's status and/or priority with audit logging
         
         Args:
             admin_id: ID of the admin performing the action
             key_id: ID of the API key to update
             status: New status (active, degraded, disabled)
+            priority: Optional new priority level
             
         Returns:
             Updated API key data
@@ -407,7 +417,7 @@ class AdminService:
             
             # Get current status for audit log
             key_response = self.supabase.table("api_keys")\
-                .select("status, provider, feature")\
+                .select("status, priority, provider, feature")\
                 .eq("id", key_id)\
                 .execute()
             
@@ -415,20 +425,40 @@ class AdminService:
                 raise Exception("API key not found")
             
             old_status = key_response.data[0]["status"]
+            old_priority = key_response.data[0]["priority"]
             provider = key_response.data[0]["provider"]
             feature = key_response.data[0]["feature"]
             
-            # Update key status
+            # Build update data
+            update_data = {
+                "status": status,
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            
+            # Add priority if provided
+            if priority is not None:
+                update_data["priority"] = priority
+            
+            # Update key status and/or priority
             update_response = self.supabase.table("api_keys")\
-                .update({
-                    "status": status,
-                    "updated_at": datetime.utcnow().isoformat()
-                })\
+                .update(update_data)\
                 .eq("id", key_id)\
                 .execute()
             
             if not update_response.data or len(update_response.data) == 0:
-                raise Exception("Failed to update API key status")
+                raise Exception("Failed to update API key")
+            
+            # Build audit details
+            audit_details = {
+                "provider": provider,
+                "feature": feature,
+                "old_status": old_status,
+                "new_status": status
+            }
+            
+            if priority is not None:
+                audit_details["old_priority"] = old_priority
+                audit_details["new_priority"] = priority
             
             # Log admin action
             await self.audit_service.log_admin_action(
@@ -436,17 +466,12 @@ class AdminService:
                 action_type="update_key_status",
                 target_type="api_key",
                 target_id=key_id,
-                details={
-                    "provider": provider,
-                    "feature": feature,
-                    "old_status": old_status,
-                    "new_status": status
-                }
+                details=audit_details
             )
             
             return update_response.data[0]
         except Exception as e:
-            raise Exception(f"Failed to update API key status: {str(e)}")
+            raise Exception(f"Failed to update API key: {str(e)}")
     
     async def delete_api_key(
         self,

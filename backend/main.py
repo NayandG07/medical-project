@@ -992,11 +992,13 @@ class AddApiKeyRequest(BaseModel):
     feature: str
     key: str
     priority: int = 0
+    status: str = "active"
 
 
 class UpdateKeyStatusRequest(BaseModel):
     """Request model for updating API key status"""
     status: str
+    priority: Optional[int] = None
 
 
 class TestApiKeyRequest(BaseModel):
@@ -1403,7 +1405,8 @@ async def admin_add_api_key(
             provider=request.provider,
             feature=request.feature,
             key=request.key,
-            priority=request.priority
+            priority=request.priority,
+            status=request.status
         )
         
         return created_key
@@ -1454,7 +1457,8 @@ async def admin_update_api_key_status(
         updated_key = await admin_service.update_key_status(
             admin_id=admin_id,
             key_id=key_id,
-            status=request.status
+            status=request.status,
+            priority=request.priority
         )
         
         return updated_key

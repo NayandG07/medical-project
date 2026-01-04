@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 interface AddApiKeyFormProps {
   onClose: () => void
-  onSubmit: (provider: string, feature: string, key: string, priority: number) => Promise<void>
+  onSubmit: (provider: string, feature: string, key: string, priority: number, status: string) => Promise<void>
 }
 
 /**
@@ -15,6 +15,7 @@ export default function AddApiKeyForm({ onClose, onSubmit }: AddApiKeyFormProps)
   const [feature, setFeature] = useState('chat')
   const [key, setKey] = useState('')
   const [priority, setPriority] = useState(0)
+  const [status, setStatus] = useState('active')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -55,7 +56,7 @@ export default function AddApiKeyForm({ onClose, onSubmit }: AddApiKeyFormProps)
     setError(null)
 
     try {
-      await onSubmit(provider, feature, key.trim(), priority)
+      await onSubmit(provider, feature, key.trim(), priority, status)
       // Form will be closed by parent on success
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add API key')
@@ -131,8 +132,9 @@ export default function AddApiKeyForm({ onClose, onSubmit }: AddApiKeyFormProps)
             >
               <option value="gemini">Gemini</option>
               <option value="openai">OpenAI</option>
-              <option value="ollama">Ollama</option>
               <option value="anthropic">Anthropic</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="ollama">Ollama</option>
             </select>
           </div>
 
@@ -164,6 +166,11 @@ export default function AddApiKeyForm({ onClose, onSubmit }: AddApiKeyFormProps)
               <option value="mcq">MCQ</option>
               <option value="image">Image</option>
               <option value="embedding">Embedding</option>
+              <option value="highyield">High Yield</option>
+              <option value="explain">Explain</option>
+              <option value="map">Map</option>
+              <option value="clinical">Clinical</option>
+              <option value="osce">OSCE</option>
             </select>
           </div>
 
@@ -236,6 +243,43 @@ export default function AddApiKeyForm({ onClose, onSubmit }: AddApiKeyFormProps)
               marginBottom: 0
             }}>
               Higher priority keys are used first (0 = lowest, 100 = highest)
+            </p>
+          </div>
+
+          {/* Status Selection */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              fontWeight: 'bold',
+              fontSize: '14px'
+            }}>
+              Initial Status *
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              disabled={submitting}
+              required
+              style={{
+                width: '100%',
+                padding: '10px',
+                borderRadius: '4px',
+                border: '1px solid #ced4da',
+                fontSize: '14px'
+              }}
+            >
+              <option value="active">Active</option>
+              <option value="degraded">Degraded</option>
+              <option value="disabled">Disabled</option>
+            </select>
+            <p style={{
+              fontSize: '12px',
+              color: '#6c757d',
+              marginTop: '5px',
+              marginBottom: 0
+            }}>
+              Set the initial status for this API key
             </p>
           </div>
 

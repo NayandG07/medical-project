@@ -112,7 +112,7 @@ export default function ApiKeysPage() {
     }
   }
 
-  const handleAddKey = async (provider: string, feature: string, key: string, priority: number) => {
+  const handleAddKey = async (provider: string, feature: string, key: string, priority: number, status: string) => {
     try {
       const authToken = await getAuthToken()
       if (!authToken) {
@@ -125,7 +125,7 @@ export default function ApiKeysPage() {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ provider, feature, key, priority })
+        body: JSON.stringify({ provider, feature, key, priority, status })
       })
 
       if (!response.ok) {
@@ -314,6 +314,8 @@ export default function ApiKeysPage() {
                 <option value="">All Providers</option>
                 <option value="gemini">Gemini</option>
                 <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="openrouter">OpenRouter</option>
                 <option value="ollama">Ollama</option>
               </select>
             </div>
