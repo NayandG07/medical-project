@@ -69,6 +69,57 @@ class HealthMonitorService:
                     "quota_remaining": None
                 }
             
+            elif provider == "openrouter":
+                # OpenRouter health check
+                from services.providers.openrouter import get_openrouter_provider
+                
+                # Minimal test prompt
+                test_prompt = "Test"
+                openrouter = get_openrouter_provider()
+                
+                # Use a simple model for health check
+                response = await openrouter.call_openrouter(
+                    api_key=key,
+                    model="anthropic/claude-sonnet-4.5",
+                    prompt=test_prompt,
+                    system_prompt="You are a helpful assistant.",
+                    max_tokens=10
+                )
+                
+                # Calculate response time
+                response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+                
+                return {
+                    "status": "healthy",
+                    "response_time_ms": response_time_ms,
+                    "error_message": None,
+                    "quota_remaining": None
+                }
+            
+            elif provider == "anthropic":
+                # Anthropic uses OpenRouter
+                from services.providers.openrouter import get_openrouter_provider
+                
+                test_prompt = "Test"
+                openrouter = get_openrouter_provider()
+                
+                response = await openrouter.call_openrouter(
+                    api_key=key,
+                    model="anthropic/claude-sonnet-4.5",
+                    prompt=test_prompt,
+                    system_prompt="You are a helpful assistant.",
+                    max_tokens=10
+                )
+                
+                response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+                
+                return {
+                    "status": "healthy",
+                    "response_time_ms": response_time_ms,
+                    "error_message": None,
+                    "quota_remaining": None
+                }
+            
             elif provider == "ollama":
                 # Placeholder for Ollama health check
                 return {

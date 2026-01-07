@@ -329,7 +329,8 @@ class ModelRouterService:
         Execute a request with automatic fallback to next available key on failure
         
         Tries up to max_retries times with different keys before giving up.
-        Records failures for each failed key.
+        Falls back to Hugging Face medical models if all paid API keys fail.
+        Records failures for each failed key and logs all attempts.
         User-supplied keys have priority over shared keys.
         
         Args:
@@ -349,9 +350,15 @@ class ModelRouterService:
                 - key_id: ID of the key that succeeded (if success)
                 - attempts: Number of attempts made
                 - used_user_key: bool indicating if user's personal key was used
+                - used_fallback_model: bool indicating if Hugging Face fallback was used
                 
         Requirements: 21.2, 21.3, 27.2, 27.7
         """
+        from services.model_usage_logger import get_model_usage_logger
+        import time
+        
+        usage_logger = get_model_usage_logger(self.supabase)
+        
         # Check if user has a personal API key (Requirement 27.2)
         user_key = None
         if user_id:
@@ -367,6 +374,8 @@ class ModelRouterService:
             # Try user's personal key first
             logger.info(f"Attempt 1/{max_retries}: Trying user's personal API key")
             
+            start_time = time.time()
+            
             try:
                 # Use OpenRouter for all providers
                 from services.providers.openrouter import get_openrouter_provider
@@ -381,6 +390,23 @@ class ModelRouterService:
                     system_prompt=system_prompt
                 )
                 
+                response_time = int((time.time() - start_time) * 1000)
+                
+                # Log the attempt
+                await usage_logger.log_model_call(
+                    user_id=user_id,
+                    provider=provider,
+                    model=result.get("model", "unknown"),
+                    feature=feature,
+                    success=result["success"],
+                    tokens_used=result.get("tokens_used", 0),
+                    error=result.get("error"),
+                    key_id=f"user_{user_id}",
+                    was_fallback=False,
+                    attempt_number=1,
+                    response_time_ms=response_time
+                )
+                
                 if result["success"]:
                     logger.info(
                         f"Request succeeded with user's personal API key. "
@@ -391,6 +417,7 @@ class ModelRouterService:
                     result["key_id"] = f"user_{user_id}"
                     result["attempts"] = 1
                     result["used_user_key"] = True
+                    result["used_fallback_model"] = False
                     
                     return result
                 else:
@@ -406,18 +433,36 @@ class ModelRouterService:
             except Exception as e:
                 error_msg = f"Unexpected error with user's personal key: {str(e)}"
                 logger.warning(f"{error_msg}. Falling back to shared keys.")
+                
+                # Log the failed attempt
+                response_time = int((time.time() - start_time) * 1000)
+                await usage_logger.log_model_call(
+                    user_id=user_id,
+                    provider=provider,
+                    model="unknown",
+                    feature=feature,
+                    success=False,
+                    tokens_used=0,
+                    error=error_msg,
+                    key_id=f"user_{user_id}",
+                    was_fallback=False,
+                    attempt_number=1,
+                    response_time_ms=response_time
+                )
                 # Continue to shared keys below
         
         # If no user key or user key failed, use shared keys
         if not keys:
-            logger.error(f"No active keys available for provider '{provider}', feature '{feature}'")
-            return {
-                "success": False,
-                "error": "No API keys available for this feature",
-                "tokens_used": 0,
-                "attempts": 1 if user_key else 0,
-                "used_user_key": False
-            }
+            logger.warning(f"No active keys available for provider '{provider}', feature '{feature}'. Trying Hugging Face fallback...")
+            
+            # Try Hugging Face as fallback
+            return await self._try_huggingface_fallback(
+                feature=feature,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                user_id=user_id,
+                attempt_number=1 if user_key else 0
+            )
         
         # Limit attempts to available keys or max_retries, whichever is smaller
         max_attempts = min(len(keys), max_retries)
@@ -445,6 +490,8 @@ class ModelRouterService:
                 f"(priority: {key['priority']})"
             )
             
+            start_time = time.time()
+            
             try:
                 # Use OpenRouter for all providers
                 from services.providers.openrouter import get_openrouter_provider
@@ -457,6 +504,23 @@ class ModelRouterService:
                     feature=feature,
                     prompt=prompt,
                     system_prompt=system_prompt
+                )
+                
+                response_time = int((time.time() - start_time) * 1000)
+                
+                # Log the attempt
+                await usage_logger.log_model_call(
+                    user_id=user_id,
+                    provider=provider,
+                    model=result.get("model", "unknown"),
+                    feature=feature,
+                    success=result["success"],
+                    tokens_used=result.get("tokens_used", 0),
+                    error=result.get("error"),
+                    key_id=key_id,
+                    was_fallback=(attempt > 0 or user_key is not None),
+                    attempt_number=actual_attempt,
+                    response_time_ms=response_time
                 )
                 
                 if result["success"]:
@@ -488,11 +552,14 @@ class ModelRouterService:
                     result["key_id"] = key_id
                     result["attempts"] = actual_attempt
                     result["used_user_key"] = False
+                    result["used_fallback_model"] = False
                     
                     return result
                 else:
                     # Provider call failed, record failure and try next key
                     error_msg = result.get("error", "Unknown error")
+                    is_token_limit = result.get("is_token_limit_error", False)
+                    
                     logger.warning(
                         f"Key {key_id} failed on attempt {actual_attempt}: {error_msg}"
                     )
@@ -500,40 +567,36 @@ class ModelRouterService:
                     # Record the failure
                     await self.record_failure(key_id, error_msg)
                     
-                    # If this was the last attempt, trigger maintenance and return the error
-                    if attempt == max_attempts - 1:
-                        # All keys failed - trigger maintenance mode (Requirement 12.1)
-                        logger.error(
-                            f"All keys failed for provider '{provider}', feature '{feature}'. "
-                            f"Triggering maintenance mode."
+                    # If this is a token limit error, skip remaining paid APIs and go straight to Hugging Face
+                    if is_token_limit:
+                        logger.warning(
+                            f"Token limit error detected. Skipping remaining paid APIs and "
+                            f"trying Hugging Face fallback (supports longer contexts)..."
                         )
                         
-                        # Import maintenance service
-                        from services.maintenance import get_maintenance_service
+                        return await self._try_huggingface_fallback(
+                            feature=feature,
+                            prompt=prompt,
+                            system_prompt=system_prompt,
+                            user_id=user_id,
+                            attempt_number=actual_attempt,
+                            reason="token_limit_exceeded"
+                        )
+                    
+                    # If this was the last attempt, try Hugging Face fallback
+                    if attempt == max_attempts - 1:
+                        logger.warning(
+                            f"All paid API keys failed for provider '{provider}', feature '{feature}'. "
+                            f"Trying Hugging Face fallback..."
+                        )
                         
-                        try:
-                            maintenance_service = get_maintenance_service(self.supabase)
-                            
-                            # Evaluate if maintenance should be triggered
-                            maintenance_level = await maintenance_service.evaluate_maintenance_trigger(
-                                feature=feature,
-                                failures=actual_attempt
-                            )
-                            
-                            if maintenance_level:
-                                # Enter maintenance mode
-                                await maintenance_service.enter_maintenance(
-                                    level=maintenance_level,
-                                    reason=f"All API keys failed for {provider}/{feature}",
-                                    feature=feature
-                                )
-                                logger.info(f"Entered {maintenance_level} maintenance mode for {feature}")
-                        except Exception as maint_error:
-                            logger.error(f"Failed to trigger maintenance mode: {str(maint_error)}")
-                        
-                        result["attempts"] = actual_attempt
-                        result["used_user_key"] = False
-                        return result
+                        return await self._try_huggingface_fallback(
+                            feature=feature,
+                            prompt=prompt,
+                            system_prompt=system_prompt,
+                            user_id=user_id,
+                            attempt_number=actual_attempt
+                        )
                     
                     # Otherwise, continue to next key
                     continue
@@ -542,47 +605,57 @@ class ModelRouterService:
                 error_msg = f"Unexpected error: {str(e)}"
                 logger.error(f"Key {key_id} failed with exception on attempt {actual_attempt}: {error_msg}")
                 
+                response_time = int((time.time() - start_time) * 1000)
+                
+                # Log the failed attempt
+                await usage_logger.log_model_call(
+                    user_id=user_id,
+                    provider=provider,
+                    model="unknown",
+                    feature=feature,
+                    success=False,
+                    tokens_used=0,
+                    error=error_msg,
+                    key_id=key_id,
+                    was_fallback=(attempt > 0 or user_key is not None),
+                    attempt_number=actual_attempt,
+                    response_time_ms=response_time
+                )
+                
                 # Record the failure
                 await self.record_failure(key_id, error_msg)
                 
-                # If this was the last attempt, trigger maintenance and return the error
-                if attempt == max_attempts - 1:
-                    # All keys failed - trigger maintenance mode (Requirement 12.1)
-                    logger.error(
-                        f"All keys failed for provider '{provider}', feature '{feature}'. "
-                        f"Triggering maintenance mode."
+                # Check if this might be a token limit error
+                is_token_limit = "token" in str(e).lower() and ("limit" in str(e).lower() or "context" in str(e).lower())
+                
+                if is_token_limit:
+                    logger.warning(
+                        f"Possible token limit error. Trying Hugging Face fallback..."
                     )
                     
-                    # Import maintenance service
-                    from services.maintenance import get_maintenance_service
+                    return await self._try_huggingface_fallback(
+                        feature=feature,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        user_id=user_id,
+                        attempt_number=actual_attempt,
+                        reason="token_limit_exceeded"
+                    )
+                
+                # If this was the last attempt, try Hugging Face fallback
+                if attempt == max_attempts - 1:
+                    logger.warning(
+                        f"All paid API keys failed for provider '{provider}', feature '{feature}'. "
+                        f"Trying Hugging Face fallback..."
+                    )
                     
-                    try:
-                        maintenance_service = get_maintenance_service(self.supabase)
-                        
-                        # Evaluate if maintenance should be triggered
-                        maintenance_level = await maintenance_service.evaluate_maintenance_trigger(
-                            feature=feature,
-                            failures=actual_attempt
-                        )
-                        
-                        if maintenance_level:
-                            # Enter maintenance mode
-                            await maintenance_service.enter_maintenance(
-                                level=maintenance_level,
-                                reason=f"All API keys failed for {provider}/{feature}",
-                                feature=feature
-                            )
-                            logger.info(f"Entered {maintenance_level} maintenance mode for {feature}")
-                    except Exception as maint_error:
-                        logger.error(f"Failed to trigger maintenance mode: {str(maint_error)}")
-                    
-                    return {
-                        "success": False,
-                        "error": error_msg,
-                        "tokens_used": 0,
-                        "attempts": actual_attempt,
-                        "used_user_key": False
-                    }
+                    return await self._try_huggingface_fallback(
+                        feature=feature,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        user_id=user_id,
+                        attempt_number=actual_attempt
+                    )
                 
                 # Otherwise, continue to next key
                 continue
@@ -593,8 +666,180 @@ class ModelRouterService:
             "error": "All retry attempts exhausted",
             "tokens_used": 0,
             "attempts": starting_attempt + max_attempts,
-            "used_user_key": False
+            "used_user_key": False,
+            "used_fallback_model": False
         }
+    
+    async def _try_huggingface_fallback(
+        self,
+        feature: str,
+        prompt: str,
+        system_prompt: Optional[str],
+        user_id: Optional[str],
+        attempt_number: int,
+        reason: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Try Hugging Face medical models as final fallback
+        
+        Args:
+            feature: Feature name
+            prompt: User prompt
+            system_prompt: System prompt
+            user_id: User ID
+            attempt_number: Current attempt number
+            reason: Reason for fallback (e.g., "token_limit_exceeded")
+            
+        Returns:
+            Result dict with success, content, etc.
+        """
+        from services.providers.huggingface import get_huggingface_provider
+        from services.model_usage_logger import get_model_usage_logger
+        import time
+        
+        usage_logger = get_model_usage_logger(self.supabase)
+        hf_provider = get_huggingface_provider()
+        
+        reason_msg = f" (reason: {reason})" if reason else ""
+        logger.info(f"Attempting Hugging Face fallback for feature: {feature}{reason_msg}")
+        
+        start_time = time.time()
+        
+        try:
+            result = await hf_provider.call_huggingface(
+                feature=feature,
+                prompt=prompt,
+                system_prompt=system_prompt
+            )
+            
+            response_time = int((time.time() - start_time) * 1000)
+            
+            # Log the attempt
+            await usage_logger.log_model_call(
+                user_id=user_id,
+                provider="huggingface",
+                model=result.get("model", "unknown"),
+                feature=feature,
+                success=result["success"],
+                tokens_used=result.get("tokens_used", 0),
+                error=result.get("error"),
+                key_id=None,
+                was_fallback=True,
+                attempt_number=attempt_number + 1,
+                response_time_ms=response_time
+            )
+            
+            if result["success"]:
+                logger.info(
+                    f"Hugging Face fallback succeeded! Model: {result.get('model')}, "
+                    f"Tokens: {result.get('tokens_used')}"
+                )
+                
+                # Send notification about fallback to open-source model
+                try:
+                    notification_service = get_notification_service()
+                    fallback_reason = f" due to {reason}" if reason else ""
+                    await notification_service.notify_fallback(
+                        from_key_id="paid_apis",
+                        to_key_id="huggingface_fallback",
+                        provider="huggingface",
+                        feature=feature,
+                        reason=f"Fell back to Hugging Face{fallback_reason}"
+                    )
+                except Exception as notif_error:
+                    logger.warning(f"Failed to send fallback notification: {str(notif_error)}")
+                
+                result["attempts"] = attempt_number + 1
+                result["used_user_key"] = False
+                result["used_fallback_model"] = True
+                result["key_id"] = "huggingface_fallback"
+                result["fallback_reason"] = reason
+                
+                return result
+            else:
+                # Even Hugging Face failed - trigger maintenance
+                logger.error(
+                    f"Hugging Face fallback also failed for feature '{feature}'. "
+                    f"Triggering maintenance mode."
+                )
+                
+                # Import maintenance service
+                from services.maintenance import get_maintenance_service
+                
+                try:
+                    maintenance_service = get_maintenance_service(self.supabase)
+                    
+                    # Evaluate if maintenance should be triggered
+                    maintenance_level = await maintenance_service.evaluate_maintenance_trigger(
+                        feature=feature,
+                        failures=attempt_number + 1
+                    )
+                    
+                    if maintenance_level:
+                        # Enter maintenance mode
+                        await maintenance_service.enter_maintenance(
+                            level=maintenance_level,
+                            reason=f"All API keys and fallback models failed for {feature}",
+                            feature=feature
+                        )
+                        logger.info(f"Entered {maintenance_level} maintenance mode for {feature}")
+                except Exception as maint_error:
+                    logger.error(f"Failed to trigger maintenance mode: {str(maint_error)}")
+                
+                result["attempts"] = attempt_number + 1
+                result["used_user_key"] = False
+                result["used_fallback_model"] = True
+                
+                return result
+                
+        except Exception as e:
+            error_msg = f"Hugging Face fallback error: {str(e)}"
+            logger.error(error_msg)
+            
+            response_time = int((time.time() - start_time) * 1000)
+            
+            # Log the failed attempt
+            await usage_logger.log_model_call(
+                user_id=user_id,
+                provider="huggingface",
+                model="unknown",
+                feature=feature,
+                success=False,
+                tokens_used=0,
+                error=error_msg,
+                key_id=None,
+                was_fallback=True,
+                attempt_number=attempt_number + 1,
+                response_time_ms=response_time
+            )
+            
+            # Trigger maintenance
+            from services.maintenance import get_maintenance_service
+            
+            try:
+                maintenance_service = get_maintenance_service(self.supabase)
+                maintenance_level = await maintenance_service.evaluate_maintenance_trigger(
+                    feature=feature,
+                    failures=attempt_number + 1
+                )
+                
+                if maintenance_level:
+                    await maintenance_service.enter_maintenance(
+                        level=maintenance_level,
+                        reason=f"All API keys and fallback models failed for {feature}",
+                        feature=feature
+                    )
+            except Exception as maint_error:
+                logger.error(f"Failed to trigger maintenance mode: {str(maint_error)}")
+            
+            return {
+                "success": False,
+                "error": error_msg,
+                "tokens_used": 0,
+                "attempts": attempt_number + 1,
+                "used_user_key": False,
+                "used_fallback_model": True
+            }
 
 
 # Singleton instance

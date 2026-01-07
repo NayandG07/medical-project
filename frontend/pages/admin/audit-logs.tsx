@@ -115,7 +115,7 @@ export default function AuditLogsPage() {
       }
 
       const data = await response.json()
-      setLogs(data)
+      setLogs(data.logs || data) // Handle both {logs: [...]} and [...] formats
     } catch (err) {
       console.error('Failed to load audit logs:', err)
       setError(err instanceof Error ? err.message : 'Failed to load audit logs')

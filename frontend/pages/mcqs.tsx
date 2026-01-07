@@ -1,49 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
-import { supabase } from '@/lib/supabase'
-import Layout from '@/components/Layout'
+import { supabase, AuthUser } from '@/lib/supabase'
+import DashboardLayout from '@/components/DashboardLayout'
+import { parseMarkdown } from '@/lib/markdown'
 import styles from '@/styles/StudyTools.module.css'
-
-interface Session {
-  id: string
-  title: string
-  created_at: string
-}
-
-interface Material {
-  id: string
-  topic: string
-  content: string
-  created_at: string
-}
 
 export default function MCQs() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [currentSession, setCurrentSession] = useState<string | null>(null)
-  const [materials, setMaterials] = useState<Material[]>([])
   const [topic, setTopic] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     checkAuth()
   }, [])
-
-  useEffect(() => {
-    if (user) {
-      loadSessions()
-    }
-  }, [user])
-
-  useEffect(() => {
-    if (currentSession) {
-      loadMaterials(currentSession)
-    }
-  }, [currentSession])
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -51,53 +25,8 @@ export default function MCQs() {
       router.push('/')
       return
     }
-    setUser(session.user)
+    setUser(session.user as AuthUser)
     setLoading(false)
-  }
-
-  const loadSessions = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/study-tools/sessions/mcq`,
-        {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }
-      )
-
-      if (response.ok) {
-        const data = await response.json()
-        setSessions(data)
-        if (data.length > 0 && !currentSession) {
-          setCurrentSession(data[0].id)
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load sessions:', err)
-    }
-  }
-
-  const loadMaterials = async (sessionId: string) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/study-tools/sessions/${sessionId}/materials`,
-        {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }
-      )
-
-      if (response.ok) {
-        const data = await response.json()
-        setMaterials(data)
-      }
-    } catch (err) {
-      console.error('Failed to load materials:', err)
-    }
   }
 
   const handleGenerate = async () => {
@@ -108,6 +37,7 @@ export default function MCQs() {
 
     setGenerating(true)
     setError(null)
+    setResult(null)
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -121,9 +51,9 @@ export default function MCQs() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
+          body: JSON.stringify({ 
             topic: topic,
-            session_id: currentSession
+            format: 'interactive'
           })
         }
       )
@@ -134,14 +64,7 @@ export default function MCQs() {
       }
 
       const data = await response.json()
-      
-      await loadSessions()
-      if (data.session_id) {
-        setCurrentSession(data.session_id)
-        await loadMaterials(data.session_id)
-      }
-      
-      setTopic('')
+      setResult(data)
     } catch (err: any) {
       setError(err.message || 'Failed to generate MCQs')
     } finally {
@@ -149,134 +72,89 @@ export default function MCQs() {
     }
   }
 
-  const handleDeleteSession = async (sessionId: string) => {
-    if (!confirm('Delete this session and all its MCQs?')) return
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/study-tools/sessions/${sessionId}`,
-        {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        }
-      )
-
-      if (response.ok) {
-        await loadSessions()
-        if (currentSession === sessionId) {
-          setCurrentSession(null)
-          setMaterials([])
-        }
-      }
-    } catch (err) {
-      console.error('Failed to delete session:', err)
-    }
-  }
-
-  if (loading) {
+  if (loading || !user) {
     return (
-      <Layout>
-        <div className={styles.loading}>Loading...</div>
-      </Layout>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <p>Loading...</p>
+      </div>
     )
   }
 
   return (
-    <Layout>
+    <>
       <Head>
-        <title>MCQ Practice - VaidyaAI</title>
+        <title>MCQs - Vaidya AI</title>
       </Head>
+      <DashboardLayout user={user}>
+        <div className={styles.container}>
+          <div className={styles.header}>
+            <h1>✓ Multiple Choice Questions</h1>
+            <p>Generate practice MCQs for any medical topic</p>
+          </div>
 
-      <div className={styles.container}>
-        <div className={styles.header}>
-          <h1>📝 MCQ Practice</h1>
-          <p>Generate multiple choice questions for any medical topic</p>
-        </div>
+          <div className={styles.inputSection}>
+            <input
+              type="text"
+              placeholder="Enter a medical topic (e.g., 'cardiac cycle', 'diabetes mellitus')"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
+              className={styles.topicInput}
+            />
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className={styles.generateBtn}
+            >
+              {generating ? 'Generating...' : 'Generate MCQs'}
+            </button>
+          </div>
 
-        <div className={styles.twoColumn}>
-          <div className={styles.sidebar}>
-            <h3>Sessions</h3>
-            <div className={styles.sessionList}>
-              {sessions.map((session) => (
-                <div
-                  key={session.id}
-                  className={`${styles.sessionItem} ${currentSession === session.id ? styles.active : ''}`}
-                  onClick={() => setCurrentSession(session.id)}
+          {error && (
+            <div className={styles.error}>
+              ⚠️ {error}
+            </div>
+          )}
+
+          {result && (
+            <div className={styles.resultCard}>
+              <div className={styles.resultHeader}>
+                <h3>Generated MCQs</h3>
+                <button
+                  onClick={() => {
+                    setResult(null)
+                    setTopic('')
+                  }}
+                  className={styles.clearBtn}
                 >
-                  <div className={styles.sessionTitle}>{session.title}</div>
-                  <div className={styles.sessionDate}>
-                    {new Date(session.created_at).toLocaleDateString()}
-                  </div>
-                  <button
-                    className={styles.deleteBtn}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteSession(session.id)
-                    }}
-                  >
-                    🗑️
-                  </button>
-                </div>
-              ))}
-              {sessions.length === 0 && (
-                <div className={styles.emptyState}>No sessions yet</div>
-              )}
-            </div>
-          </div>
-
-          <div className={styles.mainContent}>
-            <div className={styles.inputSection}>
-              <input
-                type="text"
-                placeholder="Enter a medical topic (e.g., 'diabetes mellitus')"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
-                className={styles.topicInput}
-              />
-              <button
-                onClick={handleGenerate}
-                disabled={generating}
-                className={styles.generateBtn}
-              >
-                {generating ? 'Generating...' : 'Generate'}
-              </button>
-            </div>
-
-            {error && (
-              <div className={styles.error}>
-                ⚠️ {error}
+                  Clear
+                </button>
               </div>
-            )}
-
-            <div className={styles.materialsContainer}>
-              {materials.map((material) => (
-                <div key={material.id} className={styles.materialCard}>
-                  <div className={styles.materialHeader}>
-                    <h3>{material.topic}</h3>
-                    <span className={styles.materialDate}>
-                      {new Date(material.created_at).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className={styles.materialContent}>
-                    {material.content}
-                  </div>
-                </div>
-              ))}
-              {materials.length === 0 && !generating && (
-                <div className={styles.placeholder}>
-                  <div className={styles.placeholderIcon}>📝</div>
-                  <h3>Ready to generate MCQs</h3>
-                  <p>Enter a topic above and click Generate</p>
+              <div className={styles.resultContent}>
+                <div dangerouslySetInnerHTML={{ __html: parseMarkdown(result.content) }} />
+              </div>
+              {result.citations && (
+                <div className={styles.citations}>
+                  <h4>Sources:</h4>
+                  {result.citations.sources?.map((source: any, idx: number) => (
+                    <div key={idx} className={styles.citation}>
+                      📄 {source.document_filename}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          </div>
+          )}
+
+          {!result && !generating && (
+            <div className={styles.placeholder}>
+              <div className={styles.placeholderIcon}>✓</div>
+              <h3>Ready to generate MCQs</h3>
+              <p>Enter a topic above and click Generate to create practice questions</p>
+            </div>
+          )}
         </div>
-      </div>
-    </Layout>
+      </DashboardLayout>
+    </>
   )
 }

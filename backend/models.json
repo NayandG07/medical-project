@@ -1,13 +1,13 @@
 {
   "openrouter": {
-    "chat": "openai/gpt-5.1",
-    "flashcard": "openai/gpt-5.1",
-    "mcq": "openai/gpt-5.2",
-    "highyield": "openai/gpt-5.1",
-    "explain": "openai/gpt-5.1",
-    "map": "openai/gpt-5",
-    "clinical": "openai/gpt-5.1-pro",
-    "osce": "openai/gpt-5.2-pro",
+    "chat": "anthropic/claude-sonnet-4.5",
+    "flashcard": "anthropic/claude-sonnet-4.5",
+    "mcq": "anthropic/claude-sonnet-4.5",
+    "highyield": "anthropic/claude-sonnet-4.5",
+    "explain": "anthropic/claude-sonnet-4.5",
+    "map": "anthropic/claude-sonnet-4.5",
+    "clinical": "anthropic/claude-sonnet-4.5",
+    "osce": "anthropic/claude-sonnet-4.5",
     "image": "openai/gpt-5-image"
   },
   "gemini": {

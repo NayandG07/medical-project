@@ -70,20 +70,28 @@ class ClinicalService:
             
             router = get_model_router_service(self.supabase)
             
-            # Build prompt for case generation
+            # Build prompt for case generation with medical grounding
             specialty_text = f" in {specialty}" if specialty else ""
             
-            prompt = f"""Generate a realistic medical case{specialty_text} for clinical reasoning practice at {difficulty} level.
+            prompt = f"""Generate a realistic medical case{specialty_text} for MBBS students practicing clinical reasoning at {difficulty} level.
 
 The case should be structured for progressive disclosure with the following stages:
 1. Chief Complaint: Brief initial presentation
-2. History of Present Illness: Detailed symptom history
-3. Past Medical History: Relevant medical background
-4. Physical Examination: Key examination findings
-5. Initial Investigations: Basic lab/imaging results
-6. Differential Diagnosis Challenge: Ask for differential diagnosis
-7. Further Investigations: Additional test results
-8. Final Diagnosis: Correct diagnosis with explanation
+2. History of Present Illness: Detailed symptom history with timeline
+3. Past Medical History: Relevant medical background, medications, allergies
+4. Physical Examination: Key examination findings with vital signs
+5. Initial Investigations: Basic lab/imaging results with normal ranges
+6. Differential Diagnosis Challenge: Ask for differential diagnosis with reasoning
+7. Further Investigations: Additional test results to narrow diagnosis
+8. Final Diagnosis: Correct diagnosis with pathophysiology explanation and management
+
+Requirements:
+- Use realistic clinical presentations based on evidence-based medicine
+- Include appropriate medical terminology and clinical reasoning cues
+- Make findings consistent with the final diagnosis
+- Include relevant red flags and clinical pearls
+- Align with MBBS curriculum and medical licensing exam standards
+- Provide educational value for clinical practice
 
 Format the response as JSON with this structure:
 {{
@@ -95,7 +103,7 @@ Format the response as JSON with this structure:
   ]
 }}
 
-Make the case realistic, educational, and appropriate for medical students."""
+Make the case realistic, educational, and clinically relevant for medical students."""
             
             # Select provider for clinical feature
             provider = await router.select_provider("clinical")
@@ -105,7 +113,7 @@ Make the case realistic, educational, and appropriate for medical students."""
                 provider=provider,
                 feature="clinical",
                 prompt=prompt,
-                system_prompt="You are a medical education expert creating clinical cases for medical students. Generate realistic, educational cases with progressive information disclosure."
+                system_prompt="You are a medical education specialist and experienced clinician creating clinical cases for MBBS students. Generate realistic, evidence-based cases with progressive information disclosure that teach clinical reasoning, diagnostic thinking, and evidence-based medicine. Focus on cases that are educationally valuable and aligned with medical licensing exam standards."
             )
             
             if not result["success"]:
@@ -380,10 +388,10 @@ Make the case realistic, educational, and appropriate for medical students."""
             
             stage_data = stages[stage]
             
-            # Build evaluation prompt
+            # Build evaluation prompt with medical grounding
             router = get_model_router_service(self.supabase)
             
-            prompt = f"""Evaluate this medical student's clinical reasoning response.
+            prompt = f"""Evaluate this MBBS student's clinical reasoning response using evidence-based medicine principles.
 
 Case Context:
 Chief Complaint: {case_data.get('chief_complaint', 'N/A')}
@@ -394,17 +402,27 @@ Question Asked: {stage_data.get('question', 'N/A')}
 Student's Response:
 {user_response}
 
+Evaluation Criteria:
+1. Clinical reasoning process and systematic approach
+2. Appropriate use of medical knowledge and evidence-based medicine
+3. Consideration of differential diagnoses
+4. Recognition of red flags and clinical priorities
+5. Application of clinical guidelines and best practices
+6. Communication clarity and medical terminology usage
+
 Please evaluate the response and provide:
-1. A score from 0-100
-2. Specific feedback on what was good and what could be improved
-3. The model answer for comparison
+1. A score from 0-100 based on clinical reasoning quality
+2. Specific feedback on strengths and areas for improvement
+3. The model answer demonstrating ideal clinical reasoning
+4. Key learning points for the student
 
 Format as JSON:
 {{
   "score": 85,
-  "evaluation": "Overall assessment...",
-  "feedback": ["Good point 1", "Area for improvement 1", ...],
-  "model_answer": "The ideal response would include..."
+  "evaluation": "Overall assessment of clinical reasoning...",
+  "feedback": ["Strength: Good systematic approach", "Improvement: Consider additional differentials", ...],
+  "model_answer": "The ideal clinical reasoning would include...",
+  "learning_points": ["Key concept 1", "Key concept 2", ...]
 }}"""
             
             provider = await router.select_provider("clinical")
@@ -413,7 +431,7 @@ Format as JSON:
                 provider=provider,
                 feature="clinical",
                 prompt=prompt,
-                system_prompt="You are a medical education expert evaluating clinical reasoning. Provide constructive, educational feedback."
+                system_prompt="You are a medical education specialist and experienced clinician evaluating MBBS students' clinical reasoning. Provide constructive, evidence-based feedback that helps students develop strong clinical reasoning skills. Focus on teaching clinical thinking, diagnostic approach, and evidence-based medicine principles."
             )
             
             if not result["success"]:
@@ -503,18 +521,26 @@ Format as JSON:
             
             router = get_model_router_service(self.supabase)
             
-            # Build prompt for OSCE scenario generation
+            # Build prompt for OSCE scenario generation with medical grounding
             scenario_text = f" for {scenario_type}" if scenario_type else ""
             
-            prompt = f"""Generate a realistic OSCE (Objective Structured Clinical Examination) scenario{scenario_text} at {difficulty} level.
+            prompt = f"""Generate a realistic OSCE (Objective Structured Clinical Examination) scenario{scenario_text} at {difficulty} level for MBBS students.
 
 The scenario should include:
 1. Scenario Type: Type of station (history taking, physical exam, communication, procedure)
 2. Patient Information: Age, gender, presenting complaint, relevant background
 3. Candidate Instructions: What the student is asked to do (8 minutes)
-4. Patient Script: How the simulated patient should respond
-5. Examiner Checklist: Key items to assess (with point values)
-6. Expected Actions: Sequence of actions student should perform
+4. Patient Script: How the simulated patient should respond (realistic, consistent)
+5. Examiner Checklist: Key items to assess with point values (aligned with OSCE standards)
+6. Expected Actions: Sequence of actions demonstrating good clinical practice
+
+Requirements:
+- Use realistic clinical presentations based on common OSCE scenarios
+- Include appropriate communication skills assessment
+- Align with MBBS curriculum and OSCE examination standards
+- Include clinical reasoning and evidence-based practice elements
+- Make patient responses realistic and educationally valuable
+- Include relevant clinical guidelines and best practices
 
 Format the response as JSON:
 {{
@@ -536,17 +562,17 @@ Format the response as JSON:
   }},
   "examiner_checklist": [
     {{"item": "Introduces self and confirms patient identity", "points": 1}},
-    {{"item": "Asks about pain characteristics", "points": 2}},
+    {{"item": "Asks about pain characteristics (SOCRATES)", "points": 2}},
     ...
   ],
   "expected_actions": [
     "Introduction and rapport building",
-    "Systematic history taking",
+    "Systematic history taking using appropriate framework",
     ...
   ]
 }}
 
-Make it realistic and appropriate for medical students."""
+Make it realistic, clinically relevant, and appropriate for MBBS students."""
             
             # Select provider for OSCE feature
             provider = await router.select_provider("osce")
@@ -556,7 +582,7 @@ Make it realistic and appropriate for medical students."""
                 provider=provider,
                 feature="osce",
                 prompt=prompt,
-                system_prompt="You are a medical education expert creating OSCE scenarios for medical students. Generate realistic, structured examination scenarios."
+                system_prompt="You are a medical education specialist and OSCE examiner with expertise in creating structured clinical examination scenarios for MBBS students. Generate realistic, evidence-based scenarios that assess clinical skills, communication, and professional behavior. Align with OSCE examination standards and medical licensing requirements."
             )
             
             if not result["success"]:
@@ -681,14 +707,14 @@ Make it realistic and appropriate for medical students."""
             message_id = messages_response.data[0]["id"]
             scenario_data = json.loads(messages_response.data[0]["content"])
             
-            # Build interaction prompt
+            # Build interaction prompt with medical grounding
             router = get_model_router_service(self.supabase)
             
             # Get interaction history
             interaction_history = scenario_data.get("interaction_history", [])
             history_text = "\n".join([f"- {item}" for item in interaction_history[-5:]])  # Last 5 interactions
             
-            prompt = f"""You are simulating an OSCE station. Generate realistic responses.
+            prompt = f"""You are simulating an OSCE station for an MBBS student. Generate realistic, clinically appropriate responses.
 
 Scenario Type: {scenario_data.get('scenario_type', 'N/A')}
 Patient Info: {json.dumps(scenario_data.get('patient_info', {}))}
@@ -701,15 +727,22 @@ Recent Interaction History:
 Student's Current Action:
 {user_action}
 
+Requirements:
+- Patient responses should be realistic and consistent with the clinical scenario
+- Assess student's clinical skills, communication, and professionalism
+- Note which checklist items are being addressed
+- Provide constructive feedback when appropriate
+- Maintain clinical realism and educational value
+
 Generate a response as JSON:
 {{
-  "patient_response": "What the patient says or does in response",
-  "examiner_observation": "What the examiner notes (not visible to student)",
+  "patient_response": "What the patient says or does in response (realistic, in character)",
+  "examiner_observation": "What the examiner notes about the student's performance",
   "checklist_items_met": ["List of checklist items this action addresses"],
-  "feedback": "Optional immediate feedback if warranted"
+  "feedback": "Optional immediate feedback if warranted (e.g., safety concerns)"
 }}
 
-Be realistic - patients respond naturally, examiners assess objectively."""
+Be realistic - patients respond naturally with appropriate emotions and body language, examiners assess objectively based on clinical standards."""
             
             provider = await router.select_provider("osce")
             
@@ -717,7 +750,7 @@ Be realistic - patients respond naturally, examiners assess objectively."""
                 provider=provider,
                 feature="osce",
                 prompt=prompt,
-                system_prompt="You are simulating an OSCE examination with realistic patient and examiner responses."
+                system_prompt="You are simulating an OSCE examination with realistic patient and examiner responses for MBBS students. Provide clinically accurate, educationally valuable interactions that help students develop clinical skills, communication abilities, and professional behavior. Maintain realism while ensuring educational value."
             )
             
             if not result["success"]:

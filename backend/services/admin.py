@@ -693,6 +693,44 @@ class AdminService:
             return feature_status
         except Exception as e:
             raise Exception(f"Failed to get feature status: {str(e)}")
+    
+    async def get_audit_logs(
+        self,
+        limit: int = 100,
+        admin_id: Optional[str] = None,
+        action: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get audit logs with optional filtering
+        
+        Args:
+            limit: Maximum number of logs to return (default 100)
+            admin_id: Optional filter by admin ID
+            action: Optional filter by action type
+            
+        Returns:
+            List of audit log entries
+            
+        Raises:
+            Exception: If retrieval fails
+        """
+        try:
+            query = self.supabase.table("audit_logs").select("*")
+            
+            # Apply filters if provided
+            if admin_id:
+                query = query.eq("admin_id", admin_id)
+            if action:
+                query = query.eq("action", action)
+            
+            # Order by created_at descending and limit results
+            query = query.order("created_at", desc=True).limit(limit)
+            
+            response = query.execute()
+            
+            return response.data if response.data else []
+        except Exception as e:
+            raise Exception(f"Failed to get audit logs: {str(e)}")
 
 
 # Singleton instance

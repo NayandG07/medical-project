@@ -65,7 +65,7 @@ export default function ApiKeysPage() {
         if (response.ok) {
           setIsAdmin(true)
           const data = await response.json()
-          setApiKeys(data)
+          setApiKeys(data.keys || data) // Handle both {keys: [...]} and [...] formats
           setLoading(false)
         } else if (response.status === 403) {
           router.push('/chat')
@@ -103,7 +103,7 @@ export default function ApiKeysPage() {
       }
 
       const data = await response.json()
-      setApiKeys(data)
+      setApiKeys(data.keys || data) // Handle both {keys: [...]} and [...] formats
     } catch (err) {
       console.error('Failed to load API keys:', err)
       setError(err instanceof Error ? err.message : 'Failed to load API keys')
@@ -235,11 +235,11 @@ export default function ApiKeysPage() {
     }
   }
 
-  const filteredKeys = apiKeys.filter(key => {
+  const filteredKeys = Array.isArray(apiKeys) ? apiKeys.filter(key => {
     if (providerFilter && key.provider !== providerFilter) return false
     if (statusFilter && key.status !== statusFilter) return false
     return true
-  })
+  }) : []
 
   if (loading) {
     return (

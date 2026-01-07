@@ -2,7 +2,7 @@ import Head from 'next/head'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase, AuthUser } from '@/lib/supabase'
-import Layout from '@/components/Layout'
+import DashboardLayout from '@/components/DashboardLayout'
 import ChatWindow, { Message } from '@/components/ChatWindow'
 import ChatInput from '@/components/ChatInput'
 import SessionSidebar, { ChatSession } from '@/components/SessionSidebar'
@@ -254,58 +254,57 @@ export default function Chat() {
     }
   }
 
-  if (loading) {
+  if (loading || !user) {
     return (
-      <Layout>
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-          <p>Loading...</p>
-        </div>
-      </Layout>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <p>Loading...</p>
+      </div>
     )
   }
 
-  if (!user) {
-    return null // Will redirect
-  }
-
   return (
-    <Layout>
+    <>
       <Head>
-        <title>Chat - VaidyaAI</title>
+        <title>Chat - Vaidya AI</title>
       </Head>
-      <div style={{
-        height: 'calc(100vh - 70px)',
-        display: 'flex',
-        overflow: 'hidden'
-      }}>
-        {/* Session Sidebar */}
-        <SessionSidebar
-          sessions={sessions}
-          currentSessionId={currentSessionId}
-          onSelectSession={handleSelectSession}
-          onNewSession={handleNewSession}
-          loading={sessionsLoading}
-          error={sessionsError}
-        />
-
-        {/* Main Chat Area */}
+      <DashboardLayout user={user}>
         <div style={{
-          flex: 1,
+          height: 'calc(100vh - 150px)',
           display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
         }}>
-          <ChatWindow
-            messages={messages}
-            loading={messagesLoading || sendingMessage}
-            error={error}
+          {/* Session Sidebar */}
+          <SessionSidebar
+            sessions={sessions}
+            currentSessionId={currentSessionId}
+            onSelectSession={handleSelectSession}
+            onNewSession={handleNewSession}
+            loading={sessionsLoading}
+            error={sessionsError}
           />
-          <ChatInput
-            onSendMessage={handleSendMessage}
-            disabled={sendingMessage}
-          />
+
+          {/* Main Chat Area */}
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}>
+            <ChatWindow
+              messages={messages}
+              loading={messagesLoading || sendingMessage}
+              error={error}
+            />
+            <ChatInput
+              onSendMessage={handleSendMessage}
+              disabled={sendingMessage}
+            />
+          </div>
         </div>
-      </div>
-    </Layout>
+      </DashboardLayout>
+    </>
   )
 }

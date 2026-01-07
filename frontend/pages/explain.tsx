@@ -6,7 +6,7 @@ import DashboardLayout from '@/components/DashboardLayout'
 import { parseMarkdown } from '@/lib/markdown'
 import styles from '@/styles/StudyTools.module.css'
 
-export default function Flashcards() {
+export default function Explain() {
   const router = useRouter()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
@@ -44,7 +44,7 @@ export default function Flashcards() {
       const token = session?.access_token
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/study-tools/flashcards`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/study-tools/explain`,
         {
           method: 'POST',
           headers: {
@@ -60,13 +60,13 @@ export default function Flashcards() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.detail?.error?.message || 'Failed to generate flashcards')
+        throw new Error(errorData.detail?.error?.message || 'Failed to generate explanation')
       }
 
       const data = await response.json()
       setResult(data)
     } catch (err: any) {
-      setError(err.message || 'Failed to generate flashcards')
+      setError(err.message || 'Failed to generate explanation')
     } finally {
       setGenerating(false)
     }
@@ -83,13 +83,13 @@ export default function Flashcards() {
   return (
     <>
       <Head>
-        <title>Flashcards - Vaidya AI</title>
+        <title>Explain - Vaidya AI</title>
       </Head>
       <DashboardLayout user={user}>
         <div className={styles.container}>
           <div className={styles.header}>
-            <h1>🎴 Flashcards</h1>
-            <p>Generate spaced repetition flashcards for any medical topic</p>
+            <h1>📚 Detailed Explanations</h1>
+            <p>Get comprehensive explanations for any medical topic</p>
           </div>
 
           <div className={styles.inputSection}>
@@ -106,7 +106,7 @@ export default function Flashcards() {
               disabled={generating}
               className={styles.generateBtn}
             >
-              {generating ? 'Generating...' : 'Generate Flashcards'}
+              {generating ? 'Generating...' : 'Generate Explanation'}
             </button>
           </div>
 
@@ -119,7 +119,7 @@ export default function Flashcards() {
           {result && (
             <div className={styles.resultCard}>
               <div className={styles.resultHeader}>
-                <h3>Generated Flashcards</h3>
+                <h3>Detailed Explanation</h3>
                 <button
                   onClick={() => {
                     setResult(null)
@@ -148,9 +148,9 @@ export default function Flashcards() {
 
           {!result && !generating && (
             <div className={styles.placeholder}>
-              <div className={styles.placeholderIcon}>🎴</div>
-              <h3>Ready to generate flashcards</h3>
-              <p>Enter a topic above and click Generate to create your flashcards</p>
+              <div className={styles.placeholderIcon}>📚</div>
+              <h3>Ready to generate explanation</h3>
+              <p>Enter a topic above and click Generate to get a detailed breakdown</p>
             </div>
           )}
         </div>

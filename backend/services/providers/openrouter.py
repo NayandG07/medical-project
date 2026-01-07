@@ -189,13 +189,25 @@ class OpenRouterProvider:
                 try:
                     error_json = response.json()
                     error_message = error_json.get("error", {}).get("message", error_detail)
+                    error_code = error_json.get("error", {}).get("code", "")
                 except:
                     error_message = error_detail
+                    error_code = ""
+                
+                # Check if this is a token limit error
+                is_token_limit_error = (
+                    "token" in error_message.lower() and 
+                    ("limit" in error_message.lower() or 
+                     "maximum" in error_message.lower() or
+                     "context length" in error_message.lower() or
+                     "too long" in error_message.lower())
+                ) or error_code == "context_length_exceeded"
                 
                 return {
                     "success": False,
                     "error": f"OpenRouter API error ({response.status_code}): {error_message}",
-                    "tokens_used": 0
+                    "tokens_used": 0,
+                    "is_token_limit_error": is_token_limit_error
                 }
             
             # Parse response
@@ -241,21 +253,24 @@ class OpenRouterProvider:
             return {
                 "success": False,
                 "error": "Request timed out",
-                "tokens_used": 0
+                "tokens_used": 0,
+                "is_token_limit_error": False
             }
         except httpx.RequestError as e:
             logger.error(f"OpenRouter API request error: {str(e)}")
             return {
                 "success": False,
                 "error": f"Network error: {str(e)}",
-                "tokens_used": 0
+                "tokens_used": 0,
+                "is_token_limit_error": False
             }
         except Exception as e:
             logger.error(f"Unexpected error calling OpenRouter API: {str(e)}")
             return {
                 "success": False,
                 "error": f"Unexpected error: {str(e)}",
-                "tokens_used": 0
+                "tokens_used": 0,
+                "is_token_limit_error": False
             }
     
     async def call_openrouter_streaming(

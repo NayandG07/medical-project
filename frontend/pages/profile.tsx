@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
-import { createClient } from '@supabase/supabase-js'
-import Layout from '../components/Layout'
+import { supabase, AuthUser } from '@/lib/supabase'
+import DashboardLayout from '@/components/DashboardLayout'
 import UserApiKeyForm from '../components/UserApiKeyForm'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 /**
  * Profile Page
@@ -16,7 +12,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey)
  */
 export default function ProfilePage() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentKey, setCurrentKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -34,7 +30,7 @@ export default function ProfilePage() {
         return
       }
 
-      setUser(user)
+      setUser(user as AuthUser)
       
       // Check if user has a personal API key
       await fetchUserKey(user.id)
@@ -116,31 +112,29 @@ export default function ProfilePage() {
     router.push('/')
   }
 
-  if (loading) {
+  if (loading || !user) {
     return (
-      <Layout>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '60vh'
-        }}>
-          <div>Loading...</div>
-        </div>
-      </Layout>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh'
+      }}>
+        <div>Loading...</div>
+      </div>
     )
   }
 
   return (
-    <Layout>
+    <>
       <Head>
-        <title>Profile - VaidyaAI</title>
+        <title>Profile - Vaidya AI</title>
       </Head>
-      <div style={{
-        maxWidth: '800px',
-        margin: '0 auto',
-        padding: '2rem'
-      }}>
+      <DashboardLayout user={user}>
+        <div style={{
+          maxWidth: '800px',
+          margin: '0 auto'
+        }}>
         <h1 style={{ fontSize: '2.5rem', color: '#2d3748', marginBottom: '0.5rem' }}>Profile ⚙️</h1>
         <p style={{ fontSize: '1.1rem', color: '#718096', marginBottom: '2rem' }}>Manage your account settings</p>
 
@@ -178,7 +172,8 @@ export default function ProfilePage() {
           onSubmit={handleSubmitKey}
           onRemove={handleRemoveKey}
         />
-      </div>
-    </Layout>
+        </div>
+      </DashboardLayout>
+    </>
   )
 }

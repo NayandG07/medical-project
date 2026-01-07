@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
-import { supabase } from '@/lib/supabase'
-import Layout from '@/components/Layout'
+import { supabase, AuthUser } from '@/lib/supabase'
+import DashboardLayout from '@/components/DashboardLayout'
 import styles from '@/styles/Clinical.module.css'
 
 type ModeType = 'reasoning' | 'osce'
 
 export default function Clinical() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [mode, setMode] = useState<ModeType>('reasoning')
   const [sessionActive, setSessionActive] = useState(false)
@@ -35,7 +35,7 @@ export default function Clinical() {
       router.push('/')
       return
     }
-    setUser(session.user)
+    setUser(session.user as AuthUser)
     setLoading(false)
   }
 
@@ -125,21 +125,21 @@ export default function Clinical() {
     setUserInput('')
   }
 
-  if (loading) {
+  if (loading || !user) {
     return (
-      <Layout>
-        <div className={styles.loading}>Loading...</div>
-      </Layout>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <p>Loading...</p>
+      </div>
     )
   }
 
   return (
-    <Layout>
+    <>
       <Head>
-        <title>Clinical Practice - VaidyaAI</title>
+        <title>Clinical Practice - Vaidya AI</title>
       </Head>
-
-      <div className={styles.container}>
+      <DashboardLayout user={user}>
+        <div className={styles.container}>
         <div className={styles.header}>
           <h1>Clinical Practice 🏥</h1>
           <p>Practice clinical reasoning and OSCE examinations</p>
@@ -253,6 +253,7 @@ export default function Clinical() {
           </div>
         )}
       </div>
-    </Layout>
+    </DashboardLayout>
+    </>
   )
 }

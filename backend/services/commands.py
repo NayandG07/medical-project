@@ -126,14 +126,19 @@ class CommandService:
         
         router = get_model_router_service(self.supabase)
         
-        # Create prompt for flashcard generation
-        prompt = f"""Generate 5-7 medical flashcards about {topic}.
+        # Create prompt for flashcard generation with medical grounding
+        prompt = f"""Generate 5-7 medical flashcards about {topic} specifically for MBBS students.
 
 Format each flashcard as:
 Q: [Question]
 A: [Answer]
 
-Focus on key concepts, definitions, and clinical relevance."""
+Requirements:
+- Focus on clinically relevant, evidence-based information
+- Include key concepts tested in medical licensing exams (USMLE/NEET-PG)
+- Emphasize pathophysiology, diagnosis, and treatment principles
+- Use standard medical terminology
+- Highlight high-yield facts for medical students"""
         
         # Select provider and execute
         provider = await router.select_provider("flashcard")
@@ -141,7 +146,7 @@ Focus on key concepts, definitions, and clinical relevance."""
             provider=provider,
             feature="flashcard",
             prompt=prompt,
-            system_prompt="You are a medical education expert creating flashcards for medical students."
+            system_prompt="You are a medical education specialist with expertise in MBBS curriculum and medical licensing exams. Create flashcards that are clinically relevant, evidence-based, and aligned with medical student learning objectives. Focus on information that will help students in their clinical practice and examinations."
         )
         
         if not result["success"]:
@@ -183,8 +188,8 @@ Focus on key concepts, definitions, and clinical relevance."""
         
         router = get_model_router_service(self.supabase)
         
-        # Create prompt for MCQ generation
-        prompt = f"""Generate 5 multiple choice questions about {topic}.
+        # Create prompt for MCQ generation with medical grounding
+        prompt = f"""Generate 5 multiple choice questions about {topic} for MBBS students preparing for medical licensing exams.
 
 Format each question as:
 Q[number]: [Question]
@@ -193,9 +198,15 @@ B) [Option B]
 C) [Option C]
 D) [Option D]
 Correct Answer: [Letter]
-Explanation: [Brief explanation]
+Explanation: [Brief explanation with clinical reasoning]
 
-Focus on clinically relevant scenarios and USMLE-style questions."""
+Requirements:
+- Use clinical vignette format (patient presentation style)
+- Include relevant clinical findings, lab values, or imaging when appropriate
+- Test clinical reasoning and application, not just memorization
+- Align with USMLE/NEET-PG exam standards
+- Provide evidence-based explanations with clinical context
+- Include differential diagnosis considerations where relevant"""
         
         # Select provider and execute
         provider = await router.select_provider("mcq")
@@ -203,7 +214,7 @@ Focus on clinically relevant scenarios and USMLE-style questions."""
             provider=provider,
             feature="mcq",
             prompt=prompt,
-            system_prompt="You are a medical education expert creating USMLE-style multiple choice questions."
+            system_prompt="You are a medical education specialist and exam question writer with expertise in USMLE, NEET-PG, and MBBS curriculum. Create clinically relevant, evidence-based MCQs that test clinical reasoning and application. Use standard medical terminology and follow best practices for medical exam question writing."
         )
         
         if not result["success"]:
@@ -244,8 +255,8 @@ Focus on clinically relevant scenarios and USMLE-style questions."""
         
         router = get_model_router_service(self.supabase)
         
-        # Create prompt for summary generation
-        prompt = f"""Generate high-yield summary points about {topic}.
+        # Create prompt for summary generation with medical grounding
+        prompt = f"""Generate high-yield summary points about {topic} for MBBS students.
 
 Format:
 # {topic} - High-Yield Points
@@ -255,7 +266,13 @@ Format:
 - [Key point 3]
 ...
 
-Focus on the most important, testable information for medical students."""
+Requirements:
+- Focus on clinically relevant, testable information for medical licensing exams
+- Include pathophysiology, clinical presentation, diagnosis, and management
+- Emphasize evidence-based medicine and current clinical guidelines
+- Highlight key differentiating features and clinical pearls
+- Use standard medical terminology
+- Prioritize information most relevant to clinical practice"""
         
         # Select provider and execute
         provider = await router.select_provider("highyield")
@@ -263,7 +280,7 @@ Focus on the most important, testable information for medical students."""
             provider=provider,
             feature="highyield",
             prompt=prompt,
-            system_prompt="You are a medical education expert creating concise, high-yield summaries."
+            system_prompt="You are a medical education specialist with expertise in MBBS curriculum and clinical medicine. Create concise, high-yield summaries that emphasize clinically relevant, evidence-based information aligned with medical licensing exam standards and clinical practice requirements."
         )
         
         if not result["success"]:
@@ -296,16 +313,24 @@ Focus on the most important, testable information for medical students."""
         
         router = get_model_router_service(self.supabase)
         
-        # Create prompt for explanation generation
-        prompt = f"""Provide a detailed, clear explanation of {topic}.
+        # Create prompt for explanation generation with medical grounding
+        prompt = f"""Provide a detailed, clinically-focused explanation of {topic} for MBBS students.
 
 Include:
-1. Definition and overview
-2. Key mechanisms or pathophysiology
-3. Clinical significance
-4. Important details for medical students
+1. Definition and clinical overview
+2. Pathophysiology and underlying mechanisms
+3. Clinical presentation and diagnostic approach
+4. Management principles and treatment options
+5. Clinical significance and prognosis
+6. Key points for medical students and clinical practice
 
-Use clear language and organize the information logically."""
+Requirements:
+- Use evidence-based medicine principles
+- Include relevant clinical guidelines and standards of care
+- Emphasize clinical reasoning and application
+- Use standard medical terminology with clear explanations
+- Relate concepts to real-world clinical scenarios
+- Highlight information relevant to medical licensing exams"""
         
         # Select provider and execute
         provider = await router.select_provider("explain")
@@ -313,7 +338,7 @@ Use clear language and organize the information logically."""
             provider=provider,
             feature="explain",
             prompt=prompt,
-            system_prompt="You are a medical education expert providing clear, detailed explanations."
+            system_prompt="You are a medical education specialist and clinician with expertise in teaching MBBS students. Provide clear, detailed, evidence-based explanations that bridge basic science with clinical practice. Focus on clinical reasoning, current guidelines, and information relevant to both medical exams and patient care."
         )
         
         if not result["success"]:
@@ -346,8 +371,8 @@ Use clear language and organize the information logically."""
         
         router = get_model_router_service(self.supabase)
         
-        # Create prompt for concept map generation
-        prompt = f"""Create a concept map for {topic}.
+        # Create prompt for concept map generation with medical grounding
+        prompt = f"""Create a clinically-focused concept map for {topic} for MBBS students.
 
 Format as a text-based hierarchical structure:
 
@@ -360,7 +385,13 @@ Format as a text-based hierarchical structure:
 │   └── Sub-concept 2.2
 └── Main Concept 3
 
-Show relationships and hierarchies between key concepts."""
+Requirements:
+- Organize around clinical relevance (etiology → pathophysiology → clinical presentation → diagnosis → management)
+- Show relationships between basic science and clinical application
+- Include key differentiating features and clinical decision points
+- Emphasize evidence-based medicine and current guidelines
+- Highlight connections relevant to medical licensing exams
+- Use standard medical terminology"""
         
         # Select provider and execute
         provider = await router.select_provider("map")
@@ -368,7 +399,7 @@ Show relationships and hierarchies between key concepts."""
             provider=provider,
             feature="map",
             prompt=prompt,
-            system_prompt="You are a medical education expert creating concept maps to show relationships between ideas."
+            system_prompt="You are a medical education specialist with expertise in MBBS curriculum and clinical medicine. Create concept maps that show clinically relevant relationships and help students understand how basic science connects to clinical practice. Focus on evidence-based medicine and information relevant to both medical exams and patient care."
         )
         
         if not result["success"]:

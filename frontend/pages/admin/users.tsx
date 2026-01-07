@@ -59,7 +59,7 @@ export default function UsersPage() {
         if (response.ok) {
           setIsAdmin(true)
           const data = await response.json()
-          setUsers(data)
+          setUsers(data.users || [])  // Extract users array from response
           setLoading(false)
         } else if (response.status === 403) {
           router.push('/chat')
@@ -101,7 +101,7 @@ export default function UsersPage() {
       }
 
       const data = await response.json()
-      setUsers(data)
+      setUsers(data.users || [])  // Extract users array from response
     } catch (err) {
       console.error('Failed to load users:', err)
       setError(err instanceof Error ? err.message : 'Failed to load users')

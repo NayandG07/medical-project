@@ -1,14 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
-import { createClient } from '@supabase/supabase-js'
-import Layout from '../components/Layout'
+import { supabase, AuthUser } from '@/lib/supabase'
+import DashboardLayout from '@/components/DashboardLayout'
 import DocumentUpload from '../components/DocumentUpload'
 import DocumentList, { Document } from '../components/DocumentList'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 /**
  * Documents Page
@@ -17,7 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey)
  */
 export default function DocumentsPage() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +32,7 @@ export default function DocumentsPage() {
         return
       }
 
-      setUser(user)
+      setUser(user as AuthUser)
       await fetchDocuments()
     } catch (err) {
       console.error('Error checking user:', err)
@@ -132,33 +128,31 @@ export default function DocumentsPage() {
     router.push('/')
   }
 
-  if (loading) {
+  if (loading || !user) {
     return (
-      <Layout>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '60vh'
-        }}>
-          <div>Loading...</div>
-        </div>
-      </Layout>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh'
+      }}>
+        <div>Loading...</div>
+      </div>
     )
   }
 
   return (
-    <Layout>
+    <>
       <Head>
-        <title>Documents - VaidyaAI</title>
+        <title>Documents - Vaidya AI</title>
       </Head>
-      <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '2rem'
-      }}>
-        <h1 style={{ fontSize: '2.5rem', color: '#2d3748', marginBottom: '0.5rem' }}>My Documents 📄</h1>
-        <p style={{ fontSize: '1.1rem', color: '#718096', marginBottom: '2rem' }}>Upload PDFs to chat with your documents</p>
+      <DashboardLayout user={user}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto'
+        }}>
+          <h1 style={{ fontSize: '2.5rem', color: '#2d3748', marginBottom: '0.5rem' }}>My Documents 📄</h1>
+          <p style={{ fontSize: '1.1rem', color: '#718096', marginBottom: '2rem' }}>Upload PDFs to chat with your documents</p>
 
         {/* Success Message */}
         {success && (
@@ -220,7 +214,8 @@ export default function DocumentsPage() {
           <strong>💡 Tip:</strong> PDF documents will be automatically processed for semantic search.
           You can use uploaded documents in your chat conversations for more accurate, context-aware responses.
         </div>
-      </div>
-    </Layout>
+        </div>
+      </DashboardLayout>
+    </>
   )
 }

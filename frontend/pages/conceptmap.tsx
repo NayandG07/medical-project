@@ -3,10 +3,10 @@ import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { supabase, AuthUser } from '@/lib/supabase'
 import DashboardLayout from '@/components/DashboardLayout'
-import { parseMarkdown } from '@/lib/markdown'
+import ClinicalMapViewer, { parseClinicalMapData } from '@/components/ClinicalMapViewer'
 import styles from '@/styles/StudyTools.module.css'
 
-export default function Flashcards() {
+export default function ConceptMap() {
   const router = useRouter()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
@@ -44,7 +44,7 @@ export default function Flashcards() {
       const token = session?.access_token
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/study-tools/flashcards`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/study-tools/conceptmap`,
         {
           method: 'POST',
           headers: {
@@ -60,13 +60,13 @@ export default function Flashcards() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.detail?.error?.message || 'Failed to generate flashcards')
+        throw new Error(errorData.detail?.error?.message || 'Failed to generate concept map')
       }
 
       const data = await response.json()
       setResult(data)
     } catch (err: any) {
-      setError(err.message || 'Failed to generate flashcards')
+      setError(err.message || 'Failed to generate concept map')
     } finally {
       setGenerating(false)
     }
@@ -83,13 +83,13 @@ export default function Flashcards() {
   return (
     <>
       <Head>
-        <title>Flashcards - Vaidya AI</title>
+        <title>Concept Map - Vaidya AI</title>
       </Head>
       <DashboardLayout user={user}>
         <div className={styles.container}>
           <div className={styles.header}>
-            <h1>🎴 Flashcards</h1>
-            <p>Generate spaced repetition flashcards for any medical topic</p>
+            <h1>🗺️ Concept Maps</h1>
+            <p>Visualize relationships between medical concepts</p>
           </div>
 
           <div className={styles.inputSection}>
@@ -106,7 +106,7 @@ export default function Flashcards() {
               disabled={generating}
               className={styles.generateBtn}
             >
-              {generating ? 'Generating...' : 'Generate Flashcards'}
+              {generating ? 'Generating...' : 'Generate Concept Map'}
             </button>
           </div>
 
@@ -119,7 +119,7 @@ export default function Flashcards() {
           {result && (
             <div className={styles.resultCard}>
               <div className={styles.resultHeader}>
-                <h3>Generated Flashcards</h3>
+                <h3>Concept Map</h3>
                 <button
                   onClick={() => {
                     setResult(null)
@@ -131,7 +131,16 @@ export default function Flashcards() {
                 </button>
               </div>
               <div className={styles.resultContent}>
-                <div dangerouslySetInnerHTML={{ __html: parseMarkdown(result.content) }} />
+                {(() => {
+                  const { nodes, connections } = parseClinicalMapData(result.content)
+                  return (
+                    <ClinicalMapViewer
+                      title={topic}
+                      nodes={nodes}
+                      connections={connections}
+                    />
+                  )
+                })()}
               </div>
               {result.citations && (
                 <div className={styles.citations}>
@@ -148,9 +157,9 @@ export default function Flashcards() {
 
           {!result && !generating && (
             <div className={styles.placeholder}>
-              <div className={styles.placeholderIcon}>🎴</div>
-              <h3>Ready to generate flashcards</h3>
-              <p>Enter a topic above and click Generate to create your flashcards</p>
+              <div className={styles.placeholderIcon}>🗺️</div>
+              <h3>Ready to generate concept map</h3>
+              <p>Enter a topic above and click Generate to visualize relationships</p>
             </div>
           )}
         </div>

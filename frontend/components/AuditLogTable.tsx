@@ -45,6 +45,9 @@ export default function AuditLogTable({ logs, loading }: AuditLogTableProps) {
     return '#007bff' // Blue
   }
 
+  // Ensure logs is always an array
+  const safeLogsArray = Array.isArray(logs) ? logs : []
+
   if (loading) {
     return (
       <div style={{
@@ -59,7 +62,7 @@ export default function AuditLogTable({ logs, loading }: AuditLogTableProps) {
     )
   }
 
-  if (logs.length === 0) {
+  if (safeLogsArray.length === 0) {
     return (
       <div style={{
         padding: '40px',
@@ -100,7 +103,7 @@ export default function AuditLogTable({ logs, loading }: AuditLogTableProps) {
             </tr>
           </thead>
           <tbody>
-            {logs.map((log) => (
+            {safeLogsArray.map((log) => (
               <>
                 <tr
                   key={log.id}
@@ -221,7 +224,7 @@ export default function AuditLogTable({ logs, loading }: AuditLogTableProps) {
         color: '#6c757d',
         fontSize: '14px'
       }}>
-        Showing {logs.length} log{logs.length !== 1 ? 's' : ''}
+        Showing {safeLogsArray.length} log{safeLogsArray.length !== 1 ? 's' : ''}
       </div>
     </div>
   )
