@@ -204,10 +204,9 @@
 
 .mapContainer {
   flex: 1;
-  min-height: 0;
+  min-height: 400px;
   display: flex;
   flex-direction: column;
-  background: #f8fafc;
   border-radius: 12px;
   overflow: hidden;
 }
