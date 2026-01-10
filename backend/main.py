@@ -20,6 +20,7 @@ from services.rate_limiter import get_rate_limiter
 from services.admin import get_admin_service
 from services.model_usage_logger import get_model_usage_logger
 from services.commands import get_command_service
+from services.study_tools import get_study_tools_service
 
 # Load environment variables
 load_dotenv()
@@ -160,8 +161,12 @@ async def generate_conceptmap(
 ):
     """Generate concept map for a topic"""
     try:
-        command_service = get_command_service(supabase)
-        result = await command_service.generate_concept_map(user["id"], request.topic)
+        study_tools_service = get_study_tools_service(supabase)
+        result = await study_tools_service.generate_conceptmap(
+            user_id=user["id"],
+            topic=request.topic,
+            format=getattr(request, 'format', 'visual')
+        )
         return result
     except Exception as e:
         logger.error(f"Failed to generate concept map: {str(e)}")

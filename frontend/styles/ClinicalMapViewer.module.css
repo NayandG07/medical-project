@@ -1,107 +1,109 @@
 .container {
-  background: white;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: linear-gradient(135deg, #fafbfc 0%, #f1f5f9 100%);
   border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.header {
-  margin-bottom: 20px;
-}
-
-.header h3 {
-  margin: 0 0 15px 0;
-  color: #212529;
-  font-size: 20px;
-}
-
-.legend {
-  display: flex;
-  gap: 15px;
-  flex-wrap: wrap;
-}
-
-.legendItem {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #6c757d;
-}
-
-.legendColor {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
+  overflow: hidden;
+  min-height: 400px;
 }
 
 .svg {
   width: 100%;
-  height: auto;
-  min-height: 500px;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  background: #f8f9fa;
+  height: 100%;
+  display: block;
 }
 
-.connections line {
-  transition: all 0.3s ease;
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 300px;
+  color: #94a3b8;
 }
 
-.connectionLabel {
-  pointer-events: none;
-  font-family: system-ui, -apple-system, sans-serif;
+.emptyIcon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
 }
 
-.nodes g {
-  transition: all 0.3s ease;
+.emptyState p {
+  font-size: 1rem;
+  margin: 0;
 }
 
-.nodeCircle {
-  transition: all 0.3s ease;
-}
-
-.nodeCircle:hover {
-  transform: scale(1.1);
-}
-
-.nodeText {
-  pointer-events: none;
-  font-family: system-ui, -apple-system, sans-serif;
-}
-
+/* Node details panel */
 .nodeDetails {
-  margin-top: 20px;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #667eea;
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  background: white;
+  border: 2px solid #667eea;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  min-width: 200px;
+  max-width: 280px;
+  z-index: 10;
+  animation: slideIn 0.15s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.nodeTypeBadge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid;
+  margin-bottom: 0.5rem;
 }
 
 .nodeDetails h4 {
-  margin: 0 0 8px 0;
-  color: #212529;
-  font-size: 16px;
+  margin: 0 0 0.5rem 0;
+  color: #1e293b;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
-.nodeType {
-  margin: 0 0 12px 0;
-  color: #6c757d;
-  font-size: 13px;
-  text-transform: capitalize;
+.nodeDescription {
+  color: #64748b;
+  font-size: 0.85rem;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.4;
 }
 
 .closeBtn {
-  padding: 6px 12px;
-  font-size: 13px;
-  background: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #5a67d8 100%);
   color: white;
   border: none;
-  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background 0.2s;
+  font-size: 0.8rem;
+  font-weight: 600;
+  width: 100%;
+  transition: all 0.15s;
 }
 
 .closeBtn:hover {
-  background: #5568d3;
+  background: linear-gradient(135deg, #5a67d8 0%, #4c51bf 100%);
+}
+
+@media (max-width: 640px) {
+  .nodeDetails {
+    bottom: 8px;
+    right: 8px;
+    left: 8px;
+    max-width: none;
+  }
 }

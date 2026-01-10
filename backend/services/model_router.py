@@ -738,13 +738,11 @@ class ModelRouterService:
                 # Send notification about fallback to open-source model
                 try:
                     notification_service = get_notification_service()
-                    fallback_reason = f" due to {reason}" if reason else ""
                     await notification_service.notify_fallback(
                         from_key_id="paid_apis",
                         to_key_id="huggingface_fallback",
                         provider="huggingface",
-                        feature=feature,
-                        reason=f"Fell back to Hugging Face{fallback_reason}"
+                        feature=feature
                     )
                 except Exception as notif_error:
                     logger.warning(f"Failed to send fallback notification: {str(notif_error)}")

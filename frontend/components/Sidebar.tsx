@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { AuthUser } from '@/lib/supabase'
@@ -5,10 +6,30 @@ import { AuthUser } from '@/lib/supabase'
 interface SidebarProps {
   user: AuthUser
   currentPath: string
+  collapsed?: boolean
+  onToggle?: (collapsed: boolean) => void
 }
 
-export default function Sidebar({ user, currentPath }: SidebarProps) {
+// Store collapsed state globally to persist across pages
+let globalCollapsed = false
+
+export default function Sidebar({ user, currentPath, collapsed: controlledCollapsed, onToggle }: SidebarProps) {
   const router = useRouter()
+  const [isCollapsed, setIsCollapsed] = useState(globalCollapsed)
+
+  // Sync with controlled prop if provided
+  useEffect(() => {
+    if (controlledCollapsed !== undefined) {
+      setIsCollapsed(controlledCollapsed)
+    }
+  }, [controlledCollapsed])
+
+  const handleToggle = () => {
+    const newState = !isCollapsed
+    setIsCollapsed(newState)
+    globalCollapsed = newState
+    onToggle?.(newState)
+  }
 
   const menuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: '🏠' },
@@ -25,10 +46,11 @@ export default function Sidebar({ user, currentPath }: SidebarProps) {
   ]
 
   const isActive = (path: string) => currentPath === path
+  const sidebarWidth = isCollapsed ? '70px' : '240px'
 
   return (
     <div style={{
-      width: '240px',
+      width: sidebarWidth,
       height: '100vh',
       backgroundColor: '#2c3e50',
       color: 'white',
@@ -37,34 +59,93 @@ export default function Sidebar({ user, currentPath }: SidebarProps) {
       position: 'fixed',
       left: 0,
       top: 0,
-      overflowY: 'auto'
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      transition: 'width 0.2s ease',
+      zIndex: 100
     }}>
-      {/* Logo */}
+      {/* Logo & Toggle */}
       <div style={{
-        padding: '20px',
+        padding: isCollapsed ? '20px 0' : '20px',
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
         display: 'flex',
         alignItems: 'center',
-        gap: '10px'
+        justifyContent: isCollapsed ? 'center' : 'space-between',
+        gap: '10px',
+        minHeight: '72px'
       }}>
         <div style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: '8px',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '18px',
-          fontWeight: 'bold'
+          gap: '10px'
         }}>
-          V
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '18px',
+            fontWeight: 'bold',
+            flexShrink: 0
+          }}>
+            V
+          </div>
+          {!isCollapsed && (
+            <span style={{ fontSize: '20px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Vaidya AI</span>
+          )}
         </div>
-        <span style={{ fontSize: '20px', fontWeight: 'bold' }}>Vaidya AI</span>
+        
+        {!isCollapsed && (
+          <button
+            onClick={handleToggle}
+            style={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 8px',
+              cursor: 'pointer',
+              color: 'white',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Collapse sidebar"
+          >
+            ◀
+          </button>
+        )}
       </div>
 
+      {/* Expand button when collapsed */}
+      {isCollapsed && (
+        <button
+          onClick={handleToggle}
+          style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '8px',
+            margin: '10px auto',
+            cursor: 'pointer',
+            color: 'white',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '40px'
+          }}
+          title="Expand sidebar"
+        >
+          ▶
+        </button>
+      )}
+
       {/* Menu Items */}
-      <nav style={{ flex: 1, padding: '20px 0' }}>
+      <nav style={{ flex: 1, padding: '10px 0' }}>
         {menuItems.map((item) => (
           <Link
             key={item.path}
@@ -73,7 +154,8 @@ export default function Sidebar({ user, currentPath }: SidebarProps) {
               display: 'flex',
               alignItems: 'center',
               gap: '12px',
-              padding: '12px 20px',
+              padding: isCollapsed ? '12px 0' : '12px 20px',
+              justifyContent: isCollapsed ? 'center' : 'flex-start',
               color: 'white',
               textDecoration: 'none',
               backgroundColor: isActive(item.path) ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
@@ -81,6 +163,7 @@ export default function Sidebar({ user, currentPath }: SidebarProps) {
               transition: 'all 0.2s ease',
               cursor: 'pointer'
             }}
+            title={isCollapsed ? item.name : undefined}
             onMouseEnter={(e) => {
               if (!isActive(item.path)) {
                 e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
@@ -92,96 +175,124 @@ export default function Sidebar({ user, currentPath }: SidebarProps) {
               }
             }}
           >
-            <span style={{ fontSize: '20px' }}>{item.icon}</span>
-            <span style={{ fontSize: '15px' }}>{item.name}</span>
+            <span style={{ fontSize: '20px', flexShrink: 0 }}>{item.icon}</span>
+            {!isCollapsed && <span style={{ fontSize: '15px', whiteSpace: 'nowrap' }}>{item.name}</span>}
           </Link>
         ))}
       </nav>
 
-      {/* User Profile */}
+      {/* User Profile - simplified when collapsed */}
       <div style={{
-        padding: '20px',
+        padding: isCollapsed ? '15px 10px' : '20px',
         borderTop: '1px solid rgba(255, 255, 255, 0.1)'
       }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          marginBottom: '15px'
-        }}>
+        {isCollapsed ? (
           <div style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '50%',
-            backgroundColor: '#667eea',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '16px',
-            fontWeight: 'bold'
+            gap: '10px'
           }}>
-            {user.email?.[0].toUpperCase()}
-          </div>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {user.email?.split('@')[0]}
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '50%',
+              backgroundColor: '#667eea',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              {user.email?.[0].toUpperCase()}
             </div>
-            <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)' }}>
-              Tokens: 1,520
-            </div>
           </div>
-        </div>
-        
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: '12px',
-          color: 'rgba(255, 255, 255, 0.6)',
-          marginBottom: '10px'
-        }}>
-          <span>Tokens: 1,520</span>
-          <span>2,000k Remaining</span>
-        </div>
+        ) : (
+          <>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '15px'
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                backgroundColor: '#667eea',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                flexShrink: 0
+              }}>
+                {user.email?.[0].toUpperCase()}
+              </div>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {user.email?.split('@')[0]}
+                </div>
+                <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)' }}>
+                  Tokens: 1,520
+                </div>
+              </div>
+            </div>
+            
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: '12px',
+              color: 'rgba(255, 255, 255, 0.6)',
+              marginBottom: '10px'
+            }}>
+              <span>Tokens: 1,520</span>
+              <span>2,000k Remaining</span>
+            </div>
 
-        <div style={{
-          height: '6px',
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          borderRadius: '3px',
-          overflow: 'hidden',
-          marginBottom: '15px'
-        }}>
-          <div style={{
-            height: '100%',
-            width: '76%',
-            background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
-            borderRadius: '3px'
-          }} />
-        </div>
+            <div style={{
+              height: '6px',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              borderRadius: '3px',
+              overflow: 'hidden',
+              marginBottom: '15px'
+            }}>
+              <div style={{
+                height: '100%',
+                width: '76%',
+                background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '3px'
+              }} />
+            </div>
 
-        <button
-          onClick={() => router.push('/upgrade')}
-          style={{
-            width: '100%',
-            padding: '10px',
-            backgroundColor: '#667eea',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#5568d3'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#667eea'
-          }}
-        >
-          Upgrade →
-        </button>
+            <button
+              onClick={() => router.push('/upgrade')}
+              style={{
+                width: '100%',
+                padding: '10px',
+                backgroundColor: '#667eea',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#5568d3'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#667eea'
+              }}
+            >
+              Upgrade →
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
 }
+
+export { globalCollapsed }

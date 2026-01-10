@@ -122,7 +122,7 @@ class OpenRouterProvider:
             "model": model,
             "messages": messages,
             "temperature": 0.7,
-            "max_tokens": 1024,  # Reduced from 2048 to use fewer credits
+            "max_tokens": 2048,  # Reduced from 2048 to use fewer credits
         }
         
         return request_payload

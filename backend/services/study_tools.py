@@ -113,7 +113,7 @@ class StudyToolsService:
                 raise Exception("Session not found or access denied")
             
             # Get materials
-            materials_result = self.supabase.table("study_tool_materials") \
+            materials_result = self.supabase.table("study_materials") \
                 .select("*") \
                 .eq("session_id", session_id) \
                 .order("created_at", desc=True) \
@@ -148,7 +148,7 @@ class StudyToolsService:
                 raise Exception("Session not found or access denied")
             
             # Delete materials first
-            self.supabase.table("study_tool_materials") \
+            self.supabase.table("study_materials") \
                 .delete() \
                 .eq("session_id", session_id) \
                 .execute()
@@ -209,16 +209,16 @@ Generate 5-10 flashcards covering key concepts. Keep questions concise and answe
             prompt = f"Generate flashcards about: {topic}"
             
             # Get provider and generate content
-            provider_info = await self.model_router.select_provider("flashcard")
+            provider = await self.model_router.select_provider("flashcard")
             content = await self.model_router.execute_with_fallback(
-                provider=provider_info["provider"],
+                provider=provider,
                 feature="flashcard",
                 prompt=prompt,
                 system_prompt=system_prompt
             )
             
             # Record usage
-            await self.rate_limiter.record_usage(user_id, tokens=100, feature="flashcard")
+            await self.rate_limiter.increment_usage(user_id, tokens=100, feature="flashcard")
             
             # Save material
             material_id = str(uuid.uuid4())
@@ -227,12 +227,14 @@ Generate 5-10 flashcards covering key concepts. Keep questions concise and answe
             material_data = {
                 "id": material_id,
                 "session_id": session_id,
+                "feature": "flashcard",
                 "topic": topic,
                 "content": content,
+                "tokens_used": 100,
                 "created_at": now
             }
             
-            self.supabase.table("study_tool_materials").insert(material_data).execute()
+            self.supabase.table("study_materials").insert(material_data).execute()
             
             return {
                 "id": material_id,
@@ -288,15 +290,15 @@ Generate 5-10 high-quality MCQs that test understanding, not just memorization."
             
             prompt = f"Generate multiple choice questions about: {topic}"
             
-            provider_info = await self.model_router.select_provider("mcq")
+            provider = await self.model_router.select_provider("mcq")
             content = await self.model_router.execute_with_fallback(
-                provider=provider_info["provider"],
+                provider=provider,
                 feature="mcq",
                 prompt=prompt,
                 system_prompt=system_prompt
             )
             
-            await self.rate_limiter.record_usage(user_id, tokens=150, feature="mcq")
+            await self.rate_limiter.increment_usage(user_id, tokens=150, feature="mcq")
             
             material_id = str(uuid.uuid4())
             now = datetime.utcnow().isoformat()
@@ -304,12 +306,14 @@ Generate 5-10 high-quality MCQs that test understanding, not just memorization."
             material_data = {
                 "id": material_id,
                 "session_id": session_id,
+                "feature": "mcq",
                 "topic": topic,
                 "content": content,
+                "tokens_used": 150,
                 "created_at": now
             }
             
-            self.supabase.table("study_tool_materials").insert(material_data).execute()
+            self.supabase.table("study_materials").insert(material_data).execute()
             
             return {
                 "id": material_id,
@@ -344,14 +348,14 @@ Generate 5-10 high-quality MCQs that test understanding, not just memorization."
         """
         try:
             if not session_id:
-                session = await self.create_session(user_id, "conceptmap", f"Concept Map: {topic}")
+                session = await self.create_session(user_id, "map", f"Concept Map: {topic}")
                 session_id = session["id"]
             
             within_limits = await self.rate_limiter.check_rate_limit(user_id, "chat")
             if not within_limits:
                 raise Exception("Rate limit exceeded")
             
-            system_prompt = """You are a medical education expert. Generate a clinical concept map in this exact format:
+            system_prompt = """You are a medical education expert. Generate a clinical concept map in this EXACT format:
 
 MAIN: [Main topic/condition]
 SYMPTOM: [Symptom 1]
@@ -359,26 +363,57 @@ SYMPTOM: [Symptom 2]
 SYMPTOM: [Symptom 3]
 DIAGNOSIS: [Diagnostic method 1]
 DIAGNOSIS: [Diagnostic method 2]
+DIAGNOSIS: [Diagnostic method 3]
 TREATMENT: [Treatment option 1]
 TREATMENT: [Treatment option 2]
-COMPLICATION: [Complication 1]
-COMPLICATION: [Complication 2]
-CONNECTION: [From] -> [To]
-CONNECTION: [From] -> [To]
+TREATMENT: [Treatment option 3]
+COMPLICATION: [Risk factor or complication 1]
+COMPLICATION: [Risk factor or complication 2]
+CONNECTION: [Main topic] -> [Symptom 1]
+CONNECTION: [Main topic] -> [Symptom 2]
+CONNECTION: [Main topic] -> [Diagnosis 1]
+CONNECTION: [Main topic] -> [Treatment 1]
+CONNECTION: [Main topic] -> [Complication 1]
 
-Use exact node labels in connections. This will be rendered as a visual diagram."""
+CRITICAL RULES:
+1. Start each line with exactly one of: MAIN:, SYMPTOM:, DIAGNOSIS:, TREATMENT:, COMPLICATION:, CONNECTION:
+2. Use exact node labels in connections (must match the labels you defined)
+3. Include at least 3 symptoms, 3 diagnoses, 3 treatments, and 2 complications
+4. No extra text, explanations, or markdown formatting
+5. Each item on a new line
+
+Example:
+MAIN: Pulmonary Embolism
+SYMPTOM: Shortness of breath
+SYMPTOM: Chest pain
+SYMPTOM: Tachycardia
+DIAGNOSIS: D-Dimer test
+DIAGNOSIS: CT Pulmonary Angiography
+DIAGNOSIS: V/Q Scan
+TREATMENT: Heparin
+TREATMENT: Warfarin
+TREATMENT: Thrombolysis
+COMPLICATION: Deep vein thrombosis
+COMPLICATION: Right heart strain
+CONNECTION: Pulmonary Embolism -> Shortness of breath
+CONNECTION: Pulmonary Embolism -> Chest pain
+CONNECTION: Pulmonary Embolism -> D-Dimer test
+CONNECTION: Pulmonary Embolism -> Heparin"""
             
             prompt = f"Generate a clinical concept map for: {topic}"
             
-            provider_info = await self.model_router.select_provider("chat")
-            content = await self.model_router.execute_with_fallback(
-                provider=provider_info["provider"],
-                feature="chat",
+            provider = await self.model_router.select_provider("map")
+            result = await self.model_router.execute_with_fallback(
+                provider=provider,
+                feature="map",
                 prompt=prompt,
                 system_prompt=system_prompt
             )
             
-            await self.rate_limiter.record_usage(user_id, tokens=120, feature="chat")
+            # Extract the actual content from the result
+            content = result.get("content", "") if isinstance(result, dict) else str(result)
+            
+            await self.rate_limiter.increment_usage(user_id, tokens=120, feature="map")
             
             material_id = str(uuid.uuid4())
             now = datetime.utcnow().isoformat()
@@ -386,12 +421,14 @@ Use exact node labels in connections. This will be rendered as a visual diagram.
             material_data = {
                 "id": material_id,
                 "session_id": session_id,
+                "feature": "map",
                 "topic": topic,
                 "content": content,
+                "tokens_used": result.get("tokens_used", 120) if isinstance(result, dict) else 120,
                 "created_at": now
             }
             
-            self.supabase.table("study_tool_materials").insert(material_data).execute()
+            self.supabase.table("study_materials").insert(material_data).execute()
             
             return {
                 "id": material_id,
@@ -441,15 +478,15 @@ Format with clear headers and bullet points."""
             
             prompt = f"Generate high-yield summary points for: {topic}"
             
-            provider_info = await self.model_router.select_provider("chat")
+            provider = await self.model_router.select_provider("chat")
             content = await self.model_router.execute_with_fallback(
-                provider=provider_info["provider"],
+                provider=provider,
                 feature="chat",
                 prompt=prompt,
                 system_prompt=system_prompt
             )
             
-            await self.rate_limiter.record_usage(user_id, tokens=100, feature="chat")
+            await self.rate_limiter.increment_usage(user_id, tokens=100, feature="chat")
             
             material_id = str(uuid.uuid4())
             now = datetime.utcnow().isoformat()
@@ -457,12 +494,14 @@ Format with clear headers and bullet points."""
             material_data = {
                 "id": material_id,
                 "session_id": session_id,
+                "feature": "highyield",
                 "topic": topic,
                 "content": content,
+                "tokens_used": 100,
                 "created_at": now
             }
             
-            self.supabase.table("study_tool_materials").insert(material_data).execute()
+            self.supabase.table("study_materials").insert(material_data).execute()
             
             return {
                 "id": material_id,
@@ -512,15 +551,15 @@ Make it comprehensive but accessible."""
             
             prompt = f"Explain in detail: {topic}"
             
-            provider_info = await self.model_router.select_provider("chat")
+            provider = await self.model_router.select_provider("chat")
             content = await self.model_router.execute_with_fallback(
-                provider=provider_info["provider"],
+                provider=provider,
                 feature="chat",
                 prompt=prompt,
                 system_prompt=system_prompt
             )
             
-            await self.rate_limiter.record_usage(user_id, tokens=150, feature="chat")
+            await self.rate_limiter.increment_usage(user_id, tokens=150, feature="chat")
             
             material_id = str(uuid.uuid4())
             now = datetime.utcnow().isoformat()
@@ -528,12 +567,14 @@ Make it comprehensive but accessible."""
             material_data = {
                 "id": material_id,
                 "session_id": session_id,
+                "feature": "explain",
                 "topic": topic,
                 "content": content,
+                "tokens_used": 150,
                 "created_at": now
             }
             
-            self.supabase.table("study_tool_materials").insert(material_data).execute()
+            self.supabase.table("study_materials").insert(material_data).execute()
             
             return {
                 "id": material_id,
@@ -556,7 +597,19 @@ def get_study_tools_service(supabase_client=None, model_router=None, rate_limite
     """Get or create study tools service instance"""
     global _study_tools_service
     
-    if _study_tools_service is None and supabase_client and model_router and rate_limiter:
+    if _study_tools_service is None:
+        if supabase_client is None:
+            raise ValueError("supabase_client is required to initialize StudyToolsService")
+        
+        # Auto-initialize dependencies if not provided
+        if model_router is None:
+            from services.model_router import get_model_router_service
+            model_router = get_model_router_service(supabase_client)
+        
+        if rate_limiter is None:
+            from services.rate_limiter import get_rate_limiter
+            rate_limiter = get_rate_limiter(supabase_client)
+        
         _study_tools_service = StudyToolsService(supabase_client, model_router, rate_limiter)
     
     return _study_tools_service
