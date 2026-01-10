@@ -22,19 +22,24 @@ class HuggingFaceProvider:
     # Updated for router.huggingface.co/v1 compatibility
     # Using latest versions and best medical models available
     MEDICAL_MODELS = {
-        # Medical reasoning - Meditron3-70B is much better than 7B (70B parameters vs 7B)
-        "chat": "epfl-llm/meditron3-70b",  # Best medical model - upgraded from meditron-7b
-        "clinical": "epfl-llm/meditron3-70b",  # Clinical reasoning - upgraded
-        "osce": "epfl-llm/meditron3-70b",  # OSCE scenarios - upgraded
-        "explain": "epfl-llm/meditron3-70b",  # Medical explanations - upgraded
-        
+        # # Medical reasoning - Meditron-70B-chat (chat-tuned version for router compatibility)
+        # "chat": "malhajar/meditron-70b-chat",  # Chat-tuned Meditron-70B
+        # "clinical": "malhajar/meditron-70b-chat",  # Clinical reasoning
+        # "osce": "malhajar/meditron-70b-chat",  # OSCE scenarios
+        # "explain": "malhajar/meditron-70b-chat",  # Medical explanations
+        # "highyield": "malhajar/meditron-70b-chat", # Summarization
+
+        # Medical reasoning - Meditron-70B-chat (chat-tuned version for router compatibility)
+        "chat": "aaditya/OpenBioLLM-Llama3-8B",  # Chat-tuned Meditron-70B
+        "clinical": "aaditya/OpenBioLLM-Llama3-8B",  # Clinical reasoning
+        "osce": "aaditya/OpenBioLLM-Llama3-8B",  # OSCE scenarios
+        "explain": "aaditya/OpenBioLLM-Llama3-8B",  # Medical explanations
+        "highyield": "aaditya/OpenBioLLM-Llama3-8B", # Summarization
+
         # Content generation - Using Llama-3.1 (newer than 3-8B)
         "flashcard": "meta-llama/Llama-3.1-8B-Instruct",  # Upgraded from Llama-3-8B
         "mcq": "meta-llama/Llama-3.1-8B-Instruct",  # Upgraded from Llama-3-8B
         "map": "meta-llama/Llama-3.1-8B-Instruct",  # Concept maps - upgraded
-        
-        # Summarization - Using Mistral v0.3 (newer than v0.2)
-        "highyield": "mistralai/Mistral-7B-Instruct-v0.3",  # Upgraded from v0.2
         
         # Specialized medical models
         "safety": "aaditya/OpenBioLLM-Llama3-8B",  # Safety check - medical safety model
@@ -47,11 +52,18 @@ class HuggingFaceProvider:
     def __init__(self):
         """Initialize Hugging Face provider"""
         self.api_key = os.getenv("HUGGINGFACE_API_KEY")
-        # Updated to new Hugging Face router endpoint (OpenAI-compatible)
-        self.base_url = "https://router.huggingface.co/v1"
+        # Router for chat models, direct API for base models
+        self.router_url = "https://router.huggingface.co/v1"
+        self.inference_url = "https://api-inference.huggingface.co/models"
         
         if not self.api_key:
             logger.warning("HUGGINGFACE_API_KEY not set - Hugging Face provider will not work")
+    
+    def _is_chat_model(self, model: str) -> bool:
+        """Check if model supports chat format"""
+        # Chat-compatible models (instruct/chat variants)
+        chat_keywords = ["instruct", "chat", "llama-3", "openbiollm"]
+        return any(keyword in model.lower() for keyword in chat_keywords)
     
     async def call_huggingface(
         self,
@@ -62,7 +74,8 @@ class HuggingFaceProvider:
         temperature: float = 0.7
     ) -> Dict[str, Any]:
         """
-        Call Hugging Face Inference API (OpenAI-compatible format)
+        Call Hugging Face Inference API
+        Automatically detects if model is chat or completion type
         
         Args:
             feature: Feature name (chat, flashcard, etc.)
@@ -88,18 +101,13 @@ class HuggingFaceProvider:
         logger.info(f"Calling Hugging Face model: {model} for feature: {feature}")
         
         try:
-            # Build messages in OpenAI format
+            # All models now use router (chat-compatible)
+            url = f"{self.router_url}/chat/completions"
+            
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
-            
-            # Prepare request (OpenAI-compatible format)
-            url = f"{self.base_url}/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
             
             payload = {
                 "model": model,
@@ -107,6 +115,11 @@ class HuggingFaceProvider:
                 "max_tokens": max_tokens,
                 "temperature": temperature,
                 "stream": False
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
             }
             
             # Make request
@@ -119,13 +132,13 @@ class HuggingFaceProvider:
                     # Extract generated text from OpenAI-compatible response
                     if "choices" in result and len(result["choices"]) > 0:
                         generated_text = result["choices"][0]["message"]["content"]
-                        tokens_used = result.get("usage", {}).get("total_tokens", 0)
-                        
-                        # If tokens not provided, estimate
-                        if tokens_used == 0:
-                            tokens_used = len(prompt + generated_text) // 4
                     else:
                         generated_text = str(result)
+                    
+                    tokens_used = result.get("usage", {}).get("total_tokens", 0)
+                    
+                    # If tokens not provided, estimate
+                    if tokens_used == 0:
                         tokens_used = len(prompt + generated_text) // 4
                     
                     logger.info(f"Hugging Face call succeeded. Model: {model}, Tokens: ~{tokens_used}")

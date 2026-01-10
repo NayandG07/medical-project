@@ -1,12 +1,12 @@
 {
   "openrouter": {
-    "chat": "anthropic/claude-sonnet-4.5",
-    "flashcard": "anthropic/claude-sonnet-4.5",
-    "mcq": "anthropic/claude-sonnet-4.5",
-    "highyield": "anthropic/claude-sonnet-4.5",
-    "explain": "anthropic/claude-sonnet-4.5",
-    "map": "anthropic/claude-sonnet-4.5",
-    "clinical": "anthropic/claude-sonnet-4.5",
+    "chat": "anthropic/claude-sonnet-4",
+    "flashcard": "anthropic/claude-sonnet-4",
+    "mcq": "anthropic/claude-sonnet-4",
+    "highyield": "anthropic/claude-sonnet-4",
+    "explain": "anthropic/claude-sonnet-4",
+    "map": "anthropic/claude-sonnet-4",
+    "clinical": "anthropic/claude-sonnet-4",
     "osce": "anthropic/claude-sonnet-4.5",
     "image": "openai/gpt-5-image"
   },
