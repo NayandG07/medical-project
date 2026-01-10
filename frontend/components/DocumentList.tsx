@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { FileText, Trash2, Clock, CheckCircle2, AlertCircle, Loader2, MoreVertical, ExternalLink, MessageSquare } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export interface Document {
   id: string
@@ -17,11 +19,6 @@ interface DocumentListProps {
   loading?: boolean
 }
 
-/**
- * DocumentList Component
- * Displays user documents with processing status and delete functionality
- * Requirements: 7.1
- */
 export default function DocumentList({ documents, onDelete, loading }: DocumentListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -33,196 +30,273 @@ export default function DocumentList({ documents, onDelete, loading }: DocumentL
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
-    return date.toLocaleString('en-US', {
+    return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: 'numeric'
     })
   }
 
-  const getStatusColor = (status: string): string => {
-    switch (status) {
-      case 'completed':
-        return '#28a745'
-      case 'processing':
-        return '#ffc107'
-      case 'pending':
-        return '#17a2b8'
-      case 'failed':
-        return '#dc3545'
-      default:
-        return '#6c757d'
-    }
-  }
-
-  const getStatusLabel = (status: string): string => {
-    switch (status) {
-      case 'completed':
-        return 'Ready'
-      case 'processing':
-        return 'Processing...'
-      case 'pending':
-        return 'Pending'
-      case 'failed':
-        return 'Failed'
-      default:
-        return status
-    }
-  }
-
   const handleDelete = async (documentId: string) => {
-    if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
-      return
-    }
-
-    setDeletingId(documentId)
-    try {
-      await onDelete(documentId)
-    } catch (error) {
-      // Error handling is done in parent component
-    } finally {
-      setDeletingId(null)
+    if (window.confirm('Are you sure you want to delete this document?')) {
+      setDeletingId(documentId)
+      try {
+        await onDelete(documentId)
+      } finally {
+        setDeletingId(null)
+      }
     }
   }
 
   if (loading) {
     return (
-      <div
-        data-testid="document-list-loading"
-        style={{
-          backgroundColor: 'white',
-          borderRadius: '8px',
-          padding: '24px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          textAlign: 'center',
-          color: '#6c757d'
-        }}
-      >
-        Loading documents...
+      <div className="loading-state">
+        <Loader2 className="animate-spin" size={32} color="#6366F1" />
+        <p>Loading your medical library...</p>
+        <style jsx>{`
+          .loading-state {
+            padding: 60px;
+            text-align: center;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.02);
+          }
+          .loading-state p {
+            margin-top: 16px;
+            color: #64748B;
+            font-weight: 600;
+          }
+        `}</style>
       </div>
     )
   }
 
   if (documents.length === 0) {
     return (
-      <div
-        data-testid="document-list-empty"
-        style={{
-          backgroundColor: 'white',
-          borderRadius: '8px',
-          padding: '24px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          textAlign: 'center',
-          color: '#6c757d'
-        }}
-      >
-        <p style={{ margin: 0 }}>No documents uploaded yet.</p>
-        <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
-          Upload a PDF or image to get started.
-        </p>
+      <div className="empty-state">
+        <div className="icon-wrap">
+          <FileText size={32} color="#94A3B8" />
+        </div>
+        <h3>No documents found</h3>
+        <p>Upload your clinical notes or research papers to begin.</p>
+        <style jsx>{`
+          .empty-state {
+            padding: 205px 40px;
+            text-align: center;
+            background: white;
+            border-radius: 32px;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+          }
+          .icon-wrap {
+            width: 64px;
+            height: 64px;
+            background: #F8FAFC;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+          }
+          h3 { font-size: 20px; font-weight: 800; color: #1E293B; margin: 0 0 8px 0; }
+          p { color: #64748B; margin: 0; }
+        `}</style>
       </div>
     )
   }
 
   return (
-    <div
-      data-testid="document-list"
-      style={{
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        padding: '24px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-      }}
-    >
-      <h2 style={{ marginTop: 0, marginBottom: '16px', fontSize: '20px' }}>
-        My Documents ({documents.length})
-      </h2>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {documents.map((doc) => (
-          <div
+    <div className="doc-list-grid">
+      <AnimatePresence>
+        {documents.map((doc, index) => (
+          <motion.div
             key={doc.id}
-            data-testid={`document-${doc.id}`}
-            data-status={doc.processing_status}
-            style={{
-              border: '1px solid #dee2e6',
-              borderRadius: '6px',
-              padding: '16px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: '16px',
-              backgroundColor: '#f8f9fa'
-            }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ delay: index * 0.05 }}
+            className="doc-card"
           >
-            {/* Document Info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontSize: '16px',
-                fontWeight: '500',
-                color: '#212529',
-                marginBottom: '4px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>
-                {doc.filename}
+            <div className="doc-header">
+              <div className="doc-icon-wrap">
+                <FileText size={20} color="#6366F1" />
               </div>
-              <div style={{
-                fontSize: '13px',
-                color: '#6c757d',
-                display: 'flex',
-                gap: '12px',
-                flexWrap: 'wrap'
-              }}>
-                <span>{doc.file_type.toUpperCase()}</span>
-                <span>•</span>
+              <div className="status-badge" data-status={doc.processing_status}>
+                {doc.processing_status === 'processing' && <Loader2 size={12} className="animate-spin" />}
+                {doc.processing_status === 'completed' && <CheckCircle2 size={12} />}
+                {doc.processing_status === 'failed' && <AlertCircle size={12} />}
+                <span>{doc.processing_status}</span>
+              </div>
+              <button className="more-btn" onClick={() => handleDelete(doc.id)} disabled={deletingId === doc.id}>
+                {deletingId === doc.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              </button>
+            </div>
+
+            <div className="doc-body">
+              <h4 title={doc.filename}>{doc.filename}</h4>
+              <div className="doc-meta">
+                <span>{doc.file_type.split('/')[1]?.toUpperCase() || doc.file_type.toUpperCase()}</span>
+                <span className="dot"></span>
                 <span>{formatFileSize(doc.file_size)}</span>
-                <span>•</span>
-                <span>{formatDate(doc.created_at)}</span>
               </div>
             </div>
 
-            {/* Status Badge */}
-            <div
-              data-testid={`status-${doc.id}`}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '12px',
-                fontSize: '12px',
-                fontWeight: '500',
-                color: 'white',
-                backgroundColor: getStatusColor(doc.processing_status),
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {getStatusLabel(doc.processing_status)}
+            <div className="doc-footer">
+              <span className="date">{formatDate(doc.created_at)}</span>
+              <div className="actions">
+                <button className="action-icon-btn" title="Chat with document"><MessageSquare size={16} /></button>
+                <button className="action-icon-btn" title="View document"><ExternalLink size={16} /></button>
+              </div>
             </div>
-
-            {/* Delete Button */}
-            <button
-              onClick={() => handleDelete(doc.id)}
-              disabled={deletingId === doc.id}
-              data-testid={`delete-${doc.id}`}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: deletingId === doc.id ? '#6c757d' : '#dc3545',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: deletingId === doc.id ? 'not-allowed' : 'pointer',
-                fontSize: '13px',
-                fontWeight: '500',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {deletingId === doc.id ? 'Deleting...' : 'Delete'}
-            </button>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </AnimatePresence>
+
+      <style jsx>{`
+        .doc-list-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 20px;
+        }
+
+        .doc-card {
+          background: white;
+          border-radius: 24px;
+          padding: 20px;
+          border: 1px solid #E2E8F0;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .doc-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 12px 30px rgba(0,0,0,0.05);
+          border-color: #EEF2FF;
+        }
+
+        .doc-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .doc-icon-wrap {
+          width: 36px;
+          height: 36px;
+          background: #F5F7FF;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .status-badge {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 10px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .status-badge[data-status="completed"] { background: #F0FDFA; color: #10B981; }
+        .status-badge[data-status="processing"] { background: #FFFBEB; color: #D97706; }
+        .status-badge[data-status="failed"] { background: #FEF2F2; color: #EF4444; }
+        .status-badge[data-status="pending"] { background: #F8FAFC; color: #64748B; }
+
+        .more-btn {
+          background: none;
+          border: none;
+          color: #94A3B8;
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 6px;
+        }
+
+        .more-btn:hover {
+          color: #EF4444;
+          background: #FEF2F2;
+        }
+
+        .doc-body h4 {
+          margin: 0 0 6px 0;
+          font-size: 15px;
+          font-weight: 700;
+          color: #1E293B;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .doc-meta {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          color: #94A3B8;
+          font-weight: 600;
+        }
+
+        .dot {
+          width: 3px;
+          height: 3px;
+          background: #CBD5E1;
+          border-radius: 50%;
+        }
+
+        .doc-footer {
+          margin-top: auto;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 16px;
+          border-top: 1px solid #F8FAFC;
+        }
+
+        .date {
+          font-size: 12px;
+          color: #94A3B8;
+          font-weight: 500;
+        }
+
+        .actions {
+          display: flex;
+          gap: 8px;
+        }
+
+        .action-icon-btn {
+          background: #F8FAFC;
+          border: none;
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #64748B;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .action-icon-btn:hover {
+          background: #6366F1;
+          color: white;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+      `}</style>
     </div>
   )
 }

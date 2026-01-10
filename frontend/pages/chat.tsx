@@ -32,7 +32,7 @@ export default function Chat() {
     // Check authentication status
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      
+
       if (!session) {
         // Not authenticated, redirect to login
         router.push('/')
@@ -41,7 +41,7 @@ export default function Chat() {
 
       setUser(session.user as AuthUser)
       setLoading(false)
-      
+
       // Load sessions after authentication
       await loadSessions(session.access_token)
     }
@@ -68,7 +68,7 @@ export default function Chat() {
     try {
       setSessionsLoading(true)
       setSessionsError(null)
-      
+
       const authToken = token || await getAuthToken()
       if (!authToken) {
         throw new Error('No authentication token available')
@@ -86,7 +86,7 @@ export default function Chat() {
 
       const data = await response.json()
       setSessions(data)
-      
+
       // If no current session and sessions exist, select the first one
       if (!currentSessionId && data.length > 0) {
         await selectSession(data[0].id, authToken)
@@ -104,7 +104,7 @@ export default function Chat() {
     try {
       setMessagesLoading(true)
       setError(null)
-      
+
       const authToken = token || await getAuthToken()
       if (!authToken) {
         throw new Error('No authentication token available')
@@ -141,11 +141,44 @@ export default function Chat() {
     router.push('/')
   }
 
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      const authToken = await getAuthToken()
+      if (!authToken) throw new Error('No authentication token available')
+
+      const response = await fetch(`${API_URL}/api/chat/sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      })
+
+      if (!response.ok) throw new Error('Failed to delete session')
+
+      // Remove from state
+      setSessions(prev => prev.filter(s => s.id !== sessionId))
+
+      // If current session deleted, select first available or clear
+      if (currentSessionId === sessionId) {
+        const remaining = sessions.filter(s => s.id !== sessionId)
+        if (remaining.length > 0) {
+          selectSession(remaining[0].id, authToken)
+        } else {
+          setCurrentSessionId(null)
+          setMessages([])
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete session:', err)
+      setError('Failed to delete session')
+    }
+  }
+
   const handleNewSession = async () => {
     try {
       setSessionsLoading(true)
       setSessionsError(null)
-      
+
       const authToken = await getAuthToken()
       if (!authToken) {
         throw new Error('No authentication token available')
@@ -167,10 +200,10 @@ export default function Chat() {
       }
 
       const newSession = await response.json()
-      
+
       // Add new session to the list
       setSessions(prev => [newSession, ...prev])
-      
+
       // Select the new session
       await selectSession(newSession.id, authToken)
     } catch (err) {
@@ -186,18 +219,38 @@ export default function Chat() {
   }
 
   const handleSendMessage = async (content: string) => {
-    if (!currentSessionId) {
-      setError('No session selected. Please create or select a session first.')
-      return
-    }
-
     try {
       setSendingMessage(true)
       setError(null)
-      
+
       const authToken = await getAuthToken()
       if (!authToken) {
         throw new Error('No authentication token available')
+      }
+
+      let activeSessionId = currentSessionId
+
+      // If no session is selected, create one automatically
+      if (!activeSessionId) {
+        const createResponse = await fetch(`${API_URL}/api/chat/sessions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title: content.slice(0, 30) || 'New Chat' // Use first few words as title
+          })
+        })
+
+        if (!createResponse.ok) {
+          throw new Error('Failed to create new session')
+        }
+
+        const newSession = await createResponse.json()
+        setSessions(prev => [newSession, ...prev])
+        setCurrentSessionId(newSession.id)
+        activeSessionId = newSession.id
       }
 
       // Add user message to UI immediately for better UX
@@ -210,7 +263,7 @@ export default function Chat() {
       setMessages(prev => [...prev, tempUserMessage])
 
       // Send message to backend
-      const response = await fetch(`${API_URL}/api/chat/sessions/${currentSessionId}/messages`, {
+      const response = await fetch(`${API_URL}/api/chat/sessions/${activeSessionId}/messages`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -223,13 +276,14 @@ export default function Chat() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to send message')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || 'Failed to send message')
       }
 
       const savedMessage = await response.json()
-      
+
       // Replace temp message with saved message
-      setMessages(prev => prev.map(msg => 
+      setMessages(prev => prev.map(msg =>
         msg.id === tempUserMessage.id ? savedMessage : msg
       ))
 
@@ -242,11 +296,11 @@ export default function Chat() {
         created_at: new Date().toISOString()
       }
       setMessages(prev => [...prev, assistantMessage])
-      
+
     } catch (err) {
       console.error('Failed to send message:', err)
       setError(err instanceof Error ? err.message : 'Failed to send message')
-      
+
       // Remove the temporary message on error
       setMessages(prev => prev.filter(msg => !msg.id.startsWith('temp-')))
     } finally {
@@ -268,13 +322,13 @@ export default function Chat() {
         <title>Chat - Vaidya AI</title>
       </Head>
       <DashboardLayout user={user}>
+        {/* Full Page Chat Container */}
         <div style={{
-          height: 'calc(100vh - 150px)',
+          height: 'calc(100vh - 56px)', // Exact height minus top bar
           display: 'flex',
-          overflow: 'hidden',
-          backgroundColor: 'white',
-          borderRadius: '12px',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+          backgroundColor: '#fdfbf7',
+          overflow: 'hidden', // Contain scrolling within this app-like view
+          position: 'relative' // Create stacking context
         }}>
           {/* Session Sidebar */}
           <SessionSidebar
@@ -282,6 +336,8 @@ export default function Chat() {
             currentSessionId={currentSessionId}
             onSelectSession={handleSelectSession}
             onNewSession={handleNewSession}
+            onDeleteSession={handleDeleteSession}
+            isNewChatDisabled={messages.length === 0}
             loading={sessionsLoading}
             error={sessionsError}
           />
@@ -291,17 +347,31 @@ export default function Chat() {
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            position: 'relative'
           }}>
             <ChatWindow
               messages={messages}
-              loading={messagesLoading || sendingMessage}
+              loading={messagesLoading}
+              isTyping={sendingMessage}
               error={error}
             />
-            <ChatInput
-              onSendMessage={handleSendMessage}
-              disabled={sendingMessage}
-            />
+
+            {/* Input Area - Fixed at bottom */}
+            <div style={{
+              flexShrink: 0, // Prevent shrinking
+              padding: '24px',
+              paddingTop: '0', // Let ChatWindow bottom padding handle spacing
+              background: 'linear-gradient(to bottom, rgba(253, 251, 247, 0) 0%, #fdfbf7 20%)',
+              zIndex: 10
+            }}>
+              <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+                <ChatInput
+                  onSendMessage={handleSendMessage}
+                  disabled={sendingMessage}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </DashboardLayout>

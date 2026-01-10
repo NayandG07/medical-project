@@ -59,11 +59,10 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
       position: 'fixed',
       left: 0,
       top: 0,
-      overflowY: 'auto',
-      overflowX: 'hidden',
+      overflow: 'hidden', // Hide main scrollbar
       transition: 'width 0.2s ease',
       zIndex: 100
-    }}>
+    }} data-lenis-prevent>
       {/* Logo & Toggle */}
       <div style={{
         padding: isCollapsed ? '20px 0' : '20px',
@@ -97,7 +96,7 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
             <span style={{ fontSize: '20px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Vaidya AI</span>
           )}
         </div>
-        
+
         {!isCollapsed && (
           <button
             onClick={handleToggle}
@@ -115,7 +114,11 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
             }}
             title="Collapse sidebar"
           >
-            ◀
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M9 3v18" />
+              <path d="m14 9-3 3 3 3" />
+            </svg>
           </button>
         )}
       </div>
@@ -140,12 +143,28 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
           }}
           title="Expand sidebar"
         >
-          ▶
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
         </button>
       )}
 
-      {/* Menu Items */}
-      <nav style={{ flex: 1, padding: '10px 0' }}>
+      {/* Menu Items - Scrollable Middle Section */}
+      <nav style={{
+        flex: 1,
+        padding: '10px 0',
+        overflowY: 'auto',
+        scrollbarWidth: 'none', // Firefox
+        msOverflowStyle: 'none', // IE/Edge
+      }}>
+        {/* Hide scrollbar for Chrome/Safari */}
+        <style jsx>{`
+          nav::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
         {menuItems.map((item) => (
           <Link
             key={item.path}
@@ -204,7 +223,7 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
               fontSize: '14px',
               fontWeight: 'bold'
             }}>
-              {user.email?.[0].toUpperCase()}
+              {(user.user_metadata?.name || user.email)?.[0].toUpperCase()}
             </div>
           </div>
         ) : (
@@ -227,18 +246,18 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
                 fontWeight: 'bold',
                 flexShrink: 0
               }}>
-                {user.email?.[0].toUpperCase()}
+                {(user.user_metadata?.name || user.email)?.[0].toUpperCase()}
               </div>
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {user.email?.split('@')[0]}
+                  {user.user_metadata?.name || user.email?.split('@')[0]}
                 </div>
                 <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)' }}>
                   Tokens: 1,520
                 </div>
               </div>
             </div>
-            
+
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',

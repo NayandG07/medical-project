@@ -12,7 +12,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 export type AuthUser = {
   id: string
   email: string
+  created_at: string
   user_metadata?: {
     name?: string
+    plan?: string
   }
 }

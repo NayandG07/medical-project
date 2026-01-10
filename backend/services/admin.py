@@ -693,6 +693,70 @@ class AdminService:
             return feature_status
         except Exception as e:
             raise Exception(f"Failed to get feature status: {str(e)}")
+            
+    async def get_system_flag(self, flag_name: str, default_value: str = "") -> str:
+        """
+        Get a system flag value
+        """
+        try:
+            result = self.supabase.table("system_flags") \
+                .select("flag_value") \
+                .eq("flag_name", flag_name) \
+                .execute()
+            
+            if result.data:
+                return result.data[0]["flag_value"]
+            return default_value
+        except Exception:
+            return default_value
+
+    async def set_system_flag(self, admin_id: str, flag_name: str, flag_value: str) -> Dict[str, Any]:
+        """
+        Set a system flag value
+        """
+        try:
+            # Check if flag exists
+            existing_flag = self.supabase.table("system_flags") \
+                .select("id") \
+                .eq("flag_name", flag_name) \
+                .execute()
+            
+            if existing_flag.data:
+                # Update existing flag
+                self.supabase.table("system_flags") \
+                    .update({
+                        "flag_value": flag_value,
+                        "updated_at": datetime.now().isoformat(),
+                        "updated_by": admin_id
+                    }) \
+                    .eq("flag_name", flag_name) \
+                    .execute()
+            else:
+                # Insert new flag
+                self.supabase.table("system_flags") \
+                    .insert({
+                        "flag_name": flag_name,
+                        "flag_value": flag_value,
+                        "updated_by": admin_id,
+                        "updated_at": datetime.now().isoformat()
+                    }) \
+                    .execute()
+            
+            # Log the action
+            await self.audit_service.log_admin_action(
+                admin_id=admin_id,
+                action_type="set_system_flag",
+                target_type="flag",
+                target_id=flag_name,
+                details={
+                    "flag_name": flag_name,
+                    "flag_value": flag_value
+                }
+            )
+            
+            return {"flag_name": flag_name, "flag_value": flag_value}
+        except Exception as e:
+            raise Exception(f"Failed to set system flag: {str(e)}")
     
     async def get_audit_logs(
         self,

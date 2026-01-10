@@ -18,7 +18,7 @@ export default function AdminDashboard() {
     // Check authentication and admin status
     const checkAdminAccess = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      
+
       if (!session) {
         // Not authenticated, redirect to login
         router.push('/')
@@ -26,11 +26,11 @@ export default function AdminDashboard() {
       }
 
       setUser(session.user as AuthUser)
-      
+
       // Check if user is admin by calling backend
       // For now, we'll use a simple check - in production, verify with backend
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      
+
       try {
         // Try to access admin endpoint to verify admin status
         const response = await fetch(`${API_URL}/api/admin/users?limit=1`, {
@@ -38,7 +38,7 @@ export default function AdminDashboard() {
             'Authorization': `Bearer ${session.access_token}`
           }
         })
-        
+
         if (response.ok) {
           setIsAdmin(true)
           setLoading(false)
@@ -167,6 +167,30 @@ export default function AdminDashboard() {
                 }}
               >
                 Coming Soon
+              </button>
+            </div>
+
+            <div style={{
+              padding: '20px',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '8px',
+              border: '1px solid #dee2e6'
+            }}>
+              <h3 style={{ marginTop: 0 }}>General Settings</h3>
+              <p style={{ color: '#6c757d' }}>Configure platform name and global settings</p>
+              <button
+                onClick={() => router.push('/admin/settings')}
+                style={{
+                  marginTop: '15px',
+                  padding: '8px 16px',
+                  backgroundColor: '#1e293b',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Configure
               </button>
             </div>
           </div>

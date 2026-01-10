@@ -89,6 +89,37 @@ class ChatService:
             return response.data if response.data else []
         except Exception as e:
             raise Exception(f"Failed to get user sessions: {str(e)}")
+
+    async def delete_session(self, user_id: str, session_id: str) -> None:
+        """
+        Delete a chat session
+        
+        Args:
+            user_id: User's unique identifier
+            session_id: Session identifier
+            
+        Raises:
+            Exception: If deletion fails
+        """
+        try:
+            # First verify ownership
+            session_response = self.supabase.table("chat_sessions")\
+                .select("id")\
+                .eq("id", session_id)\
+                .eq("user_id", user_id)\
+                .execute()
+            
+            if not session_response.data or len(session_response.data) == 0:
+                raise Exception("Session not found or does not belong to user")
+            
+            # Delete messages first (if no cascade delete on DB)
+            self.supabase.table("messages").delete().eq("session_id", session_id).execute()
+            
+            # Delete session
+            self.supabase.table("chat_sessions").delete().eq("id", session_id).execute()
+            
+        except Exception as e:
+            raise Exception(f"Failed to delete session: {str(e)}")
     
     async def send_message(
         self, 

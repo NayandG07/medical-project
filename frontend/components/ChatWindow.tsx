@@ -13,10 +13,11 @@ export interface Message {
 interface ChatWindowProps {
   messages: Message[]
   loading?: boolean
+  isTyping?: boolean
   error?: string | null
 }
 
-export default function ChatWindow({ messages, loading, error }: ChatWindowProps) {
+export default function ChatWindow({ messages, loading, isTyping, error }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom when new messages arrive
@@ -28,154 +29,216 @@ export default function ChatWindow({ messages, loading, error }: ChatWindowProps
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp)
-    const now = new Date()
-    const isToday = date.toDateString() === now.toDateString()
-    
-    if (isToday) {
-      return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      })
-    }
-    
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
+    return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit'
     })
   }
 
-  const getSenderLabel = (role: string) => {
-    switch (role) {
-      case 'user':
-        return 'You'
-      case 'assistant':
-        return 'AI Assistant'
-      case 'system':
-        return 'System'
-      default:
-        return role
-    }
-  }
-
   return (
-    <div style={{
-      flex: 1,
-      overflowY: 'auto',
-      padding: '20px',
-      backgroundColor: '#f8f9fa',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '15px'
-    }}>
+    <div
+      data-lenis-prevent
+      style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '24px', // Standard padding
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '32px',
+        scrollBehavior: 'smooth'
+      }}
+    >
       {messages.length === 0 && !loading && !error && (
         <div style={{
-          textAlign: 'center',
-          color: '#6c757d',
-          marginTop: '50px'
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '60%',
+          color: '#94a3b8',
+          gap: '16px'
         }}>
-          <p>No messages yet. Start a conversation!</p>
+          <div style={{
+            fontSize: '48px',
+            backgroundColor: 'white',
+            width: '80px',
+            height: '80px',
+            borderRadius: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 8px 16px rgba(0,0,0,0.04)',
+            border: '1px solid #f1f5f9'
+          }}>
+            🩺
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <h2 style={{ color: '#1e293b', fontSize: '20px', fontWeight: '700', margin: '0 0 8px 0' }}>How can Vaidya help you?</h2>
+            <p style={{ margin: 0, fontSize: '15px' }}>Ask me about medical concepts, clinical cases, or study summaries.</p>
+          </div>
         </div>
       )}
 
       {messages.map((message) => (
         <div
           key={message.id}
-          data-testid={`message-${message.id}`}
-          data-role={message.role}
-          data-timestamp={message.created_at}
           style={{
             display: 'flex',
-            flexDirection: 'column',
-            alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
-            maxWidth: '70%',
-            minWidth: '200px'
+            gap: '16px',
+            flexDirection: message.role === 'user' ? 'row-reverse' : 'row',
+            alignItems: 'flex-start',
+            maxWidth: '1000px',
+            margin: '0 auto',
+            width: '100%'
           }}
         >
+          {/* Avatar Icon */}
           <div style={{
-            backgroundColor: message.role === 'user' ? '#007bff' : '#ffffff',
-            color: message.role === 'user' ? '#ffffff' : '#212529',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-            wordWrap: 'break-word'
+            width: '36px',
+            height: '36px',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '18px',
+            flexShrink: 0,
+            backgroundColor: message.role === 'user' ? '#eef2ff' : '#ffffff',
+            border: '1px solid',
+            borderColor: message.role === 'user' ? '#e0e7ff' : '#f1f5f9',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+          }}>
+            {message.role === 'user' ? '🩺' : '⚕️'}
+          </div>
+
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            maxWidth: '80%',
+            alignItems: message.role === 'user' ? 'flex-end' : 'flex-start'
           }}>
             <div style={{
-              fontSize: '12px',
-              fontWeight: 'bold',
-              marginBottom: '6px',
-              opacity: 0.8
+              backgroundColor: message.role === 'user' ? '#6366f1' : '#ffffff',
+              color: message.role === 'user' ? '#ffffff' : '#334155',
+              padding: '16px 20px',
+              borderRadius: message.role === 'user' ? '20px 4px 20px 20px' : '4px 20px 20px 20px',
+              boxShadow: message.role === 'user' ? '0 4px 12px rgba(99, 102, 241, 0.2)' : '0 4px 12px rgba(0,0,0,0.03)',
+              border: message.role === 'user' ? 'none' : '1px solid #f1f5f9',
+              lineHeight: '1.6',
+              fontSize: '15.5px'
             }}>
-              {getSenderLabel(message.role)}
+              <div
+                className="prose prose-slate max-w-none"
+                dangerouslySetInnerHTML={{ __html: parseMarkdown(message.content) }}
+                style={{
+                  color: message.role === 'user' ? 'white' : 'inherit'
+                }}
+              />
             </div>
-            <div 
-              style={{
-                fontSize: '15px',
-                lineHeight: '1.5'
-              }}
-              dangerouslySetInnerHTML={{ __html: parseMarkdown(message.content) }}
-            />
+
+            {/* Citations Chip Component (Placeholder for future) */}
             {message.citations && (
               <div style={{
-                marginTop: '8px',
-                fontSize: '12px',
-                opacity: 0.7,
-                fontStyle: 'italic'
+                display: 'flex',
+                gap: '8px',
+                marginTop: '4px',
+                flexWrap: 'wrap'
               }}>
-                Citations: {JSON.stringify(message.citations)}
+                <span style={{
+                  fontSize: '11px',
+                  backgroundColor: '#f1f5f9',
+                  padding: '4px 10px',
+                  borderRadius: '100px',
+                  color: '#64748b',
+                  fontWeight: '600'
+                }}>
+                  Source Integrated
+                </span>
               </div>
             )}
-          </div>
-          <div style={{
-            fontSize: '11px',
-            color: '#6c757d',
-            marginTop: '4px',
-            marginLeft: message.role === 'user' ? 'auto' : '0',
-            marginRight: message.role === 'user' ? '0' : 'auto'
-          }}>
-            {formatTimestamp(message.created_at)}
-            {message.tokens_used && ` • ${message.tokens_used} tokens`}
+
+            <div style={{
+              fontSize: '11px',
+              color: '#94a3b8',
+              fontWeight: '500',
+              padding: '0 4px'
+            }}>
+              {formatTimestamp(message.created_at)}
+              {message.tokens_used && ` • ${message.tokens_used} tokens`}
+            </div>
           </div>
         </div>
       ))}
 
-      {loading && (
+      {isTyping && (
         <div style={{
-          alignSelf: 'flex-start',
-          maxWidth: '70%',
-          backgroundColor: '#ffffff',
-          padding: '12px 16px',
-          borderRadius: '12px',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+          display: 'flex',
+          gap: '16px',
+          maxWidth: '1000px',
+          margin: '0 auto',
+          width: '100%'
         }}>
           <div style={{
-            fontSize: '12px',
-            fontWeight: 'bold',
-            marginBottom: '6px',
-            opacity: 0.8
+            width: '36px',
+            height: '36px',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '18px',
+            flexShrink: 0,
+            backgroundColor: '#ffffff',
+            border: '1px solid #f1f5f9'
           }}>
-            AI Assistant
+            ⚕️
           </div>
-          <div style={{ fontSize: '15px', color: '#6c757d' }}>
-            Thinking...
+          <div style={{
+            backgroundColor: '#ffffff',
+            padding: '16px 24px',
+            borderRadius: '4px 20px 20px 20px',
+            border: '1px solid #f1f5f9',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <div className="typing-dot" style={{ width: '6px', height: '6px', backgroundColor: '#cbd5e1', borderRadius: '50%', animation: 'bounce 1s infinite 0.1s' }} />
+            <div className="typing-dot" style={{ width: '6px', height: '6px', backgroundColor: '#cbd5e1', borderRadius: '50%', animation: 'bounce 1s infinite 0.2s' }} />
+            <div className="typing-dot" style={{ width: '6px', height: '6px', backgroundColor: '#cbd5e1', borderRadius: '50%', animation: 'bounce 1s infinite 0.3s' }} />
           </div>
         </div>
       )}
 
       {error && (
         <div style={{
-          backgroundColor: '#f8d7da',
-          color: '#721c24',
-          padding: '12px 16px',
-          borderRadius: '8px',
-          border: '1px solid #f5c6cb'
+          maxWidth: '600px',
+          margin: '20px auto',
+          padding: '12px 20px',
+          backgroundColor: '#fef2f2',
+          border: '1px solid #fee2e2',
+          borderRadius: '12px',
+          color: '#991b1b',
+          fontSize: '14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
         }}>
+          <span style={{ fontSize: '18px' }}>⚠️</span>
           <strong>Error:</strong> {error}
         </div>
       )}
 
       <div ref={messagesEndRef} />
+
+      <style jsx>{`
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-4px); }
+        }
+        .typing-dot {
+          display: inline-block;
+        }
+      `}</style>
     </div>
   )
 }

@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Key, Eye, EyeOff, Trash2, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react'
 
 interface UserApiKeyFormProps {
   currentKey: string | null
@@ -19,10 +21,16 @@ export default function UserApiKeyForm({ currentKey, onSubmit, onRemove }: UserA
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  /**
-   * Validate API key input
-   * Requirements: 27.1
-   */
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess(null)
+        setError(null)
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [success, error])
+
   const validateKey = (keyValue: string): string | null => {
     if (!keyValue || keyValue.trim() === '') {
       return 'API key is required'
@@ -33,21 +41,15 @@ export default function UserApiKeyForm({ currentKey, onSubmit, onRemove }: UserA
     return null
   }
 
-  /**
-   * Mask API key for display
-   * Requirements: 27.1
-   */
   const maskKey = (keyValue: string): string => {
     if (!keyValue || keyValue.length < 4) {
-      return '****'
+      return '•••• ••••'
     }
-    return '****' + keyValue.slice(-4)
+    return '•••• •••• ' + keyValue.slice(-4)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Validate key
     const validationError = validateKey(key)
     if (validationError) {
       setError(validationError)
@@ -61,7 +63,7 @@ export default function UserApiKeyForm({ currentKey, onSubmit, onRemove }: UserA
     try {
       await onSubmit(key.trim())
       setSuccess('Personal API key saved successfully')
-      setKey('') // Clear input after successful save
+      setKey('')
       setShowKey(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save API key')
@@ -90,77 +92,159 @@ export default function UserApiKeyForm({ currentKey, onSubmit, onRemove }: UserA
   }
 
   return (
-    <div style={{
-      backgroundColor: 'white',
-      borderRadius: '8px',
-      padding: '24px',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-    }}>
-      <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Personal API Key</h3>
-      
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.2 }}
+      style={{
+        backgroundColor: 'white',
+        borderRadius: '24px',
+        padding: '32px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        border: '1px solid #e2e8f0',
+        overflow: 'hidden',
+        position: 'relative'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+        <div style={{
+          width: '40px',
+          height: '40px',
+          borderRadius: '12px',
+          backgroundColor: '#eff6ff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#3b82f6'
+        }}>
+          <Key size={20} />
+        </div>
+        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#1e293b' }}>Personal API Key</h3>
+      </div>
+
       <p style={{
-        fontSize: '14px',
-        color: '#6c757d',
-        marginBottom: '20px'
+        fontSize: '0.95rem',
+        color: '#64748b',
+        lineHeight: '1.6',
+        marginBottom: '24px',
+        maxWidth: '600px'
       }}>
-        Provide your own API key to use instead of shared keys. Your key will be encrypted and used with priority over shared keys.
+        Bring your own API key for dedicated throughput. Your key is <strong>encrypted</strong> and used with absolute priority over shared keys.
       </p>
+
+      {/* Status Messages */}
+      <AnimatePresence mode="wait">
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            style={{
+              padding: '12px 16px',
+              backgroundColor: '#f0fdf4',
+              color: '#16a34a',
+              borderRadius: '12px',
+              marginBottom: '20px',
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              border: '1px solid #dcfce7'
+            }}
+          >
+            <CheckCircle2 size={16} />
+            {success}
+          </motion.div>
+        )}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            style={{
+              padding: '12px 16px',
+              backgroundColor: '#fef2f2',
+              color: '#dc2626',
+              borderRadius: '12px',
+              marginBottom: '20px',
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              border: '1px solid #fee2e2'
+            }}
+          >
+            <AlertCircle size={16} />
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Current Key Status */}
       {currentKey && (
         <div style={{
-          padding: '12px',
-          backgroundColor: '#d4edda',
-          color: '#155724',
-          borderRadius: '4px',
-          marginBottom: '20px',
-          fontSize: '14px'
+          padding: '16px',
+          backgroundColor: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: '16px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
         }}>
-          <strong>Current Key:</strong> {maskKey(currentKey)}
-        </div>
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <div style={{
-          padding: '12px',
-          backgroundColor: '#f8d7da',
-          color: '#721c24',
-          borderRadius: '4px',
-          marginBottom: '20px',
-          fontSize: '14px'
-        }}>
-          {error}
-        </div>
-      )}
-
-      {/* Success Message */}
-      {success && (
-        <div style={{
-          padding: '12px',
-          backgroundColor: '#d4edda',
-          color: '#155724',
-          borderRadius: '4px',
-          marginBottom: '20px',
-          fontSize: '14px'
-        }}>
-          {success}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ color: '#10b981' }}>
+              <ShieldCheck size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Active Key
+              </div>
+              <div style={{ fontSize: '1rem', color: '#1e293b', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                {maskKey(currentKey)}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleRemove}
+            disabled={removing}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#ef4444',
+              cursor: 'pointer',
+              padding: '8px',
+              borderRadius: '10px',
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.85rem',
+              fontWeight: '600'
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#fef2f2')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+          >
+            <Trash2 size={16} />
+            {removing ? '...' : 'Remove'}
+          </button>
         </div>
       )}
 
       <form onSubmit={handleSubmit}>
-        {/* API Key Input */}
-        <div style={{ marginBottom: '20px' }}>
+        <div style={{ marginBottom: '24px' }}>
           <label
             htmlFor="user-api-key-input"
             style={{
               display: 'block',
-              marginBottom: '8px',
-              fontWeight: 'bold',
-              fontSize: '14px'
+              marginBottom: '10px',
+              fontWeight: '600',
+              fontSize: '0.9rem',
+              color: '#475569'
             }}
           >
-            {currentKey ? 'Update API Key' : 'Add API Key'}
+            {currentKey ? 'Update API Key' : 'Configure New API Key'}
           </label>
           <div style={{ position: 'relative' }}>
             <input
@@ -169,16 +253,21 @@ export default function UserApiKeyForm({ currentKey, onSubmit, onRemove }: UserA
               value={key}
               onChange={(e) => setKey(e.target.value)}
               disabled={submitting || removing}
-              placeholder="Enter your API key"
+              placeholder="Paste your API key here..."
               style={{
                 width: '100%',
-                padding: '10px',
-                paddingRight: '80px',
-                borderRadius: '4px',
-                border: '1px solid #ced4da',
-                fontSize: '14px',
-                fontFamily: 'monospace'
+                padding: '14px 16px',
+                paddingRight: '100px',
+                borderRadius: '14px',
+                border: '1.5px solid #e2e8f0',
+                fontSize: '0.95rem',
+                fontFamily: 'monospace',
+                transition: 'all 0.2s',
+                outline: 'none',
+                backgroundColor: (submitting || removing) ? '#f8fafc' : 'white'
               }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = '#6366f1')}
+              onBlur={(e) => (e.currentTarget.style.borderColor = '#e2e8f0')}
             />
             <button
               type="button"
@@ -186,94 +275,90 @@ export default function UserApiKeyForm({ currentKey, onSubmit, onRemove }: UserA
               disabled={submitting || removing}
               style={{
                 position: 'absolute',
-                right: '10px',
+                right: '12px',
                 top: '50%',
                 transform: 'translateY(-50%)',
-                padding: '4px 8px',
-                backgroundColor: 'transparent',
-                border: '1px solid #ced4da',
-                borderRadius: '4px',
+                padding: '6px 10px',
+                backgroundColor: '#f1f5f9',
+                border: 'none',
+                borderRadius: '8px',
                 cursor: 'pointer',
-                fontSize: '12px',
-                color: '#495057'
+                fontSize: '0.75rem',
+                color: '#475569',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: '600',
+                transition: 'all 0.2s'
               }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e2e8f0')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
             >
+              {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
               {showKey ? 'Hide' : 'Show'}
             </button>
           </div>
           <p style={{
-            fontSize: '12px',
-            color: '#6c757d',
-            marginTop: '5px',
-            marginBottom: 0
+            fontSize: '0.8rem',
+            color: '#94a3b8',
+            marginTop: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
           }}>
-            Your key will be encrypted before storage and validated before saving
+            <ShieldCheck size={12} />
+            Your credentials are encrypted and stored securely.
           </p>
         </div>
 
-        {/* Form Actions */}
-        <div style={{
-          display: 'flex',
-          gap: '10px',
-          justifyContent: 'flex-start'
-        }}>
-          <button
-            type="submit"
-            disabled={submitting || removing || !key}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#007bff',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: (submitting || removing || !key) ? 'not-allowed' : 'pointer',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              opacity: (submitting || removing || !key) ? 0.6 : 1
-            }}
-          >
-            {submitting ? 'Saving...' : (currentKey ? 'Update Key' : 'Add Key')}
-          </button>
-
-          {currentKey && (
-            <button
-              type="button"
-              onClick={handleRemove}
-              disabled={submitting || removing}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: '#dc3545',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: (submitting || removing) ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                opacity: (submitting || removing) ? 0.6 : 1
-              }}
-            >
-              {removing ? 'Removing...' : 'Remove Key'}
-            </button>
-          )}
-        </div>
+        <button
+          type="submit"
+          disabled={submitting || removing || !key}
+          style={{
+            width: '100%',
+            padding: '14px',
+            backgroundColor: '#6366f1',
+            color: 'white',
+            border: 'none',
+            borderRadius: '14px',
+            cursor: (submitting || removing || !key) ? 'not-allowed' : 'pointer',
+            fontSize: '1rem',
+            fontWeight: '700',
+            transition: 'all 0.2s',
+            boxShadow: (submitting || removing || !key) ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.25)',
+            opacity: (submitting || removing || !key) ? 0.6 : 1
+          }}
+          onMouseOver={(e) => {
+            if (!submitting && !removing && key) e.currentTarget.style.backgroundColor = '#4f46e5'
+          }}
+          onMouseOut={(e) => {
+            if (!submitting && !removing && key) e.currentTarget.style.backgroundColor = '#6366f1'
+          }}
+        >
+          {submitting ? 'Saving...' : (currentKey ? 'Update API Key' : 'Save API Key')}
+        </button>
       </form>
 
-      {/* Usage Information */}
+      {/* Usage Tooltip/Info */}
       <div style={{
-        marginTop: '24px',
-        padding: '16px',
-        backgroundColor: '#f8f9fa',
-        borderRadius: '4px',
-        fontSize: '13px',
-        color: '#495057'
+        marginTop: '32px',
+        padding: '20px',
+        backgroundColor: '#fffbeb',
+        borderRadius: '16px',
+        border: '1px solid #fde68a',
+        fontSize: '0.85rem',
+        color: '#92400e'
       }}>
-        <h4 style={{ marginTop: 0, marginBottom: '8px', fontSize: '14px' }}>How it works:</h4>
-        <ul style={{ marginBottom: 0, paddingLeft: '20px' }}>
-          <li>Your personal API key will be used for all your requests</li>
-          <li>If your key fails, the system will automatically fall back to shared keys</li>
-          <li>Your key is never shared with other users</li>
-          <li>You can update or remove your key at any time</li>
+        <div style={{ fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <AlertCircle size={14} />
+          Important Information
+        </div>
+        <ul style={{ margin: 0, paddingLeft: '18px', lineHeight: '1.6' }}>
+          <li>Your personal key will be used for all processing requests.</li>
+          <li>In case of quota exhaustion, we'll gracefully fail back to shared keys.</li>
+          <li>Credentials are strictly scoped to your private session.</li>
         </ul>
       </div>
-    </div>
+    </motion.div>
   )
 }

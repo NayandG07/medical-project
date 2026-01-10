@@ -49,8 +49,7 @@ export default function AdminSidebar() {
     {
       label: 'Settings',
       path: '/admin/settings',
-      icon: '⚙️',
-      disabled: true
+      icon: '⚙️'
     }
   ]
 

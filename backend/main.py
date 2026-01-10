@@ -35,7 +35,7 @@ app = FastAPI(title="Medical AI Platform API", version="1.0.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Frontend URL
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],  # Frontend URLs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -86,9 +86,87 @@ async def health_check():
     return {"status": "healthy", "service": "Medical AI Platform API"}
 
 
+@app.get("/api/system/settings")
+async def get_system_settings():
+    """Get public system settings"""
+    try:
+        admin_service = get_admin_service(supabase)
+        platform_name = await admin_service.get_system_flag("platform_name", "Vaidya AI")
+        student_plan_price = await admin_service.get_system_flag("student_plan_price", "150")
+        pro_plan_price = await admin_service.get_system_flag("pro_plan_price", "300")
+        yearly_discount = await admin_service.get_system_flag("yearly_discount_percentage", "10")
+        
+        return {
+            "platform_name": platform_name,
+            "student_plan_price": int(student_plan_price) if student_plan_price.isdigit() else 150,
+            "pro_plan_price": int(pro_plan_price) if pro_plan_price.isdigit() else 300,
+            "yearly_discount_percentage": int(yearly_discount) if yearly_discount.isdigit() else 10
+        }
+    except Exception as e:
+        logger.error(f"Failed to get system settings: {str(e)}")
+        return {
+            "platform_name": "Vaidya AI",
+            "student_plan_price": 150,
+            "pro_plan_price": 300,
+            "yearly_discount_percentage": 10
+        }
+
+
 # ============================================================================
-# STUDY TOOLS ENDPOINTS
+# ADMIN ENDPOINTS - Audit Logs
 # ============================================================================
+
+@app.get("/api/admin/audit-logs")
+async def get_audit_logs(
+    limit: int = 100,
+    admin: Dict[str, Any] = Depends(verify_admin)
+):
+    """Get audit logs"""
+    try:
+        admin_service = get_admin_service(supabase)
+        logs = await admin_service.get_audit_logs(limit=limit)
+        return {"logs": logs, "count": len(logs)}
+    except Exception as e:
+        logger.error(f"Failed to get audit logs: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class UpdateSystemSettingsRequest(BaseModel):
+    platform_name: str
+    student_plan_price: Optional[int] = 150
+    pro_plan_price: Optional[int] = 300
+    yearly_discount_percentage: Optional[int] = 10
+
+
+@app.post("/api/admin/settings")
+async def update_system_settings(
+    request: UpdateSystemSettingsRequest,
+    admin: Dict[str, Any] = Depends(verify_admin)
+):
+    """Update system settings"""
+    try:
+        admin_service = get_admin_service(supabase)
+        await admin_service.set_system_flag(admin["id"], "platform_name", request.platform_name)
+        
+        if request.student_plan_price is not None:
+             await admin_service.set_system_flag(admin["id"], "student_plan_price", str(request.student_plan_price))
+        
+        if request.pro_plan_price is not None:
+             await admin_service.set_system_flag(admin["id"], "pro_plan_price", str(request.pro_plan_price))
+             
+        if request.yearly_discount_percentage is not None:
+             await admin_service.set_system_flag(admin["id"], "yearly_discount_percentage", str(request.yearly_discount_percentage))
+             
+        return {
+            "message": "Settings updated successfully", 
+            "platform_name": request.platform_name,
+            "student_plan_price": request.student_plan_price,
+            "pro_plan_price": request.pro_plan_price,
+            "yearly_discount_percentage": request.yearly_discount_percentage
+        }
+    except Exception as e:
+        logger.error(f"Failed to update system settings: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 class StudyToolRequest(BaseModel):
     topic: str
@@ -329,23 +407,6 @@ async def get_features(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================================
-# ADMIN ENDPOINTS - Audit Logs
-# ============================================================================
-
-@app.get("/api/admin/audit-logs")
-async def get_audit_logs(
-    limit: int = 100,
-    admin: Dict[str, Any] = Depends(verify_admin)
-):
-    """Get audit logs"""
-    try:
-        admin_service = get_admin_service(supabase)
-        logs = await admin_service.get_audit_logs(limit=limit)
-        return {"logs": logs, "count": len(logs)}
-    except Exception as e:
-        logger.error(f"Failed to get audit logs: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================
@@ -360,9 +421,103 @@ async def get_chat_sessions(
     try:
         chat_service = get_chat_service(supabase)
         sessions = await chat_service.get_user_sessions(user["id"])
-        return {"sessions": sessions, "count": len(sessions)}
+        return sessions
     except Exception as e:
         logger.error(f"Failed to get chat sessions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class CreateSessionRequest(BaseModel):
+    title: Optional[str] = "New Chat"
+
+
+@app.post("/api/chat/sessions", status_code=201)
+async def create_chat_session(
+    request: CreateSessionRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Create a new chat session"""
+    try:
+        chat_service = get_chat_service(supabase)
+        session = await chat_service.create_session(user["id"], request.title)
+        return session
+    except Exception as e:
+        logger.error(f"Failed to create chat session: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/chat/sessions/{session_id}/messages")
+async def get_chat_messages(
+    session_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get messages for a session"""
+    try:
+        chat_service = get_chat_service(supabase)
+        messages = await chat_service.get_chat_history(user["id"], session_id)
+        return messages
+    except Exception as e:
+        if "not found" in str(e).lower() or "belong to user" in str(e).lower():
+            raise HTTPException(status_code=404, detail=str(e))
+        logger.error(f"Failed to get chat messages: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/chat/sessions/{session_id}")
+async def delete_chat_session(
+    session_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete a chat session"""
+    try:
+        chat_service = get_chat_service(supabase)
+        # Verify ownership before deletion (service should handle this or we do it here)
+        # Ideally chat_service.delete_session(user_id, session_id)
+        await chat_service.delete_session(user["id"], session_id)
+        return {"message": "Session deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete chat session: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SendMessageRequest(BaseModel):
+    message: str
+    role: str = "user"
+
+
+@app.post("/api/chat/sessions/{session_id}/messages", status_code=201)
+async def send_chat_message(
+    session_id: str,
+    request: SendMessageRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Send a message to a chat session"""
+    try:
+        chat_service = get_chat_service(supabase)
+        
+        # Check rate limit (if available)
+        try:
+            rate_limiter = get_rate_limiter(supabase)
+            has_capacity = await rate_limiter.check_rate_limit(user["id"], "chat")
+            if not has_capacity:
+                raise HTTPException(status_code=429, detail="Rate limit exceeded. Please upgrade your plan.")
+        except Exception as rl_error:
+            # If rate limiter fails, we still allow the message for now
+            logger.warning(f"Rate limiter check failed: {str(rl_error)}")
+            
+        message = await chat_service.send_message(
+            user_id=user["id"],
+            session_id=session_id,
+            message=request.message,
+            role=request.role
+        )
+        return message
+    except HTTPException:
+        raise
+    except Exception as e:
+        if "not found" in str(e).lower() or "belong to user" in str(e).lower():
+            raise HTTPException(status_code=404, detail=str(e))
+        logger.error(f"Failed to send chat message: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -544,4 +699,5 @@ async def check_paid_apis_health(
 # Run the application
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Use string reference for app to enable reload
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
