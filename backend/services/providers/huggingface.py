@@ -52,18 +52,11 @@ class HuggingFaceProvider:
     def __init__(self):
         """Initialize Hugging Face provider"""
         self.api_key = os.getenv("HUGGINGFACE_API_KEY")
-        # Router for chat models, direct API for base models
-        self.router_url = "https://router.huggingface.co/v1"
-        self.inference_url = "https://api-inference.huggingface.co/models"
+        # Updated to new Hugging Face router endpoint (OpenAI-compatible)
+        self.base_url = "https://router.huggingface.co/v1"
         
         if not self.api_key:
             logger.warning("HUGGINGFACE_API_KEY not set - Hugging Face provider will not work")
-    
-    def _is_chat_model(self, model: str) -> bool:
-        """Check if model supports chat format"""
-        # Chat-compatible models (instruct/chat variants)
-        chat_keywords = ["instruct", "chat", "llama-3", "openbiollm"]
-        return any(keyword in model.lower() for keyword in chat_keywords)
     
     async def call_huggingface(
         self,
@@ -74,8 +67,7 @@ class HuggingFaceProvider:
         temperature: float = 0.7
     ) -> Dict[str, Any]:
         """
-        Call Hugging Face Inference API
-        Automatically detects if model is chat or completion type
+        Call Hugging Face Inference API (OpenAI-compatible format)
         
         Args:
             feature: Feature name (chat, flashcard, etc.)
@@ -101,13 +93,18 @@ class HuggingFaceProvider:
         logger.info(f"Calling Hugging Face model: {model} for feature: {feature}")
         
         try:
-            # All models now use router (chat-compatible)
-            url = f"{self.router_url}/chat/completions"
-            
+            # Build messages in OpenAI format
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
+            
+            # Prepare request (OpenAI-compatible format)
+            url = f"{self.base_url}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
             
             payload = {
                 "model": model,
@@ -115,11 +112,6 @@ class HuggingFaceProvider:
                 "max_tokens": max_tokens,
                 "temperature": temperature,
                 "stream": False
-            }
-            
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
             }
             
             # Make request
@@ -132,13 +124,13 @@ class HuggingFaceProvider:
                     # Extract generated text from OpenAI-compatible response
                     if "choices" in result and len(result["choices"]) > 0:
                         generated_text = result["choices"][0]["message"]["content"]
+                        tokens_used = result.get("usage", {}).get("total_tokens", 0)
+                        
+                        # If tokens not provided, estimate
+                        if tokens_used == 0:
+                            tokens_used = len(prompt + generated_text) // 4
                     else:
                         generated_text = str(result)
-                    
-                    tokens_used = result.get("usage", {}).get("total_tokens", 0)
-                    
-                    # If tokens not provided, estimate
-                    if tokens_used == 0:
                         tokens_used = len(prompt + generated_text) // 4
                     
                     logger.info(f"Hugging Face call succeeded. Model: {model}, Tokens: ~{tokens_used}")
