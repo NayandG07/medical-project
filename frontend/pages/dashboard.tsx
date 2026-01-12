@@ -26,22 +26,6 @@ export default function Dashboard() {
     checkAuth()
   }, [router])
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#F8F9FD' }}>
-        <p>Loading premium experience...</p>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return null
-  }
-
-  const illustrationsUrl = 'https://oaidalleapiprodscus.blob.core.windows.net/private/org-pL6xX6Z4hE9G8A8RzE9G8A8R/user-pL6xX6Z4hE9G8A8RzE9G8A8R/img-GzNf0Z0Z0Z0Z0Z0Z0Z0Z0Z0.png' // This is a placeholder, I should use the path to the generated image if possible, but actually I'll just use the illustration set image I generated if I can get its local path.
-  // Wait, I can't easily reference the local path in a way that works for the user's browser unless it's in the public folder.
-  // I'll use colors and icons for now, and maybe simple SVGs.
-
   return (
     <>
       <Head>
@@ -49,13 +33,13 @@ export default function Dashboard() {
         <meta name="description" content="Your premium medical study dashboard" />
       </Head>
 
-      <DashboardLayout user={user}>
+      <DashboardLayout user={user} loading={loading}>
         <div className="dashboard-container">
           {/* Main Content Area */}
           <div className="main-area">
             {/* Welcome Section */}
             <header className="welcome-header">
-              <h1>Welcome back, {user.user_metadata?.name || user.email?.split('@')[0]}!</h1>
+              <h1>Welcome back, {user?.user_metadata?.name || user?.email?.split('@')[0]}!</h1>
               <p>Ready to study? Here's your current progress and today's tasks.</p>
             </header>
 

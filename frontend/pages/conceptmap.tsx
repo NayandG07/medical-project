@@ -43,7 +43,7 @@ export default function ConceptMap() {
   const [topic, setTopic] = useState('')
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   // History management
   const [sessions, setSessions] = useState<ConceptMapSession[]>([])
   const [currentSession, setCurrentSession] = useState<ConceptMapSession | null>(null)
@@ -86,7 +86,7 @@ export default function ConceptMap() {
 
       if (error) throw error
       setSessions(data || [])
-      
+
       // Auto-select most recent session
       if (data && data.length > 0 && !currentSession) {
         setCurrentSession(data[0])
@@ -103,10 +103,10 @@ export default function ConceptMap() {
         .select('*')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: false })
-      
+
       if (error) throw error
       setMaterials(data || [])
-      
+
       if (data && data.length > 0) {
         setCurrentMaterial(data[0])
       } else {
@@ -138,7 +138,7 @@ export default function ConceptMap() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             topic: topic,
             format: 'interactive'
           })
@@ -151,10 +151,10 @@ export default function ConceptMap() {
       }
 
       const data = await response.json()
-      
+
       // Reload sessions to show the new one
       await loadSessions()
-      
+
       // If we have a session_id in the response, load that session's materials
       if (data.session_id) {
         // Find the session
@@ -163,15 +163,15 @@ export default function ConceptMap() {
           .select('*')
           .eq('id', data.session_id)
           .single()
-        
+
         if (sessionData) {
           setCurrentSession(sessionData)
           await loadMaterials(data.session_id)
         }
       }
-      
+
       setTopic('')
-      
+
     } catch (err: any) {
       setError(err.message || 'Failed to generate concept map')
     } finally {
@@ -181,7 +181,7 @@ export default function ConceptMap() {
 
   const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    
+
     if (!confirm('Delete this session and all its concept maps?')) return
 
     try {
@@ -194,7 +194,7 @@ export default function ConceptMap() {
 
       // Reload sessions
       await loadSessions()
-      
+
       // Clear current session if it was deleted
       if (currentSession?.id === sessionId) {
         setCurrentSession(null)
@@ -207,18 +207,10 @@ export default function ConceptMap() {
     }
   }
 
-  if (loading || !user) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <p>Loading...</p>
-      </div>
-    )
-  }
-
   // Parse map data with proper typing
   let mapNodes: MapNode[] = []
   let mapConnections: MapConnection[] = []
-  
+
   if (currentMaterial?.content) {
     const parsed = parseClinicalMapData(currentMaterial.content)
     mapNodes = parsed.nodes
@@ -238,7 +230,7 @@ export default function ConceptMap() {
       <Head>
         <title>Concept Map - VaidyaAI</title>
       </Head>
-      <DashboardLayout user={user}>
+      <DashboardLayout user={user} loading={loading}>
         <div className={styles.container}>
           <div className={styles.mainLayout}>
             {/* Left Sidebar - History */}
@@ -322,14 +314,14 @@ export default function ConceptMap() {
             {/* Right Sidebar - Card Summary */}
             <div className={styles.rightSidebar}>
               <h3>CARD SUMMARY</h3>
-              
+
               {currentMaterial ? (
                 <div className={styles.summaryCard}>
                   <div className={styles.topicIcon}>
                     <div className={styles.iconCircle}>{getTopicIcon(currentMaterial.topic)}</div>
                   </div>
                   <h4 className={styles.topicTitle}>{currentMaterial.topic}</h4>
-                  
+
                   <div className={styles.statsSection}>
                     {stats.diagnosis > 0 && (
                       <div className={styles.statItem}>
@@ -341,7 +333,7 @@ export default function ConceptMap() {
                         </div>
                       </div>
                     )}
-                    
+
                     {stats.treatments > 0 && (
                       <div className={styles.statItem}>
                         <span className={styles.statLabel}>🟩 TREATMENTS:</span>
@@ -353,7 +345,7 @@ export default function ConceptMap() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className={styles.legend}>
                     <h4>LEGEND</h4>
                     <div className={styles.legendItems}>

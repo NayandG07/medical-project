@@ -90,7 +90,8 @@ class OpenRouterProvider:
         self,
         model: str,
         prompt: str,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        image_data: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Format a request for the OpenRouter API
@@ -113,10 +114,28 @@ class OpenRouterProvider:
             })
         
         # Add user prompt
-        messages.append({
-            "role": "user",
-            "content": prompt
-        })
+        if image_data:
+            # Handle multimodal request
+            messages.append({
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_data}"
+                        }
+                    }
+                ]
+            })
+        else:
+            messages.append({
+                "role": "user",
+                "content": prompt
+            })
         
         request_payload = {
             "model": model,
@@ -134,6 +153,7 @@ class OpenRouterProvider:
         feature: str,
         prompt: str,
         system_prompt: Optional[str] = None,
+        image_data: Optional[str] = None,
         stream: bool = False
     ) -> Dict[str, Any]:
         """
@@ -159,7 +179,7 @@ class OpenRouterProvider:
             model = self.get_model_id(provider, feature)
             
             # Format the request
-            request_payload = self.format_request(model, prompt, system_prompt)
+            request_payload = self.format_request(model, prompt, system_prompt, image_data)
             
             # Prepare headers
             headers = {

@@ -21,6 +21,9 @@ from services.admin import get_admin_service
 from services.model_usage_logger import get_model_usage_logger
 from services.commands import get_command_service
 from services.study_tools import get_study_tools_service
+from services.documents import get_document_service
+from services.clinical import get_clinical_service
+from fastapi import UploadFile, File, BackgroundTasks
 
 # Load environment variables
 load_dotenv()
@@ -483,6 +486,7 @@ async def delete_chat_session(
 class SendMessageRequest(BaseModel):
     message: str
     role: str = "user"
+    document_id: Optional[str] = None  # Optional document context for RAG
 
 
 @app.post("/api/chat/sessions/{session_id}/messages", status_code=201)
@@ -509,7 +513,8 @@ async def send_chat_message(
             user_id=user["id"],
             session_id=session_id,
             message=request.message,
-            role=request.role
+            role=request.role,
+            document_id=request.document_id  # Pass document context
         )
         return message
     except HTTPException:
@@ -693,6 +698,221 @@ async def check_paid_apis_health(
         }
     except Exception as e:
         logger.error(f"Failed to check paid APIs health: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# OSCE & CLINICAL ENDPOINTS
+# ============================================================================
+
+class CreateOSCERequest(BaseModel):
+    scenario_type: Optional[str] = None
+    difficulty: str = "intermediate"
+
+@app.get("/api/osce/config")
+async def get_osce_config(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get OSCE scenario types and difficulty levels"""
+    return {
+        "scenario_types": [
+            {
+                "id": "history_taking",
+                "label": "History Taking",
+                "icon": "ClipboardList",
+                "desc": "Master the art of diagnostic patient interviews",
+                "color": "#6366F1",
+                "gradient": "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)"
+            },
+            {
+                "id": "physical_exam",
+                "label": "Physical Examination",
+                "icon": "Stethoscope",
+                "desc": "Perform systematic & professional clinical exams",
+                "color": "#0EA5E9",
+                "gradient": "linear-gradient(135deg, #0EA5E9 0%, #06B6D4 100%)"
+            },
+            {
+                "id": "communication",
+                "label": "Communication Skills",
+                "icon": "MessageSquare",
+                "desc": "Practice empathy & breaking difficult news",
+                "color": "#F59E0B",
+                "gradient": "linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%)"
+            },
+            {
+                "id": "procedure",
+                "label": "Clinical Procedure",
+                "icon": "Activity",
+                "desc": "Demonstrate competence in clinical tasks",
+                "color": "#EF4444",
+                "gradient": "linear-gradient(135deg, #EF4444 0%, #F87171 100%)"
+            }
+        ],
+        "difficulty_levels": [
+            { "id": "beginner", "label": "Beginner", "color": "#10B981", "desc": "Step-by-step guidance" },
+            { "id": "intermediate", "label": "Standard", "color": "#6366F1", "desc": "The typical OSCE level" },
+            { "id": "advanced", "label": "Advanced", "color": "#F59E0B", "desc": "Complex & tricky cases" }
+        ]
+    }
+
+@app.post("/api/osce/scenario", status_code=201)
+async def create_osce_scenario(
+    request: CreateOSCERequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Create a new OSCE scenario"""
+    try:
+        clinical_service = get_clinical_service(supabase)
+        scenario = await clinical_service.create_osce_scenario(
+            user["id"], 
+            request.scenario_type, 
+            request.difficulty
+        )
+        return scenario
+    except Exception as e:
+        logger.error(f"Failed to create OSCE scenario: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class OSCEInteractionRequest(BaseModel):
+    user_action: str
+
+@app.post("/api/osce/sessions/{session_id}/interaction")
+async def simulate_osce_interaction(
+    session_id: str,
+    request: OSCEInteractionRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Simulate user interaction in OSCE station"""
+    try:
+        clinical_service = get_clinical_service(supabase)
+        result = await clinical_service.simulate_examiner_interaction(
+            session_id,
+            user["id"],
+            request.user_action
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Failed to simulate OSCE interaction: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/osce/sessions/{session_id}/performance")
+async def get_osce_performance(
+    session_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get performance report for an OSCE session"""
+    try:
+        clinical_service = get_clinical_service(supabase)
+        performance = await clinical_service.get_osce_performance(session_id, user["id"])
+        return performance
+    except Exception as e:
+        logger.error(f"Failed to get OSCE performance: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# DOCUMENT ENDPOINTS
+# ============================================================================
+
+@app.get("/api/documents")
+async def get_documents(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get all documents for a user"""
+    try:
+        document_service = get_document_service(supabase)
+        documents = await document_service.get_user_documents(user["id"])
+        return {"documents": documents}
+    except Exception as e:
+        logger.error(f"Failed to get documents: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/documents", status_code=201)
+async def upload_document(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Upload a document and start processing"""
+    try:
+        document_service = get_document_service(supabase)
+        
+        # Determine file type
+        file_type = "image" if file.content_type.startswith("image/") else "pdf"
+        if file.content_type != "application/pdf" and not file.content_type.startswith("image/"):
+             raise HTTPException(status_code=400, detail="Invalid file type. Only PDF and images are supported.")
+
+        # Upload to storage and create DB record
+        doc_record = await document_service.upload_document(
+            user_id=user["id"],
+            file=file.file,
+            filename=file.filename,
+            file_type=file_type,
+            file_size=file.size if hasattr(file, 'size') else 0
+        )
+        
+        # Start background processing
+        if file_type == "pdf":
+            background_tasks.add_task(document_service.process_pdf, doc_record["id"])
+        else:
+            background_tasks.add_task(document_service.process_image, doc_record["id"])
+            
+        return doc_record
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to upload document: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/documents/{document_id}")
+async def get_document_details(
+    document_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get details for a specific document"""
+    try:
+        # Check ownership
+        response = supabase.table("documents").select("*").eq("id", document_id).eq("user_id", user["id"]).execute()
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        return response.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get document details: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/documents/{document_id}")
+async def delete_document(
+    document_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete a document"""
+    try:
+        document_service = get_document_service(supabase)
+        result = await document_service.delete_document(document_id, user["id"])
+        return result
+    except Exception as e:
+        logger.error(f"Failed to delete document: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/documents/{document_id}/intelligence")
+async def get_document_intelligence(
+    document_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get AI-generated intelligence for a document"""
+    try:
+        document_service = get_document_service(supabase)
+        intelligence = await document_service.get_document_intelligence(document_id, user["id"])
+        return intelligence
+    except Exception as e:
+        logger.error(f"Failed to get intelligence: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

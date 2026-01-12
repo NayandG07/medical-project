@@ -111,20 +111,12 @@ export default function ClinicalReasoning() {
     setUserInput('')
   }
 
-  if (loading || !user) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <p>Loading...</p>
-      </div>
-    )
-  }
-
   return (
     <>
       <Head>
         <title>Clinical Reasoning - Vaidya AI</title>
       </Head>
-      <DashboardLayout user={user}>
+      <DashboardLayout user={user} loading={loading}>
         <div className={styles.container}>
           <div className={styles.header}>
             <h1>🧠 Clinical Reasoning</h1>

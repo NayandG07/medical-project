@@ -53,13 +53,13 @@ describe('Chat Flow Integration Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
-    ;(useRouter as jest.Mock).mockReturnValue(mockRouter)
-    ;(supabase.auth.getSession as jest.Mock).mockResolvedValue({
-      data: { session: mockSession }
-    })
-    ;(supabase.auth.onAuthStateChange as jest.Mock).mockReturnValue({
-      data: { subscription: { unsubscribe: jest.fn() } }
-    })
+      ; (useRouter as jest.Mock).mockReturnValue(mockRouter)
+      ; (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+        data: { session: mockSession }
+      })
+      ; (supabase.auth.onAuthStateChange as jest.Mock).mockReturnValue({
+        data: { subscription: { unsubscribe: jest.fn() } }
+      })
   })
 
   /**
@@ -83,30 +83,30 @@ describe('Chat Flow Integration Tests', () => {
       created_at: new Date().toISOString()
     }
 
-    // Mock API responses
-    ;(global.fetch as jest.Mock)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [] // Initial sessions load (empty)
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockNewSession // Create session
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [] // Load messages for new session (empty)
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockSentMessage // Send message
-      })
+      // Mock API responses
+      ; (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [] // Initial sessions load (empty)
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockNewSession // Create session
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [] // Load messages for new session (empty)
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockSentMessage // Send message
+        })
 
     const { container } = render(<Chat />)
 
     // Wait for component to load
     await waitFor(() => {
-      expect(screen.getByText(/Medical AI Platform/i)).toBeInTheDocument()
+      expect(screen.getByText('How can Vaidya help you?')).toBeInTheDocument()
     })
 
     // Click "New Chat" button
@@ -127,12 +127,12 @@ describe('Chat Flow Integration Tests', () => {
     })
 
     // Find the chat input and send a message
-    const chatInput = container.querySelector('textarea')
+    const chatInput = container.querySelector('input')
     expect(chatInput).toBeTruthy()
 
     if (chatInput) {
       fireEvent.change(chatInput, { target: { value: 'Hello, AI!' } })
-      
+
       // Submit the form
       const form = chatInput.closest('form')
       if (form) {
@@ -206,20 +206,20 @@ describe('Chat Flow Integration Tests', () => {
       }
     ]
 
-    // Mock API responses
-    ;(global.fetch as jest.Mock)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockSessions // Load sessions
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMessages1 // Load messages for session 1
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockMessages2 // Load messages for session 2
-      })
+      // Mock API responses
+      ; (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockSessions // Load sessions
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockMessages1 // Load messages for session 1
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockMessages2 // Load messages for session 2
+        })
 
     const { container } = render(<Chat />)
 
@@ -254,7 +254,7 @@ describe('Chat Flow Integration Tests', () => {
    */
   test('should handle session creation errors gracefully', async () => {
     // Mock API responses
-    ;(global.fetch as jest.Mock)
+    ; (global.fetch as jest.Mock)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [] // Initial sessions load (empty)
@@ -269,7 +269,7 @@ describe('Chat Flow Integration Tests', () => {
 
     // Wait for component to load
     await waitFor(() => {
-      expect(screen.getByText(/Medical AI Platform/i)).toBeInTheDocument()
+      expect(screen.getByText('How can Vaidya help you?')).toBeInTheDocument()
     })
 
     // Click "New Chat" button
@@ -301,36 +301,36 @@ describe('Chat Flow Integration Tests', () => {
       updated_at: new Date().toISOString()
     }
 
-    // Mock API responses
-    ;(global.fetch as jest.Mock)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [mockSession] // Load sessions
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [] // Load messages (empty)
-      })
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({ error: { message: 'Failed to send message' } })
-      })
+      // Mock API responses
+      ; (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [mockSession] // Load sessions
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [] // Load messages (empty)
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          json: async () => ({ error: { message: 'Failed to send message' } })
+        })
 
     const { container } = render(<Chat />)
 
     // Wait for component to load
     await waitFor(() => {
-      expect(screen.getByText(/Medical AI Platform/i)).toBeInTheDocument()
+      expect(screen.getByText('How can Vaidya help you?')).toBeInTheDocument()
     })
 
     // Find the chat input and send a message
-    const chatInput = container.querySelector('textarea')
+    const chatInput = container.querySelector('input')
     expect(chatInput).toBeTruthy()
 
     if (chatInput) {
       fireEvent.change(chatInput, { target: { value: 'Test message' } })
-      
+
       const form = chatInput.closest('form')
       if (form) {
         fireEvent.submit(form)
@@ -360,7 +360,7 @@ describe('Chat Flow Integration Tests', () => {
    * Requirements: 22.3
    */
   test('should redirect unauthenticated users to login', async () => {
-    ;(supabase.auth.getSession as jest.Mock).mockResolvedValue({
+    ; (supabase.auth.getSession as jest.Mock).mockResolvedValue({
       data: { session: null }
     })
 

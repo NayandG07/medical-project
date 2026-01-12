@@ -73,7 +73,7 @@ export default function UserApiKeyForm({ currentKey, onSubmit, onRemove }: UserA
   }
 
   const handleRemove = async () => {
-    if (!confirm('Are you sure you want to remove your personal API key? You will fall back to shared keys.')) {
+    if (!confirm('Are you sure you want to remove your personal API key?')) {
       return
     }
 
@@ -92,161 +92,66 @@ export default function UserApiKeyForm({ currentKey, onSubmit, onRemove }: UserA
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.2 }}
-      style={{
-        backgroundColor: 'white',
-        borderRadius: '24px',
-        padding: '32px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        border: '1px solid #e2e8f0',
-        overflow: 'hidden',
-        position: 'relative'
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-        <div style={{
-          width: '40px',
-          height: '40px',
-          borderRadius: '12px',
-          backgroundColor: '#eff6ff',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#3b82f6'
-        }}>
-          <Key size={20} />
-        </div>
-        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#1e293b' }}>Personal API Key</h3>
+    <div className="premium-settings-card">
+      <div className="section-header">
+        <h2 className="section-title">Personal API Key</h2>
+        <p className="section-description">
+          Scale your throughput with a personal credentials. Your key is encrypted and stored with industry-standard AES-256.
+        </p>
       </div>
 
-      <p style={{
-        fontSize: '0.95rem',
-        color: '#64748b',
-        lineHeight: '1.6',
-        marginBottom: '24px',
-        maxWidth: '600px'
-      }}>
-        Bring your own API key for dedicated throughput. Your key is <strong>encrypted</strong> and used with absolute priority over shared keys.
-      </p>
-
-      {/* Status Messages */}
       <AnimatePresence mode="wait">
         {success && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            style={{
-              padding: '12px 16px',
-              backgroundColor: '#f0fdf4',
-              color: '#16a34a',
-              borderRadius: '12px',
-              marginBottom: '20px',
-              fontSize: '0.9rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              border: '1px solid #dcfce7'
-            }}
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="premium-status-toast success"
           >
             <CheckCircle2 size={16} />
-            {success}
+            <span>{success}</span>
           </motion.div>
         )}
         {error && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            style={{
-              padding: '12px 16px',
-              backgroundColor: '#fef2f2',
-              color: '#dc2626',
-              borderRadius: '12px',
-              marginBottom: '20px',
-              fontSize: '0.9rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              border: '1px solid #fee2e2'
-            }}
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="premium-status-toast error"
           >
             <AlertCircle size={16} />
-            {error}
+            <span>{error}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Current Key Status */}
       {currentKey && (
-        <div style={{
-          padding: '16px',
-          backgroundColor: '#f8fafc',
-          border: '1px solid #e2e8f0',
-          borderRadius: '16px',
-          marginBottom: '24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ color: '#10b981' }}>
-              <ShieldCheck size={20} />
+        <div className="active-key-vault">
+          <div className="vault-content">
+            <div className="vault-label">
+              <Key size={12} />
+              <span>ACTIVE CREDENTIAL</span>
             </div>
-            <div>
-              <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Active Key
-              </div>
-              <div style={{ fontSize: '1rem', color: '#1e293b', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                {maskKey(currentKey)}
-              </div>
-            </div>
+            <code className="vault-masked-key">{maskKey(currentKey)}</code>
           </div>
           <button
             type="button"
             onClick={handleRemove}
             disabled={removing}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#ef4444',
-              cursor: 'pointer',
-              padding: '8px',
-              borderRadius: '10px',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '0.85rem',
-              fontWeight: '600'
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#fef2f2')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            className="vault-remove-btn"
           >
-            <Trash2 size={16} />
-            {removing ? '...' : 'Remove'}
+            <Trash2 size={14} />
+            <span>{removing ? 'Removing...' : 'Remove'}</span>
           </button>
         </div>
       )}
 
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '24px' }}>
-          <label
-            htmlFor="user-api-key-input"
-            style={{
-              display: 'block',
-              marginBottom: '10px',
-              fontWeight: '600',
-              fontSize: '0.9rem',
-              color: '#475569'
-            }}
-          >
-            {currentKey ? 'Update API Key' : 'Configure New API Key'}
+      <form onSubmit={handleSubmit} className="key-form">
+        <div className="input-group">
+          <label htmlFor="user-api-key-input" className="premium-input-label">
+            {currentKey ? 'Rotate API Key' : 'Configure New API Key'}
           </label>
-          <div style={{ position: 'relative' }}>
+          <div className="input-field-wrapper">
             <input
               id="user-api-key-input"
               type={showKey ? 'text' : 'password'}
@@ -254,111 +159,316 @@ export default function UserApiKeyForm({ currentKey, onSubmit, onRemove }: UserA
               onChange={(e) => setKey(e.target.value)}
               disabled={submitting || removing}
               placeholder="Paste your API key here..."
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                paddingRight: '100px',
-                borderRadius: '14px',
-                border: '1.5px solid #e2e8f0',
-                fontSize: '0.95rem',
-                fontFamily: 'monospace',
-                transition: 'all 0.2s',
-                outline: 'none',
-                backgroundColor: (submitting || removing) ? '#f8fafc' : 'white'
-              }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = '#6366f1')}
-              onBlur={(e) => (e.currentTarget.style.borderColor = '#e2e8f0')}
+              className="premium-key-input"
             />
             <button
               type="button"
               onClick={() => setShowKey(!showKey)}
               disabled={submitting || removing}
-              style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                padding: '6px 10px',
-                backgroundColor: '#f1f5f9',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-                color: '#475569',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontWeight: '600',
-                transition: 'all 0.2s'
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e2e8f0')}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+              className="visibility-toggle-btn"
             >
-              {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
-              {showKey ? 'Hide' : 'Show'}
+              {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
           </div>
-          <p style={{
-            fontSize: '0.8rem',
-            color: '#94a3b8',
-            marginTop: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}>
-            <ShieldCheck size={12} />
-            Your credentials are encrypted and stored securely.
-          </p>
         </div>
 
-        <button
-          type="submit"
-          disabled={submitting || removing || !key}
-          style={{
-            width: '100%',
-            padding: '14px',
-            backgroundColor: '#6366f1',
-            color: 'white',
-            border: 'none',
-            borderRadius: '14px',
-            cursor: (submitting || removing || !key) ? 'not-allowed' : 'pointer',
-            fontSize: '1rem',
-            fontWeight: '700',
-            transition: 'all 0.2s',
-            boxShadow: (submitting || removing || !key) ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.25)',
-            opacity: (submitting || removing || !key) ? 0.6 : 1
-          }}
-          onMouseOver={(e) => {
-            if (!submitting && !removing && key) e.currentTarget.style.backgroundColor = '#4f46e5'
-          }}
-          onMouseOut={(e) => {
-            if (!submitting && !removing && key) e.currentTarget.style.backgroundColor = '#6366f1'
-          }}
-        >
-          {submitting ? 'Saving...' : (currentKey ? 'Update API Key' : 'Save API Key')}
-        </button>
+        <div className="priority-notice">
+          <div className="notice-icon">
+            <ShieldCheck size={16} />
+          </div>
+          <p>This key takes absolute priority for all your requests. We'll fallback to our shared capacity automatically if your key quota is reached.</p>
+        </div>
+
+        <div className="form-submit-container">
+          <button
+            type="submit"
+            disabled={submitting || removing || !key}
+            className={`premium-submit-btn ${(!key || submitting || removing) ? 'is-disabled' : ''}`}
+          >
+            {submitting ? (
+              <span className="loading-spinner"></span>
+            ) : (
+              <span>{currentKey ? 'Update Credentials' : 'Save Connection'}</span>
+            )}
+          </button>
+        </div>
       </form>
 
-      {/* Usage Tooltip/Info */}
-      <div style={{
-        marginTop: '32px',
-        padding: '20px',
-        backgroundColor: '#fffbeb',
-        borderRadius: '16px',
-        border: '1px solid #fde68a',
-        fontSize: '0.85rem',
-        color: '#92400e'
-      }}>
-        <div style={{ fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <AlertCircle size={14} />
-          Important Information
-        </div>
-        <ul style={{ margin: 0, paddingLeft: '18px', lineHeight: '1.6' }}>
-          <li>Your personal key will be used for all processing requests.</li>
-          <li>In case of quota exhaustion, we'll gracefully fail back to shared keys.</li>
-          <li>Credentials are strictly scoped to your private session.</li>
-        </ul>
-      </div>
-    </motion.div>
+      <style jsx>{`
+        .premium-settings-card {
+          background: white;
+          border: 1px solid rgba(229, 231, 235, 0.8);
+          border-radius: 16px;
+          padding: 32px;
+          box-shadow: 
+            0 1px 3px rgba(0,0,0,0.02),
+            0 4px 6px -1px rgba(0,0,0,0.03),
+            0 10px 15px -3px rgba(0,0,0,0.03);
+        }
+
+        .section-header {
+          margin-bottom: 32px;
+        }
+
+        .section-title {
+          font-size: 1.25rem;
+          font-weight: 800;
+          color: #111827;
+          margin: 0 0 8px 0;
+          letter-spacing: -0.02em;
+        }
+
+        .section-description {
+          font-size: 0.9375rem;
+          color: #6B7280;
+          margin: 0;
+          line-height: 1.6;
+        }
+
+        .premium-status-toast {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 16px;
+          border-radius: 12px;
+          font-size: 0.875rem;
+          font-weight: 600;
+          margin-bottom: 24px;
+        }
+
+        .premium-status-toast.success {
+          background-color: #F0FDF4;
+          color: #166534;
+          border: 1px solid #BBF7D0;
+        }
+
+        .premium-status-toast.error {
+          background-color: #FEF2F2;
+          color: #991B1B;
+          border: 1px solid #FECACA;
+        }
+
+        /* Active Key Vault Display */
+        .active-key-vault {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 20px 24px;
+          background-color: #F8FAFC;
+          border: 1px solid #E2E8F0;
+          border-radius: 14px;
+          margin-bottom: 32px;
+          transition: border-color 0.2s;
+        }
+
+        .active-key-vault:hover {
+          border-color: #CBD5E1;
+        }
+
+        .vault-content {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .vault-label {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 0.7rem;
+          font-weight: 800;
+          color: #94A3B8;
+          letter-spacing: 0.08em;
+        }
+
+        .vault-masked-key {
+          font-size: 1rem;
+          color: #334155;
+          font-weight: 600;
+          letter-spacing: 0.05em;
+          font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+
+        .vault-remove-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 16px;
+          background: white;
+          border: 1px solid #E5E7EB;
+          border-radius: 10px;
+          color: #64748B;
+          font-size: 0.8125rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .vault-remove-btn:hover:not(:disabled) {
+          color: #E11D48;
+          border-color: #FECACA;
+          background-color: #FFF1F2;
+        }
+
+        .input-group {
+          margin-bottom: 24px;
+        }
+
+        .premium-input-label {
+          display: block;
+          font-size: 0.875rem;
+          font-weight: 700;
+          color: #374151;
+          margin-bottom: 10px;
+        }
+
+        .input-field-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .premium-key-input {
+          width: 100%;
+          height: 48px;
+          padding: 0 56px 0 16px;
+          background: #FFFFFF;
+          border: 1px solid #D1D5DB;
+          border-radius: 12px;
+          font-size: 0.9375rem;
+          color: #111827;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          outline: none;
+        }
+
+        .premium-key-input:focus {
+          border-color: #4F46E5;
+          box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        }
+
+        .visibility-toggle-btn {
+          position: absolute;
+          right: 12px;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #F3F4F6;
+          border: none;
+          border-radius: 8px;
+          color: #4B5563;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .visibility-toggle-btn:hover {
+          background: #E5E7EB;
+          color: #111827;
+        }
+
+        /* Priority Notice Section */
+        .priority-notice {
+          display: flex;
+          align-items: flex-start;
+          gap: 14px;
+          margin-bottom: 32px;
+          padding: 16px;
+          background-color: #F0F9FF;
+          border: 1px solid #E0F2FE;
+          border-radius: 14px;
+          color: #0369A1;
+        }
+
+        .notice-icon {
+          flex-shrink: 0;
+          width: 32px;
+          height: 32px;
+          background: white;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .priority-notice p {
+          font-size: 0.875rem;
+          line-height: 1.5;
+          margin: 0;
+          font-weight: 500;
+        }
+
+        .form-submit-container {
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .premium-submit-btn {
+          height: 48px;
+          min-width: 160px;
+          padding: 0 24px;
+          background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+          color: white;
+          border: none;
+          border-radius: 12px;
+          font-size: 0.9375rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .premium-submit-btn:hover:not(.is-disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(79, 70, 229, 0.3);
+          background: linear-gradient(135deg, #4F46E5 0%, #4338CA 100%);
+        }
+
+        .premium-submit-btn.is-disabled {
+          background: #E5E7EB;
+          color: #9CA3AF;
+          cursor: not-allowed;
+          box-shadow: none;
+        }
+
+        .loading-spinner {
+          width: 20px;
+          height: 20px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-radius: 50%;
+          border-top-color: white;
+          animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 640px) {
+          .premium-settings-card {
+            padding: 24px;
+          }
+          
+          .active-key-vault {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 20px;
+          }
+          
+          .vault-remove-btn {
+            width: 100%;
+            justify-content: center;
+          }
+          
+          .premium-submit-btn {
+            width: 100%;
+          }
+        }
+      `}</style>
+    </div>
   )
 }

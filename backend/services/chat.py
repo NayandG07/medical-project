@@ -128,7 +128,8 @@ class ChatService:
         message: str,
         role: str = "user",
         tokens_used: int = 0,
-        generate_response: bool = True
+        generate_response: bool = True,
+        document_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Send a message in a chat session and optionally generate AI response
@@ -142,6 +143,7 @@ class ChatService:
             role: Message role (user, assistant, system)
             tokens_used: Number of tokens used for this message (default 0 for user messages)
             generate_response: Whether to generate an AI response (default True)
+            document_id: Optional document ID for context-specific RAG queries
             
         Returns:
             Dict containing the stored message data (user message if generate_response=False,
@@ -201,23 +203,20 @@ class ChatService:
             
             router = get_model_router_service(self.supabase)
             
-            # Check if user has documents for RAG (Requirements 8.1, 8.3)
-            doc_service = get_document_service(self.supabase)
-            user_documents = await doc_service.get_user_documents(user_id)
-            
-            # Filter for completed documents only
-            completed_docs = [doc for doc in user_documents if doc.get('processing_status') == 'completed']
-            
-            # Prepare prompt with RAG context if documents exist
+            # Prepare prompt with optional RAG context
             final_prompt = message
             citations = None
             
-            if completed_docs:
-                # Perform semantic search to find relevant document chunks
+            # Only use RAG if document_id is explicitly provided
+            if document_id:
+                doc_service = get_document_service(self.supabase)
+                
+                # Perform semantic search on the specific document only
                 search_results = await doc_service.semantic_search(
                     user_id=user_id,
                     query=message,
-                    top_k=3  # Get top 3 most relevant chunks
+                    top_k=3,  # Get top 3 most relevant chunks
+                    document_id=document_id  # Filter to this specific document
                 )
                 
                 if search_results:
@@ -239,14 +238,14 @@ class ChatService:
                     
                     # Combine context with user query
                     context_text = "\n\n".join(context_parts)
-                    final_prompt = f"""Based on the following context from the user's documents, please answer their question. Include citations to the sources when relevant.
+                    final_prompt = f"""Based on the following context from the user's medical document, please answer their question. If the question is not related to the document content, feel free to answer normally without forcing document references.
 
 Context:
 {context_text}
 
 User Question: {message}
 
-Please provide a comprehensive answer based on the context above, and cite your sources using [Source N] notation."""
+Please provide a comprehensive answer. If the answer is found in the context above, cite your sources using [Source N] notation. If the question is unrelated to the document, answer based on your general medical knowledge."""
                     
                     # Store citations for the response
                     citations = {"sources": citation_list}
@@ -267,7 +266,7 @@ Please provide a comprehensive answer based on the context above, and cite your 
 4. Emphasize clinical reasoning and diagnostic thinking
 5. Use standard medical terminology with clear explanations when needed
 6. Ground responses in evidence-based medicine and current best practices
-7. When context from documents is provided, use it to ground your responses and cite sources appropriately
+7. When context from documents is provided, use it appropriately - cite sources when relevant, but don't force document references if the question is unrelated
 
 Focus on:
 - Clinical relevance and real-world application

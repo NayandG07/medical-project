@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import PyPDF2
 from sentence_transformers import SentenceTransformer
 import numpy as np
+import base64
 
 # Load environment variables
 load_dotenv()
@@ -20,12 +21,13 @@ load_dotenv()
 class DocumentService:
     """Document service for managing document uploads, processing, and RAG"""
     
-    def __init__(self, supabase_client: Optional[Client] = None):
+    def __init__(self, supabase_client: Optional[Client] = None, model_router=None):
         """
         Initialize the document service
         
         Args:
             supabase_client: Optional Supabase client for dependency injection
+            model_router: Optional ModelRouterService instance
         """
         if supabase_client:
             self.supabase = supabase_client
@@ -36,10 +38,16 @@ class DocumentService:
                 raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
             self.supabase = create_client(supabase_url, supabase_key)
         
-        # Initialize embedding model (using a lightweight model for efficiency)
-        # Using all-MiniLM-L6-v2 which produces 384-dimensional embeddings
-        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-        self.embedding_dimension = 384
+        # Initialize model router
+        if model_router:
+            self.model_router = model_router
+        else:
+            from services.model_router import get_model_router_service
+            self.model_router = get_model_router_service(self.supabase)
+
+        # Initialize embedding model (using 768-dimensional model to match schema)
+        self.embedding_model = SentenceTransformer('all-mpnet-base-v2')
+        self.embedding_dimension = 768
     
     async def upload_document(
         self, 
@@ -79,13 +87,22 @@ class DocumentService:
             
             # Store file in Supabase Storage
             file_content = file.read()
-            file.seek(0)  # Reset file pointer for potential reuse
+            file.seek(0)  
             
+            # Detect more specific content type
+            content_type = "application/pdf" if file_type == "pdf" else "image/jpeg"
+            if filename.lower().endswith('.png'): content_type = "image/png"
+            if filename.lower().endswith('.webp'): content_type = "image/webp"
+
             storage_response = self.supabase.storage.from_('documents').upload(
                 path=storage_path,
                 file=file_content,
-                file_options={"content-type": "application/pdf" if file_type == "pdf" else "image/*"}
+                file_options={"content-type": content_type}
             )
+            
+            # Check for upload failure (Supabase client might raise or return error depending on version)
+            if hasattr(storage_response, 'error') and storage_response.error:
+                raise Exception(f"Storage upload failed: {storage_response.error}")
             
             # Create document record in database
             document_data = {
@@ -194,6 +211,35 @@ class DocumentService:
             if embeddings_data:
                 self.supabase.table("embeddings").insert(embeddings_data).execute()
             
+            # Generate High-Yield Summary
+            summary_prompt = f"""Generate a high-yield clinical summary of this medical document.
+Include:
+1. Document Type & Context
+2. Key Clinical Findings/Data points
+3. Relevant Pathophysiology or Management mentioned
+4. Recommended study focus areas
+
+Text: {full_text[:6000]}""" # Limit to first 6000 chars for summary
+
+            summary_result = await self.model_router.execute_with_fallback(
+                provider="gemini",
+                feature="explain",
+                prompt=summary_prompt,
+                user_id=document["user_id"]
+            )
+            
+            if summary_result["success"]:
+                summary_text = summary_result["content"]
+                summary_embedding = await self.generate_embeddings(summary_text)
+                
+                # Store summary with chunk_index = -1 (Special marker for Intelligence)
+                self.supabase.table("embeddings").insert({
+                    "document_id": document_id,
+                    "chunk_text": f"High-Yield Summary of {document['filename']}:\n{summary_text}",
+                    "chunk_index": -1,
+                    "embedding": summary_embedding
+                }).execute()
+            
             # Update document status to completed
             self.supabase.table("documents")\
                 .update({"processing_status": "completed"})\
@@ -216,6 +262,101 @@ class DocumentService:
                 pass
             
             raise Exception(f"Failed to process PDF: {str(e)}")
+
+    async def process_image(self, document_id: str) -> Dict[str, Any]:
+        """
+        Process a medical image: analyze content using AI and store interpretation
+        
+        Requirements: 13.0
+        """
+        try:
+            # Get document record
+            doc_response = self.supabase.table("documents")\
+                .select("*")\
+                .eq("id", document_id)\
+                .execute()
+            
+            if not doc_response.data or len(doc_response.data) == 0:
+                raise Exception("Document not found")
+            
+            document = doc_response.data[0]
+            
+            # Update status to processing
+            self.supabase.table("documents")\
+                .update({"processing_status": "processing"})\
+                .eq("id", document_id)\
+                .execute()
+            
+            # Download file from storage
+            file_response = self.supabase.storage.from_('documents').download(document['storage_path'])
+            
+            # Encode image to base64 for AI processing
+            image_base64 = base64.b64encode(file_response).decode('utf-8')
+            
+            # Prepare clinical analysis prompt
+            prompt = """Analyze this medical image (it could be an X-ray, CT, ECG, or pathology slide).
+Provide a structured clinical interpretation including:
+1. Image Type & View
+2. Key Findings
+3. Likely Differentials
+4. Clinical Recommendations
+
+Keep the analysis professional and concise."""
+
+            # Use Model Router for image analysis
+            # Ensure we are using a vision-capable provider
+            result = await self.model_router.execute_with_fallback(
+                provider="gemini", # Gemini 1.5 is excellent for medical vision
+                feature="image",
+                prompt=prompt,
+                user_id=document["user_id"],
+                image_data=image_base64 # Match ModelRouter parameter name
+            )
+            
+            if not result["success"]:
+                raise Exception(f"AI Analysis failed: {result.get('error')}")
+            
+            interpretation = result["content"]
+            
+            # Store interpretation as 1. Metadata or 2. In a special column?
+            # For now, let's just store it in a way that can be searched or displayed.
+            # We can create a chunk and embedding for the interpretation too!
+            
+            # Generate embedding for the interpretation
+            embedding_vector = await self.generate_embeddings(interpretation)
+            
+            # Store as an embedding record with chunk_index = -1 (Special marker for Intelligence)
+            embedding_data = {
+                "document_id": document_id,
+                "chunk_text": f"AI Interpretation of {document['filename']}:\n{interpretation}",
+                "chunk_index": -1,
+                "embedding": embedding_vector
+            }
+            
+            self.supabase.table("embeddings").insert(embedding_data).execute()
+            
+            # Update document status to completed
+            self.supabase.table("documents")\
+                .update({"processing_status": "completed"})\
+                .eq("id", document_id)\
+                .execute()
+            
+            return {
+                "status": "completed",
+                "document_id": document_id,
+                "interpretation": interpretation
+            }
+        except Exception as e:
+            # Update document status to failed
+            try:
+                self.supabase.table("documents")\
+                    .update({"processing_status": "failed"})\
+                    .eq("id", document_id)\
+                    .execute()
+            except:
+                pass
+            
+            raise Exception(f"Failed to process Image: {str(e)}")
     
     async def generate_embeddings(self, text: str) -> List[float]:
         """
@@ -242,10 +383,11 @@ class DocumentService:
             raise Exception(f"Failed to generate embeddings: {str(e)}")
     
     async def semantic_search(
-        self, 
-        user_id: str, 
-        query: str, 
-        top_k: int = 5
+        self,
+        user_id: str,
+        query: str,
+        top_k: int = 5,
+        document_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Perform semantic search across user's documents using pgvector
@@ -254,6 +396,7 @@ class DocumentService:
             user_id: User's unique identifier
             query: Search query text
             top_k: Number of top results to return (default 5)
+            document_id: Optional specific document to search within
             
         Returns:
             List of dictionaries containing chunk_text, document info, and similarity score,
@@ -273,12 +416,17 @@ class DocumentService:
             # Note: Supabase Python client doesn't have direct vector search support yet,
             # so we use RPC to call a custom PostgreSQL function
             
-            # First, get all user's documents
-            docs_response = self.supabase.table("documents")\
+            # Build query for documents
+            docs_query = self.supabase.table("documents")\
                 .select("id")\
                 .eq("user_id", user_id)\
-                .eq("processing_status", "completed")\
-                .execute()
+                .eq("processing_status", "completed")
+            
+            # Filter by specific document if provided
+            if document_id:
+                docs_query = docs_query.eq("id", document_id)
+            
+            docs_response = docs_query.execute()
             
             if not docs_response.data or len(docs_response.data) == 0:
                 return []
@@ -286,9 +434,11 @@ class DocumentService:
             document_ids = [doc['id'] for doc in docs_response.data]
             
             # Get embeddings for user's documents and calculate similarity
+            # Exclude summary chunks (chunk_index = -1) from search
             embeddings_response = self.supabase.table("embeddings")\
                 .select("id, document_id, chunk_text, chunk_index, embedding")\
                 .in_("document_id", document_ids)\
+                .neq("chunk_index", -1)\
                 .execute()
             
             if not embeddings_response.data or len(embeddings_response.data) == 0:
@@ -296,15 +446,37 @@ class DocumentService:
             
             # Calculate cosine similarity for each embedding
             results = []
-            query_vector = np.array(query_embedding)
+            query_vector = np.array(query_embedding, dtype=np.float32)
             
             for emb in embeddings_response.data:
-                chunk_vector = np.array(emb['embedding'])
+                # Handle embedding conversion - it might be stored as string or list
+                try:
+                    embedding_data = emb['embedding']
+                    if isinstance(embedding_data, str):
+                        # Parse string representation of array
+                        import json
+                        chunk_vector = np.array(json.loads(embedding_data), dtype=np.float32)
+                    elif isinstance(embedding_data, list):
+                        chunk_vector = np.array(embedding_data, dtype=np.float32)
+                    else:
+                        chunk_vector = np.array(embedding_data, dtype=np.float32)
+                except (json.JSONDecodeError, ValueError, TypeError) as e:
+                    print(f"Warning: Skipping invalid embedding for chunk {emb.get('id')}: {str(e)}")
+                    continue
+                
+                # Ensure both vectors have the same shape
+                if query_vector.shape != chunk_vector.shape:
+                    print(f"Warning: Shape mismatch - query: {query_vector.shape}, chunk: {chunk_vector.shape}")
+                    continue
                 
                 # Calculate cosine similarity
-                similarity = np.dot(query_vector, chunk_vector) / (
-                    np.linalg.norm(query_vector) * np.linalg.norm(chunk_vector)
-                )
+                try:
+                    similarity = np.dot(query_vector, chunk_vector) / (
+                        np.linalg.norm(query_vector) * np.linalg.norm(chunk_vector)
+                    )
+                except Exception as calc_err:
+                    print(f"Warning: Failed to calculate similarity: {str(calc_err)}")
+                    continue
                 
                 # Get document info
                 doc_response = self.supabase.table("documents")\
@@ -328,6 +500,35 @@ class DocumentService:
         except Exception as e:
             raise Exception(f"Failed to perform semantic search: {str(e)}")
     
+    async def get_document_intelligence(self, document_id: str, user_id: str) -> Dict[str, Any]:
+        """
+        Retrieve the AI-generated intelligence (summary/interpretation) for a document
+        """
+        try:
+            # Verify ownership
+            doc_res = self.supabase.table("documents").select("filename, file_type").eq("id", document_id).eq("user_id", user_id).execute()
+            if not doc_res.data:
+                raise Exception("Unauthorized or document not found")
+            
+            # Get the summary/interpretation (chunk_index = -1)
+            emb_res = self.supabase.table("embeddings")\
+                .select("chunk_text")\
+                .eq("document_id", document_id)\
+                .eq("chunk_index", -1)\
+                .execute()
+            
+            if not emb_res.data:
+                return {"intelligence": "Intelligence not yet ready or processing failed."}
+            
+            return {
+                "id": document_id,
+                "filename": doc_res.data[0]["filename"],
+                "file_type": doc_res.data[0]["file_type"],
+                "intelligence": emb_res.data[0]["chunk_text"]
+            }
+        except Exception as e:
+            raise Exception(f"Failed to retrieve intelligence: {str(e)}")
+
     async def get_user_documents(self, user_id: str) -> List[Dict[str, Any]]:
         """
         Get all documents for a user
@@ -415,17 +616,18 @@ class DocumentService:
 _document_service_instance = None
 
 
-def get_document_service(supabase_client: Optional[Client] = None) -> DocumentService:
+def get_document_service(supabase_client: Optional[Client] = None, model_router=None) -> DocumentService:
     """
     Get or create the document service instance
     
     Args:
         supabase_client: Optional Supabase client for dependency injection
+        model_router: Optional model router service
         
     Returns:
         DocumentService instance
     """
     global _document_service_instance
     if _document_service_instance is None or supabase_client is not None:
-        _document_service_instance = DocumentService(supabase_client)
+        _document_service_instance = DocumentService(supabase_client, model_router)
     return _document_service_instance

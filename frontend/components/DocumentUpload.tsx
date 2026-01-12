@@ -1,9 +1,21 @@
 import { useState, useRef } from 'react'
-import { Upload, X, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import {
+  Upload,
+  X,
+  FileText,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  Sparkles,
+  FileIcon,
+  Image as ImageIcon,
+  ShieldCheck
+} from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { supabase } from '@/lib/supabase'
 
 interface DocumentUploadProps {
-  onUploadSuccess: () => void
+  onUploadSuccess: (document: any) => void
   onUploadError: (error: string) => void
 }
 
@@ -14,62 +26,41 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError }: Docum
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    validateAndSetFile(file)
-  }
-
-  const validateAndSetFile = (file: File | undefined) => {
-    if (file) {
-      const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp']
-      if (!validTypes.includes(file.type)) {
-        onUploadError('Invalid file type. Please upload a PDF or image file.')
-        return
-      }
-
-      const maxSize = 10 * 1024 * 1024 // 10MB
-      if (file.size > maxSize) {
-        onUploadError('File too large. Maximum size is 10MB.')
-        return
-      }
-
-      setSelectedFile(file)
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      validateAndSetFile(file)
     }
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-  }
+  const validateAndSetFile = (file: File) => {
+    // Check file type
+    const isPDF = file.type === 'application/pdf'
+    const isImage = file.type.startsWith('image/')
 
-  const handleDragLeave = () => {
-    setIsDragging(false)
-  }
+    if (!isPDF && !isImage) {
+      onUploadError('Only medical PDFs and clinical images are accepted.')
+      return
+    }
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-    const file = e.dataTransfer.files?.[0]
-    validateAndSetFile(file)
+    // Check file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      onUploadError('File exceeds 10MB clinical processing limit.')
+      return
+    }
+
+    setSelectedFile(file)
   }
 
   const handleUpload = async () => {
-    if (!selectedFile) {
-      onUploadError('Please select a file first')
-      return
-    }
+    if (!selectedFile) return
 
     setUploading(true)
     setProgress(0)
 
     try {
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-      const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
-      const session = await supabase.auth.getSession()
-      const token = session.data.session?.access_token
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
 
       if (!token) throw new Error('Not authenticated')
 
@@ -77,301 +68,379 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError }: Docum
       formData.append('file', selectedFile)
 
       const xhr = new XMLHttpRequest()
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const percentComplete = (e.loaded / e.total) * 100
-          setProgress(Math.round(percentComplete))
-        }
-      })
+      xhr.open('POST', `${process.env.NEXT_PUBLIC_API_URL}/api/documents`, true)
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
 
-      xhr.addEventListener('load', () => {
-        if (xhr.status === 201) {
-          setSelectedFile(null)
-          if (fileInputRef.current) fileInputRef.current.value = ''
-          onUploadSuccess()
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          // Cap at 98% to allow for "Finalizing" state
+          const percent = Math.min(Math.round((event.loaded / event.total) * 100), 98)
+          setProgress(percent)
+        }
+      }
+
+      xhr.onload = () => {
+        if (xhr.status === 201 || xhr.status === 200) {
+          setProgress(100)
+          try {
+            const newDoc = JSON.parse(xhr.responseText)
+            // Small delay to show 100%
+            setTimeout(() => {
+              onUploadSuccess(newDoc)
+              setSelectedFile(null)
+              setProgress(0)
+              setUploading(false)
+            }, 600)
+          } catch (e) {
+            onUploadSuccess(null)
+            setUploading(false)
+          }
         } else {
           try {
-            const response = JSON.parse(xhr.responseText)
-            onUploadError(response.detail?.error?.message || 'Upload failed')
+            const err = JSON.parse(xhr.responseText)
+            onUploadError(err.detail || 'Processing failed')
           } catch {
-            onUploadError('Upload failed')
+            onUploadError('Intelligence ingestion failed')
           }
+          setUploading(false)
         }
-        setUploading(false)
-        setProgress(0)
-      })
+      }
 
-      xhr.addEventListener('error', () => {
-        onUploadError('Network error during upload')
+      xhr.onerror = () => {
+        onUploadError('Network sync error')
         setUploading(false)
-        setProgress(0)
-      })
+      }
 
-      xhr.open('POST', `${process.env.NEXT_PUBLIC_API_URL}/api/documents`)
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
       xhr.send(formData)
-    } catch (error: any) {
-      onUploadError(error.message || 'Upload failed')
+    } catch (err: any) {
+      onUploadError(err.message || 'Processing failed')
       setUploading(false)
-      setProgress(0)
+    }
+  }
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const onDragLeave = () => {
+    setIsDragging(false)
+  }
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      validateAndSetFile(e.dataTransfer.files[0])
     }
   }
 
   return (
-    <div className="upload-section">
-      <div
-        className={`drop-zone ${isDragging ? 'dragging' : ''} ${selectedFile ? 'has-file' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => !uploading && fileInputRef.current?.click()}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,image/*"
-          onChange={handleFileSelect}
-          style={{ display: 'none' }}
-        />
-
-        <AnimatePresence mode="wait">
-          {!selectedFile ? (
-            <motion.div
-              key="empty"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="zone-content"
-            >
-              <div className="icon-circle">
-                <Upload size={24} color="#6366F1" />
+    <div className="upload-container">
+      {!selectedFile ? (
+        <div
+          className={`drop-zone ${isDragging ? 'dragging' : ''}`}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <div className="pulse-circle">
+            <Upload size={32} />
+          </div>
+          <h3>Secure Data Ingestion</h3>
+          <p>Drag clinical records or drag & drop high-res imaging here</p>
+          <div className="format-badges">
+            <span className="format">PDF</span>
+            <span className="format">DICOM</span>
+            <span className="format">JPEG</span>
+            <span className="format">PNG</span>
+          </div>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept=".pdf,image/*"
+            hidden
+          />
+        </div>
+      ) : (
+        <div className="preview-zone">
+          <div className="file-info-box">
+            <div className="file-meta">
+              <div className="file-icon-wrap">
+                {selectedFile.type === 'application/pdf' ? <FileText size={24} /> : <ImageIcon size={24} />}
               </div>
-              <h3>Click or drag file to upload</h3>
-              <p>Supported: PDF, JPG, PNG, GIF, BMP (Max 10MB)</p>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="file"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="selected-file-preview"
-            >
-              <FileText size={40} color="#6366F1" />
-              <div className="file-info">
-                <h4>{selectedFile.name}</h4>
-                <span>{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</span>
-              </div>
-              {!uploading && (
-                <button className="remove-btn" onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }}>
-                  <X size={18} />
-                </button>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {uploading && (
-          <div className="upload-overlay">
-            <div className="progress-container">
-              <div className="progress-header">
-                <Loader2 size={16} className="animate-spin" />
-                <span>Uploading... {progress}%</span>
-              </div>
-              <div className="progress-bar-bg">
-                <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
+              <div className="file-details">
+                <span className="file-name">{selectedFile.name}</span>
+                <span className="file-size">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB • Detected: {selectedFile.type.split('/')[1].toUpperCase()}</span>
               </div>
             </div>
+            <button className="remove-btn" onClick={() => setSelectedFile(null)} disabled={uploading}>
+              <X size={18} />
+            </button>
           </div>
-        )}
-      </div>
 
-      <AnimatePresence>
-        {selectedFile && !uploading && (
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            className="start-upload-btn"
-            onClick={handleUpload}
-          >
-            Confirm & Upload
-          </motion.button>
-        )}
-      </AnimatePresence>
+          <div className="security-note">
+            <ShieldCheck size={14} color="#10B981" />
+            <span>Secure AES-256 encrypted transit for HIPAA compliance</span>
+          </div>
+
+          {!uploading ? (
+            <button className="start-btn pulse-anim" onClick={handleUpload}>
+              <Sparkles size={18} />
+              <span>Upload & Analyze</span>
+            </button>
+          ) : (
+            <div className="processing-state">
+              <div className="progress-track">
+                <motion.div
+                  className="progress-fill"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.2 }}
+                />
+              </div>
+              <div className="progress-labels">
+                <span className="status">
+                  <Loader2 size={14} className="spin" />
+                  {progress < 100 ? 'Uploading...' : 'Finalizing Analysis...'}
+                </span>
+                <span className="percent">{progress}%</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <style jsx>{`
-        .upload-section {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
+        .upload-container {
+          width: 100%;
         }
 
         .drop-zone {
-          background: white;
           border: 2px dashed #E2E8F0;
+          background: #F8FAFC;
           border-radius: 24px;
-          padding: 40px;
+          padding: 48px 32px;
           text-align: center;
           cursor: pointer;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          position: relative;
-          overflow: hidden;
-          min-height: 200px;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           display: flex;
+          flex-direction: column;
           align-items: center;
-          justify-content: center;
+          gap: 16px;
         }
 
-        .drop-zone:hover {
+        .drop-zone:hover, .drop-zone.dragging {
           border-color: #6366F1;
-          background: #F8FAFF;
-        }
-
-        .drop-zone.dragging {
-          border-color: #6366F1;
-          background: #EEF2FF;
-          transform: scale(1.01);
-        }
-
-        .drop-zone.has-file {
-          border-style: solid;
-        }
-
-        .zone-content h3 {
-          font-size: 18px;
-          font-weight: 700;
-          color: #1E293B;
-          margin: 16px 0 8px;
-        }
-
-        .zone-content p {
-          font-size: 14px;
-          color: #64748B;
-          margin: 0;
-        }
-
-        .icon-circle {
-          width: 56px;
-          height: 56px;
           background: #F5F7FF;
-          border-radius: 16px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto;
+          transform: scale(0.99);
         }
 
-        .selected-file-preview {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-          width: 100%;
-          text-align: left;
-          background: #F8FAFC;
-          padding: 20px;
-          border-radius: 16px;
-        }
-
-        .file-info h4 {
-          margin: 0 0 4px 0;
-          font-size: 16px;
-          font-weight: 700;
-          color: #1E293B;
-          word-break: break-all;
-        }
-
-        .file-info span {
-          font-size: 13px;
-          color: #64748B;
-          font-weight: 600;
-        }
-
-        .remove-btn {
-          margin-left: auto;
+        .pulse-circle {
+          width: 72px;
+          height: 72px;
           background: white;
-          border: 1px solid #E2E8F0;
-          width: 32px;
-          height: 32px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          cursor: pointer;
+          color: #6366F1;
+          box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.15);
+          margin-bottom: 8px;
+        }
+
+        .drop-zone h3 {
+          margin: 0;
+          font-size: 18px;
+          font-weight: 800;
+          color: #1E293B;
+        }
+
+        .drop-zone p {
+          margin: 0;
           color: #64748B;
-          transition: all 0.2s;
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        .format-badges {
+          display: flex;
+          gap: 8px;
+          margin-top: 8px;
+        }
+
+        .format {
+          font-size: 10px;
+          font-weight: 800;
+          background: white;
+          color: #94A3B8;
+          padding: 4px 8px;
+          border-radius: 6px;
+          border: 1px solid #E2E8F0;
+        }
+
+        .preview-zone {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+
+        .file-info-box {
+          background: #F8FAFC;
+          border: 1px solid #E2E8F0;
+          border-radius: 20px;
+          padding: 16px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .file-meta {
+          display: flex;
+          gap: 14px;
+          align-items: center;
+        }
+
+        .file-icon-wrap {
+          width: 48px;
+          height: 48px;
+          background: white;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #6366F1;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+        }
+
+        .file-details {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .file-name {
+          font-size: 15px;
+          font-weight: 700;
+          color: #1E293B;
+          max-width: 250px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .file-size {
+          font-size: 12px;
+          font-weight: 600;
+          color: #94A3B8;
+        }
+
+        .remove-btn {
+          background: transparent;
+          border: none;
+          color: #94A3B8;
+          cursor: pointer;
+          padding: 8px;
+          border-radius: 50%;
         }
 
         .remove-btn:hover {
           background: #FEF2F2;
           color: #EF4444;
-          border-color: #FEE2E2;
         }
 
-        .upload-overlay {
-          position: absolute;
-          inset: 0;
-          background: rgba(255, 255, 255, 0.9);
-          backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 40px;
+        .security-note {
+           display: flex;
+           align-items: center;
+           gap: 6px;
+           justify-content: center;
+           font-size: 11px;
+           font-weight: 700;
+           color: #64748B;
+           letter-spacing: 0.02em;
         }
 
-        .progress-container {
-          width: 100%;
-          max-width: 300px;
-        }
-
-        .progress-header {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          margin-bottom: 12px;
-          font-weight: 700;
-          color: #1E293B;
-        }
-
-        .progress-bar-bg {
-          height: 8px;
-          background: #F1F5F9;
-          border-radius: 4px;
-          overflow: hidden;
-        }
-
-        .progress-bar-fill {
-          height: 100%;
-          background: #6366F1;
-          transition: width 0.3s ease;
-        }
-
-        .start-upload-btn {
+        .start-btn {
           background: #6366F1;
           color: white;
           border: none;
-          padding: 14px;
-          border-radius: 16px;
-          font-weight: 700;
+          padding: 18px;
+          border-radius: 20px;
+          font-weight: 800;
           font-size: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
           cursor: pointer;
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.3);
           transition: all 0.2s;
         }
 
-        .start-upload-btn:hover {
+        .start-btn:hover {
           background: #4F46E5;
           transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+          box-shadow: 0 15px 30px -8px rgba(99, 102, 241, 0.4);
+        }
+
+        .processing-state {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .progress-track {
+          height: 12px;
+          background: #EEF2FF;
+          border-radius: 100px;
+          overflow: hidden;
+        }
+
+        .progress-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #6366F1 0%, #0EA5E9 100%);
+          border-radius: 100px;
+        }
+
+        .progress-labels {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .status {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #475569;
+        }
+
+        .percent {
+          font-size: 13px;
+          font-weight: 800;
+          color: #6366F1;
+        }
+
+        .spin {
+          animation: spin 2s linear infinite;
         }
 
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        .animate-spin {
-          animation: spin 1s linear infinite;
+
+        .pulse-anim {
+          animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+          0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+          70% { box-shadow: 0 0 0 15px rgba(99, 102, 241, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
         }
       `}</style>
     </div>

@@ -51,7 +51,7 @@ export default function HighYield() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             topic: topic,
             format: 'interactive'
           })
@@ -72,20 +72,12 @@ export default function HighYield() {
     }
   }
 
-  if (loading || !user) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <p>Loading...</p>
-      </div>
-    )
-  }
-
   return (
     <>
       <Head>
         <title>High Yield - Vaidya AI</title>
       </Head>
-      <DashboardLayout user={user}>
+      <DashboardLayout user={user} loading={loading}>
         <div className={styles.container}>
           <div className={styles.header}>
             <h1>⭐ High-Yield Notes</h1>

@@ -593,16 +593,31 @@ Make it realistic, clinically relevant, and appropriate for MBBS students."""
                 content = result["content"]
                 
                 # Extract JSON
+                # Extract JSON
+                json_str = content
                 if "```json" in content:
                     json_start = content.find("```json") + 7
                     json_end = content.find("```", json_start)
-                    content = content[json_start:json_end].strip()
+                    if json_end != -1:
+                        json_str = content[json_start:json_end].strip()
                 elif "```" in content:
                     json_start = content.find("```") + 3
                     json_end = content.find("```", json_start)
-                    content = content[json_start:json_end].strip()
+                    if json_end != -1:
+                        json_str = content[json_start:json_end].strip()
                 
-                scenario_data = json.loads(content)
+                # If extraction from code blocks failed or still looks weird, try finding the outer braces
+                try:
+                    scenario_data = json.loads(json_str)
+                except json.JSONDecodeError:
+                    # Fallback: find the first { and the last }
+                    start_idx = content.find("{")
+                    end_idx = content.rfind("}")
+                    if start_idx != -1 and end_idx != -1:
+                        json_str = content[start_idx : end_idx + 1]
+                        scenario_data = json.loads(json_str)
+                    else:
+                        raise
                 
                 # Validate required fields
                 if "scenario_type" not in scenario_data or "patient_info" not in scenario_data:
@@ -761,16 +776,30 @@ Be realistic - patients respond naturally with appropriate emotions and body lan
                 content = result["content"]
                 
                 # Extract JSON
+                # Extract JSON
+                json_str = content
                 if "```json" in content:
                     json_start = content.find("```json") + 7
                     json_end = content.find("```", json_start)
-                    content = content[json_start:json_end].strip()
+                    if json_end != -1:
+                        json_str = content[json_start:json_end].strip()
                 elif "```" in content:
                     json_start = content.find("```") + 3
                     json_end = content.find("```", json_start)
-                    content = content[json_start:json_end].strip()
+                    if json_end != -1:
+                        json_str = content[json_start:json_end].strip()
                 
-                interaction_data = json.loads(content)
+                try:
+                    interaction_data = json.loads(json_str)
+                except json.JSONDecodeError:
+                    # Fallback: find the first { and the last }
+                    start_idx = content.find("{")
+                    end_idx = content.rfind("}")
+                    if start_idx != -1 and end_idx != -1:
+                        json_str = content[start_idx : end_idx + 1]
+                        interaction_data = json.loads(json_str)
+                    else:
+                        raise
                 
                 # Update interaction history
                 interaction_history.append(f"Student: {user_action}")

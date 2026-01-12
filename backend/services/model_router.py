@@ -322,6 +322,7 @@ class ModelRouterService:
         feature: str,
         prompt: str,
         system_prompt: Optional[str] = None,
+        image_data: Optional[str] = None,
         max_retries: int = 3,
         user_id: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -387,7 +388,8 @@ class ModelRouterService:
                     provider=provider,
                     feature=feature,
                     prompt=prompt,
-                    system_prompt=system_prompt
+                    system_prompt=system_prompt,
+                    image_data=image_data
                 )
                 
                 response_time = int((time.time() - start_time) * 1000)
@@ -503,7 +505,8 @@ class ModelRouterService:
                     provider=provider,
                     feature=feature,
                     prompt=prompt,
-                    system_prompt=system_prompt
+                    system_prompt=system_prompt,
+                    image_data=image_data
                 )
                 
                 response_time = int((time.time() - start_time) * 1000)

@@ -128,14 +128,6 @@ export default function MCQs() {
     }
   }
 
-  if (loading || !user) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#F8F9FD' }}>
-        <p>Preparing study material...</p>
-      </div>
-    )
-  }
-
   const currentQuestion = MOCK_QUESTIONS[currentIndex]
   const accuracy = sessionStats.totalAttempted > 0
     ? Math.round((sessionStats.correct / sessionStats.totalAttempted) * 100)
@@ -146,7 +138,7 @@ export default function MCQs() {
       <Head>
         <title>MCQs - Pramana Med</title>
       </Head>
-      <DashboardLayout user={user}>
+      <DashboardLayout user={user} loading={loading}>
         <div className="mcq-container">
           <div className="main-area">
             {!isGenerated && !generating ? (
