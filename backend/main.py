@@ -270,6 +270,30 @@ async def get_users(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class UpdateUserPlanRequest(BaseModel):
+    plan: str
+
+
+@app.put("/api/admin/users/{user_id}/plan")
+async def update_user_plan(
+    user_id: str,
+    request: UpdateUserPlanRequest,
+    admin: Dict[str, Any] = Depends(verify_admin)
+):
+    """Update a user's plan"""
+    try:
+        admin_service = get_admin_service(supabase)
+        result = await admin_service.update_user_plan(
+            admin_id=admin["id"],
+            user_id=user_id,
+            new_plan=request.plan
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Failed to update user plan: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================================
 # ADMIN ENDPOINTS - API Key Management
 # ============================================================================
