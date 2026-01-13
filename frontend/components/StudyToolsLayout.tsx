@@ -1,7 +1,6 @@
 import { ReactNode } from 'react'
 import Layout from './Layout'
 import StudyToolsSidebar from './StudyToolsSidebar'
-import styles from '@/styles/StudyToolsLayout.module.css'
 
 interface StudyToolsLayoutProps {
   children: ReactNode
@@ -10,9 +9,9 @@ interface StudyToolsLayoutProps {
 export default function StudyToolsLayout({ children }: StudyToolsLayoutProps) {
   return (
     <Layout>
-      <div className={styles.container}>
+      <div className="flex min-h-[calc(100vh-70px)] bg-[#f8f9fa] max-[968px]:flex-col">
         <StudyToolsSidebar />
-        <main className={styles.main}>
+        <main className="flex-1 overflow-y-auto">
           {children}
         </main>
       </div>

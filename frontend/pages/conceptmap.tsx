@@ -4,7 +4,47 @@ import Head from 'next/head'
 import { supabase, AuthUser } from '@/lib/supabase'
 import DashboardLayout from '@/components/DashboardLayout'
 import ClinicalMapViewer, { parseClinicalMapData, MapNode, MapConnection } from '@/components/ClinicalMapViewer'
-import styles from '@/styles/ConceptMap.module.css'
+
+// Tailwind class mappings
+const styles = {
+  container: "w-full h-[calc(100vh-96px)] flex flex-col",
+  mainLayout: "grid grid-cols-[220px_1fr_260px] gap-4 flex-1 min-h-0 max-[1024px]:grid-cols-1 max-[1024px]:grid-rows-[auto_1fr_auto]",
+  sidebar: "bg-white rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-slate-200 overflow-y-auto h-fit max-h-full max-[1024px]:order-2",
+  sessionList: "flex flex-col gap-2",
+  sessionItem: "p-3 bg-slate-50 rounded-lg cursor-pointer transition-all relative border border-transparent hover:bg-slate-100 hover:border-slate-200",
+  active: "bg-gradient-to-br from-medical-indigo to-[#5a67d8] text-white border-transparent",
+  sessionTitle: "font-semibold mb-1 text-xs overflow-hidden text-ellipsis whitespace-nowrap pr-6",
+  sessionDate: "text-[0.7rem] opacity-70",
+  deleteBtn: "absolute top-1/2 right-2 -translate-y-1/2 bg-transparent border-0 rounded px-1.5 py-0.5 cursor-pointer text-xs opacity-0 transition-all hover:opacity-100 hover:bg-red-500/15",
+  emptyState: "text-center py-6 px-3 text-slate-400 text-xs",
+  mainContent: "bg-white rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-slate-200 flex flex-col min-h-0 overflow-hidden max-[1024px]:order-1 max-[1024px]:min-h-[500px]",
+  inputSection: "flex gap-3 mb-4 flex-shrink-0 max-[640px]:flex-col",
+  searchBox: "flex-1 flex items-center bg-slate-50 border-2 border-slate-200 rounded-[10px] px-4 transition-all focus-within:border-medical-indigo focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(102,126,234,0.1)]",
+  searchIcon: "text-base mr-3 text-slate-400",
+  topicInput: "flex-1 py-3 border-0 bg-transparent text-[0.9rem] outline-none text-slate-800 placeholder:text-slate-400",
+  generateBtn: "bg-gradient-to-br from-medical-indigo to-[#5a67d8] text-white border-0 px-6 py-3 rounded-[10px] text-[0.9rem] font-semibold cursor-pointer transition-all whitespace-nowrap hover:bg-gradient-to-br hover:from-[#5a67d8] hover:to-[#4c51bf] hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(102,126,234,0.3)] disabled:opacity-60 disabled:cursor-not-allowed max-[640px]:w-full",
+  error: "bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 border-l-[3px] border-red-600 text-[0.85rem] flex-shrink-0",
+  mapContainer: "flex-1 min-h-[400px] flex flex-col rounded-xl overflow-hidden",
+  placeholder: "flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-50 rounded-xl",
+  placeholderIcon: "text-[3.5rem] mb-4 opacity-40",
+  rightSidebar: "bg-white rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-slate-200 overflow-y-auto h-fit max-h-full max-[1024px]:order-3",
+  summaryCard: "flex flex-col gap-4",
+  topicIcon: "flex justify-center",
+  iconCircle: "w-16 h-16 bg-gradient-to-br from-[#ffeef5] to-[#ffe4ec] rounded-full flex items-center justify-center text-[1.75rem]",
+  topicTitle: "text-center text-[0.95rem] text-slate-800 m-0 font-semibold",
+  statsSection: "flex flex-col gap-3.5 py-3.5 border-t border-b border-slate-100",
+  statItem: "flex flex-col gap-1.5",
+  statLabel: "text-[0.7rem] text-slate-500 font-semibold tracking-wide",
+  statBadges: "flex flex-wrap gap-1.5",
+  badge: "bg-blue-50 text-blue-600 px-2 py-1.5 rounded-[5px] text-[0.7rem] font-medium border border-blue-200",
+  treatmentList: "flex flex-col gap-1.5",
+  treatmentItem: "bg-green-50 text-green-600 px-2 py-1.5 rounded-[5px] text-[0.7rem] font-medium border border-green-200",
+  legend: "pt-2",
+  legendItems: "flex flex-col gap-2",
+  legendItem: "flex items-center gap-2 text-xs",
+  legendColor: "w-[18px] h-[18px] rounded-[5px] flex-shrink-0",
+  legendCount: "bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-xs font-semibold min-w-[24px] text-center"
+}
 
 // Helper to get emoji icon based on topic
 const getTopicIcon = (topic: string): string => {

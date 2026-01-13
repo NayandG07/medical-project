@@ -4,7 +4,38 @@ import Head from 'next/head'
 import { supabase } from '@/lib/supabase'
 import StudyToolsLayout from '@/components/StudyToolsLayout'
 import FlashcardViewer from '@/components/FlashcardViewer'
-import styles from '@/styles/StudyToolPage.module.css'
+
+// Tailwind class mappings
+const styles = {
+  loading: "flex justify-center items-center min-h-[60vh] text-xl text-slate-500",
+  container: "h-full flex flex-col",
+  header: "px-10 py-8 pb-6 bg-white border-b border-slate-200",
+  content: "flex-1 flex overflow-hidden max-[968px]:flex-col",
+  sessionSidebar: "w-[280px] bg-white border-r border-slate-200 flex flex-col max-[968px]:w-full max-[968px]:max-h-[200px] max-[968px]:border-r-0 max-[968px]:border-b",
+  sidebarHeader: "px-6 py-6 border-b border-slate-200",
+  sessionList: "flex-1 overflow-y-auto p-2",
+  sessionItem: "p-4 mb-2 bg-slate-50 rounded-lg cursor-pointer transition-all relative hover:bg-slate-100 hover:translate-x-1",
+  active: "bg-gradient-to-br from-medical-indigo to-medical-purple text-white",
+  sessionTitle: "font-semibold mb-1 text-[0.95rem]",
+  sessionDate: "text-[0.85rem] opacity-80",
+  deleteBtn: "absolute top-2 right-2 bg-white/20 border-0 rounded px-2 py-1 cursor-pointer text-base opacity-0 transition-opacity hover:bg-white/30",
+  emptyState: "text-center py-8 px-4 text-slate-400 italic",
+  mainArea: "flex-1 overflow-y-auto px-10 py-8 max-md:px-6",
+  inputSection: "flex gap-4 mb-8 max-md:flex-col",
+  topicInput: "flex-1 px-6 py-4 border-2 border-slate-200 rounded-xl text-base transition-colors focus:outline-none focus:border-medical-indigo",
+  generateBtn: "bg-gradient-to-br from-medical-indigo to-medical-purple text-white border-0 px-10 py-4 rounded-xl text-base font-semibold cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(102,126,234,0.4)] disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap max-md:w-full",
+  error: "bg-[#fee] text-[#c33] p-4 rounded-lg mb-6 border-l-4 border-[#c33]",
+  materialsGrid: "grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-6 max-md:grid-cols-1",
+  materialCard: "bg-white rounded-xl px-6 py-6 shadow-[0_2px_8px_rgba(0,0,0,0.1)] transition-all hover:-translate-y-1 hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)]",
+  cardHeader: "flex justify-between items-start mb-4 pb-4 border-b border-slate-200",
+  cardDate: "text-[0.85rem] text-slate-500",
+  cardMeta: "text-medical-indigo text-[0.9rem] font-semibold mb-4",
+  studyBtn: "w-full bg-gradient-to-br from-medical-indigo to-medical-purple text-white border-0 px-6 py-3 rounded-lg text-[0.95rem] font-semibold cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(102,126,234,0.4)]",
+  placeholder: "col-span-full text-center py-16 px-8 text-slate-500",
+  placeholderIcon: "text-[5rem] mb-4",
+  studyView: "max-w-[900px] mx-auto",
+  backBtn: "bg-slate-50 border-2 border-slate-200 px-6 py-3 rounded-lg text-[0.95rem] font-semibold cursor-pointer transition-all mb-8 hover:bg-slate-100 hover:border-slate-300"
+}
 
 interface Session {
   id: string

@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react'
-import styles from '@/styles/ClinicalMapViewer.module.css'
 
 export interface MapNode {
   id: string
@@ -167,10 +166,10 @@ export default function ClinicalMapViewer({ title, nodes, connections }: Clinica
 
   if (!nodes || nodes.length === 0) {
     return (
-      <div className={styles.container}>
-        <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>🗺️</div>
-          <p>No nodes to display</p>
+      <div className="w-full h-full relative bg-gradient-to-br from-[#fafbfc] to-[#f1f5f9] rounded-xl overflow-hidden min-h-[400px]">
+        <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-slate-400">
+          <div className="text-5xl mb-4 opacity-50">🗺️</div>
+          <p className="text-base m-0">No nodes to display</p>
         </div>
       </div>
     )
@@ -202,8 +201,8 @@ export default function ClinicalMapViewer({ title, nodes, connections }: Clinica
   }
 
   return (
-    <div className={styles.container}>
-      <svg className={styles.svg} viewBox={viewBox} preserveAspectRatio="xMidYMid meet">
+    <div className="w-full h-full relative bg-gradient-to-br from-[#fafbfc] to-[#f1f5f9] rounded-xl overflow-hidden min-h-[400px]">
+      <svg className="w-full h-full block" viewBox={viewBox} preserveAspectRatio="xMidYMid meet">
         <defs>
           <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
             <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#000" floodOpacity="0.08"/>
@@ -314,13 +313,13 @@ export default function ClinicalMapViewer({ title, nodes, connections }: Clinica
         if (!node) return null
         const style = getNodeStyle(node.type)
         return (
-          <div className={styles.nodeDetails} style={{ borderColor: style.stroke }}>
-            <span className={styles.nodeTypeBadge} style={{ background: style.fill, color: style.textColor, borderColor: style.stroke }}>
+          <div className="absolute bottom-4 right-4 bg-white border-2 rounded-xl p-4 shadow-[0_8px_24px_rgba(0,0,0,0.12)] min-w-[200px] max-w-[280px] z-10 animate-[slideIn_0.15s_ease-out] max-[640px]:bottom-2 max-[640px]:right-2 max-[640px]:left-2 max-[640px]:max-w-none" style={{ borderColor: style.stroke }}>
+            <span className="inline-block py-1 px-2.5 rounded-xl text-[0.7rem] font-semibold uppercase tracking-wide border mb-2" style={{ background: style.fill, color: style.textColor, borderColor: style.stroke }}>
               {node.type === 'category' ? node.label : node.type}
             </span>
-            <h4>{node.label}</h4>
-            {node.description && <p className={styles.nodeDescription}>{node.description}</p>}
-            <button onClick={() => setSelectedNode(null)} className={styles.closeBtn}>Close</button>
+            <h4 className="m-0 mb-2 text-slate-800 text-base font-semibold">{node.label}</h4>
+            {node.description && <p className="text-slate-500 text-[0.85rem] m-0 mb-3 leading-snug">{node.description}</p>}
+            <button onClick={() => setSelectedNode(null)} className="bg-gradient-to-br from-medical-indigo to-[#5a67d8] text-white border-0 py-2 px-4 rounded-md cursor-pointer text-xs font-semibold w-full transition-all hover:bg-gradient-to-br hover:from-[#5a67d8] hover:to-[#4c51bf]">Close</button>
           </div>
         )
       })()}

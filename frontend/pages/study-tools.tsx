@@ -5,7 +5,30 @@ import { supabase, AuthUser } from '@/lib/supabase'
 import DashboardLayout from '@/components/DashboardLayout'
 import ClinicalMapViewer, { parseClinicalMapData } from '@/components/ClinicalMapViewer'
 import { parseMarkdown } from '@/lib/markdown'
-import styles from '@/styles/StudyTools.module.css'
+
+// Tailwind class mappings
+const styles = {
+  container: "max-w-[1200px] mx-auto p-8 max-md:p-4",
+  header: "mb-8",
+  toolSelector: "grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4 mb-8 max-md:grid-cols-2",
+  toolBtn: "bg-white border-2 border-slate-200 rounded-xl px-4 py-6 cursor-pointer transition-all flex flex-col items-center gap-2 hover:border-medical-indigo hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(102,126,234,0.2)]",
+  toolBtnActive: "border-medical-indigo bg-gradient-to-br from-medical-indigo to-medical-purple text-white",
+  toolIcon: "text-3xl",
+  toolName: "font-semibold text-base",
+  toolDesc: "text-[0.85rem] opacity-80",
+  inputSection: "flex gap-4 mb-8 max-md:flex-col",
+  topicInput: "flex-1 px-6 py-4 border-2 border-slate-200 rounded-xl text-base transition-colors focus:outline-none focus:border-medical-indigo",
+  generateBtn: "bg-gradient-to-br from-medical-indigo to-medical-purple text-white border-0 px-10 py-4 rounded-xl text-base font-semibold cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(102,126,234,0.4)] disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap max-md:w-full",
+  error: "bg-[#fee] text-[#c33] p-4 rounded-lg mb-4 border-l-4 border-[#c33]",
+  resultCard: "bg-white rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.1)]",
+  resultHeader: "flex justify-between items-center mb-6 pb-4 border-b-2 border-slate-200",
+  clearBtn: "bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg cursor-pointer transition-all hover:bg-slate-100",
+  resultContent: "whitespace-pre-wrap leading-relaxed text-slate-700 text-base",
+  citations: "mt-8 pt-6 border-t-2 border-slate-200",
+  citation: "bg-slate-50 px-3 py-2 rounded-lg mb-2 text-slate-600",
+  placeholder: "text-center py-16 px-8 text-slate-500",
+  placeholderIcon: "text-[5rem] mb-4"
+}
 
 type ToolType = 'flashcards' | 'mcq' | 'highyield' | 'explain' | 'conceptmap'
 

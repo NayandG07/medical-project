@@ -4,7 +4,31 @@ import Head from 'next/head'
 import { supabase } from '@/lib/supabase'
 import StudyToolsLayout from '@/components/StudyToolsLayout'
 import ClinicalMapViewer, { parseClinicalMapData } from '@/components/ClinicalMapViewer'
-import styles from '@/styles/StudyToolPage.module.css'
+
+// Tailwind class mappings
+const styles = {
+  loading: "flex justify-center items-center min-h-[60vh] text-xl text-slate-500",
+  container: "h-full flex flex-col",
+  header: "px-10 py-8 pb-6 bg-white border-b border-slate-200",
+  content: "flex-1 flex overflow-hidden max-[968px]:flex-col",
+  sessionSidebar: "w-[280px] bg-white border-r border-slate-200 flex flex-col max-[968px]:w-full max-[968px]:max-h-[200px] max-[968px]:border-r-0 max-[968px]:border-b",
+  sidebarHeader: "px-6 py-6 border-b border-slate-200",
+  sessionList: "flex-1 overflow-y-auto p-2",
+  sessionItem: "p-4 mb-2 bg-slate-50 rounded-lg cursor-pointer transition-all relative hover:bg-slate-100 hover:translate-x-1",
+  active: "bg-gradient-to-br from-medical-indigo to-medical-purple text-white",
+  sessionTitle: "font-semibold mb-1 text-[0.95rem]",
+  sessionDate: "text-[0.85rem] opacity-80",
+  deleteBtn: "absolute top-2 right-2 bg-white/20 border-0 rounded px-2 py-1 cursor-pointer text-base opacity-0 transition-opacity hover:bg-white/30",
+  emptyState: "text-center py-8 px-4 text-slate-400 italic",
+  mainArea: "flex-1 overflow-y-auto px-10 py-8 max-md:px-6",
+  inputSection: "flex gap-4 mb-8 max-md:flex-col",
+  topicInput: "flex-1 px-6 py-4 border-2 border-slate-200 rounded-xl text-base transition-colors focus:outline-none focus:border-medical-indigo",
+  generateBtn: "bg-gradient-to-br from-medical-indigo to-medical-purple text-white border-0 px-10 py-4 rounded-xl text-base font-semibold cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(102,126,234,0.4)] disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap max-md:w-full",
+  error: "bg-[#fee] text-[#c33] p-4 rounded-lg mb-6 border-l-4 border-[#c33]",
+  mapContainer: "flex-1 min-h-[400px] flex flex-col rounded-xl overflow-hidden",
+  placeholder: "flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-50 rounded-xl",
+  placeholderIcon: "text-[3.5rem] mb-4 opacity-40"
+}
 
 interface Session {
   id: string

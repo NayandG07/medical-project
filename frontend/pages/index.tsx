@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '@/lib/supabase'
 import AuthForm from '@/components/AuthForm'
-import styles from '@/styles/Auth.module.css'
 
 export default function Home() {
   const router = useRouter()
@@ -45,10 +44,10 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className={styles.container}>
-        <div className={styles.spinner} style={{ color: '#94a3b8' }}>
+      <div className="min-h-screen flex items-center justify-center bg-medical-bg bg-[radial-gradient(at_0%_0%,rgba(203,213,225,0.2)_0px,transparent_50%),radial-gradient(at_100%_100%,rgba(203,213,225,0.2)_0px,transparent_50%),linear-gradient(135deg,#fdfbf7_0%,#f5f5f5_100%)] p-6 font-sans">
+        <div className="animate-spin w-5 h-5 text-slate-400">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" strokeOpacity="0.1"></circle>
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-10"></circle>
             <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"></path>
           </svg>
         </div>
@@ -63,7 +62,7 @@ export default function Home() {
         <meta name="description" content="Advanced Medical AI Platform" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
-      <main className={styles.container}>
+      <main className="min-h-screen flex items-center justify-center bg-medical-bg bg-[radial-gradient(at_0%_0%,rgba(203,213,225,0.2)_0px,transparent_50%),radial-gradient(at_100%_100%,rgba(203,213,225,0.2)_0px,transparent_50%),linear-gradient(135deg,#fdfbf7_0%,#f5f5f5_100%)] p-6 font-sans">
         <AuthForm onSuccess={handleAuthSuccess} />
       </main>
     </>
