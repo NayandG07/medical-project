@@ -240,6 +240,101 @@ class RateLimiter:
                 "images_used": 0,
                 "flashcards_generated": 0,
             }
+    
+    async def check_feature_limit(self, user_id: str, limit_key: str) -> bool:
+        """
+        Check if user is within limit for a specific feature
+        
+        Args:
+            user_id: User ID
+            limit_key: Limit key (e.g., "chat_uploads_per_day", "mcq_uploads_per_day")
+        
+        Returns:
+            True if within limit, False otherwise
+        """
+        try:
+            # Get user plan and role
+            user_response = self.supabase.table("users").select("plan, role").eq("id", user_id).execute()
+            
+            if not user_response.data:
+                return False
+            
+            user_plan = user_response.data[0]["plan"]
+            user_role = user_response.data[0].get("role")
+            
+            # Admin bypass
+            if user_role in ["super_admin", "admin", "ops"]:
+                return True
+            
+            # Get limit from system_flags (admin-configurable) or use default
+            limit_response = self.supabase.table("system_flags").select("flag_value").eq("flag_name", limit_key).execute()
+            
+            if limit_response.data:
+                limit = int(limit_response.data[0]["flag_value"])
+            else:
+                # Default limits per plan
+                default_limits = {
+                    "free": 2,
+                    "student": 5,
+                    "pro": 20,
+                    "admin": 999999
+                }
+                limit = default_limits.get(user_plan, 2)
+            
+            # Get current usage
+            today = date.today()
+            usage_response = self.supabase.table("usage_counters").select("*").eq("user_id", user_id).eq("date", str(today)).execute()
+            
+            if usage_response.data:
+                # Check custom counter for this limit_key
+                current_count = usage_response.data[0].get(limit_key, 0)
+                return current_count < limit
+            
+            return True  # No usage yet, allow
+            
+        except Exception as e:
+            print(f"Feature limit check error: {str(e)}")
+            return False
+    
+    async def increment_feature_usage(self, user_id: str, limit_key: str):
+        """
+        Increment usage counter for a specific feature
+        
+        Args:
+            user_id: User ID
+            limit_key: Limit key to increment
+        """
+        try:
+            today = date.today()
+            
+            # Get or create usage counter
+            usage_response = self.supabase.table("usage_counters").select("*").eq("user_id", user_id).eq("date", str(today)).execute()
+            
+            if usage_response.data:
+                # Update existing
+                current_usage = usage_response.data[0]
+                counter_id = current_usage["id"]
+                current_count = current_usage.get(limit_key, 0)
+                
+                self.supabase.table("usage_counters").update({
+                    limit_key: current_count + 1
+                }).eq("id", counter_id).execute()
+            else:
+                # Create new
+                self.supabase.table("usage_counters").insert({
+                    "user_id": user_id,
+                    "date": str(today),
+                    "tokens_used": 0,
+                    "requests_count": 0,
+                    "pdf_uploads": 0,
+                    "mcqs_generated": 0,
+                    "images_used": 0,
+                    "flashcards_generated": 0,
+                    limit_key: 1
+                }).execute()
+                
+        except Exception as e:
+            print(f"Feature usage increment error: {str(e)}")
 
 
 # Singleton instance for easy import

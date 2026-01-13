@@ -31,6 +31,11 @@ export default function AdminSidebar() {
       icon: '📈'
     },
     {
+      label: 'Rate Limits',
+      path: '/admin/rate-limits',
+      icon: '⚡'
+    },
+    {
       label: 'Audit Logs',
       path: '/admin/audit-logs',
       icon: '📋'

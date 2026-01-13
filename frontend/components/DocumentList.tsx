@@ -10,6 +10,7 @@ export interface Document {
   file_size: number
   storage_path: string
   processing_status: 'pending' | 'processing' | 'completed' | 'failed'
+  feature: 'chat' | 'mcq' | 'flashcard' | 'explain' | 'highyield'
   created_at: string
 }
 
@@ -138,6 +139,8 @@ export default function DocumentList({ documents, onDelete, loading }: DocumentL
                 <span>{doc.file_type.split('/')[1]?.toUpperCase() || doc.file_type.toUpperCase()}</span>
                 <span className="dot"></span>
                 <span>{formatFileSize(doc.file_size)}</span>
+                <span className="dot"></span>
+                <span className="feature-badge">{doc.feature}</span>
               </div>
             </div>
 
@@ -248,6 +251,16 @@ export default function DocumentList({ documents, onDelete, loading }: DocumentL
           height: 3px;
           background: #CBD5E1;
           border-radius: 50%;
+        }
+
+        .feature-badge {
+          background: #EEF2FF;
+          color: #6366F1;
+          padding: 2px 8px;
+          border-radius: 8px;
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
         }
 
         .doc-footer {

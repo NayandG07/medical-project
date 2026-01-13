@@ -2,7 +2,7 @@
 FastAPI Main Application
 Medical AI Platform Backend
 """
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -21,6 +21,7 @@ from services.admin import get_admin_service
 from services.model_usage_logger import get_model_usage_logger
 from services.commands import get_command_service
 from services.study_tools import get_study_tools_service
+from services.documents import get_document_service
 
 # Load environment variables
 load_dotenv()
@@ -718,6 +719,220 @@ async def check_paid_apis_health(
     except Exception as e:
         logger.error(f"Failed to check paid APIs health: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# DOCUMENT ENDPOINTS
+# ============================================================================
+
+@app.post("/api/documents", status_code=201)
+async def upload_document(
+    file: UploadFile = File(...),
+    feature: str = Form("chat"),
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Upload a document (PDF or image)
+    
+    Args:
+        file: Uploaded file
+        feature: Feature to enable RAG for (chat, mcq, flashcard, explain, highyield)
+    """
+    try:
+        # Check rate limit for document uploads
+        rate_limiter = get_rate_limiter(supabase)
+        
+        # Check feature-specific upload limit
+        limit_key = f"{feature}_uploads_per_day"
+        has_capacity = await rate_limiter.check_feature_limit(user["id"], limit_key)
+        
+        if not has_capacity:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily upload limit reached for {feature}. Please upgrade your plan or try tomorrow."
+            )
+        
+        # Validate file type
+        allowed_types = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "image/gif", "image/bmp"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(status_code=400, detail="Invalid file type. Only PDF and images are supported.")
+        
+        # Validate file size (10MB max)
+        file_content = await file.read()
+        if len(file_content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB.")
+        
+        # Upload document
+        document_service = get_document_service(supabase)
+        document = await document_service.upload_document(
+            user_id=user["id"],
+            file_content=file_content,
+            filename=file.filename or "unnamed",
+            file_type=file.content_type or "application/pdf",
+            feature=feature
+        )
+        
+        # Increment usage counter
+        await rate_limiter.increment_feature_usage(user["id"], limit_key)
+        
+        return document
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Document upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/documents")
+async def get_documents(
+    feature: Optional[str] = None,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get user's documents, optionally filtered by feature"""
+    try:
+        document_service = get_document_service(supabase)
+        documents = await document_service.get_user_documents(user["id"], feature)
+        return {"documents": documents, "count": len(documents)}
+    except Exception as e:
+        logger.error(f"Failed to get documents: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/documents/{document_id}")
+async def delete_document(
+    document_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete a document"""
+    try:
+        document_service = get_document_service(supabase)
+        await document_service.delete_document(user["id"], document_id)
+        return {"message": "Document deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete document: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/documents/search")
+async def search_documents(
+    query: str,
+    feature: Optional[str] = None,
+    top_k: int = 5,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Search documents for relevant chunks"""
+    try:
+        document_service = get_document_service(supabase)
+        results = await document_service.search_documents(
+            user_id=user["id"],
+            query=query,
+            feature=feature,
+            top_k=top_k
+        )
+        return {"results": results, "count": len(results)}
+    except Exception as e:
+        logger.error(f"Document search failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ADMIN ENDPOINTS - Rate Limits & Quotas
+# ============================================================================
+
+class RateLimitsRequest(BaseModel):
+    plan: str
+    limits: Dict[str, int]
+
+
+@app.get("/api/admin/rate-limits")
+async def get_rate_limits(
+    admin: Dict[str, Any] = Depends(verify_admin)
+):
+    """Get rate limits for all plans"""
+    try:
+        admin_service = get_admin_service(supabase)
+        plans = ["free", "student", "pro"]
+        
+        all_limits = {}
+        for plan in plans:
+            # Document retention
+            retention = await admin_service.get_system_flag(f"document_retention_{plan}", "14")
+            doc_uploads = await admin_service.get_system_flag(f"document_uploads_daily_{plan}", "5")
+            
+            # Feature limits
+            chat_limit = await admin_service.get_system_flag(f"chat_daily_limit_{plan}", "20")
+            mcq_limit = await admin_service.get_system_flag(f"mcq_daily_limit_{plan}", "10")
+            flashcard_limit = await admin_service.get_system_flag(f"flashcard_daily_limit_{plan}", "10")
+            explain_limit = await admin_service.get_system_flag(f"explain_daily_limit_{plan}", "5")
+            highyield_limit = await admin_service.get_system_flag(f"highyield_daily_limit_{plan}", "5")
+            
+            all_limits[plan] = {
+                "document_retention_days": int(retention) if retention.isdigit() else 14,
+                "document_uploads_daily": int(doc_uploads) if doc_uploads.isdigit() else 5,
+                "chat_daily_limit": int(chat_limit) if chat_limit.isdigit() else 20,
+                "mcq_daily_limit": int(mcq_limit) if mcq_limit.isdigit() else 10,
+                "flashcard_daily_limit": int(flashcard_limit) if flashcard_limit.isdigit() else 10,
+                "explain_daily_limit": int(explain_limit) if explain_limit.isdigit() else 5,
+                "highyield_daily_limit": int(highyield_limit) if highyield_limit.isdigit() else 5
+            }
+        
+        return all_limits
+    except Exception as e:
+        logger.error(f"Failed to get rate limits: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/admin/rate-limits")
+async def update_rate_limits(
+    request: RateLimitsRequest,
+    admin: Dict[str, Any] = Depends(verify_admin)
+):
+    """Update rate limits for a plan"""
+    try:
+        admin_service = get_admin_service(supabase)
+        plan = request.plan
+        limits = request.limits
+        
+        # Update document retention
+        if "document_retention_days" in limits:
+            await admin_service.set_system_flag(
+                admin["id"],
+                f"document_retention_{plan}",
+                str(limits["document_retention_days"])
+            )
+        
+        # Update document uploads
+        if "document_uploads_daily" in limits:
+            await admin_service.set_system_flag(
+                admin["id"],
+                f"document_uploads_daily_{plan}",
+                str(limits["document_uploads_daily"])
+            )
+        
+        # Update feature limits
+        for feature in ["chat", "mcq", "flashcard", "explain", "highyield"]:
+            limit_key = f"{feature}_daily_limit"
+            if limit_key in limits:
+                await admin_service.set_system_flag(
+                    admin["id"],
+                    f"{limit_key}_{plan}",
+                    str(limits[limit_key])
+                )
+        
+        return {
+            "message": f"Rate limits for {plan} plan updated successfully",
+            "plan": plan,
+            "limits": limits
+        }
+    except Exception as e:
+        logger.error(f"Failed to update rate limits: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# DOCUMENT ENDPOINTS (kept for backward compatibility, but simplified)
+# ============================================================================
 
 
 # Run the application

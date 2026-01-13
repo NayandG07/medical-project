@@ -151,6 +151,30 @@ export default function AdminDashboard() {
               borderRadius: '8px',
               border: '1px solid #dee2e6'
             }}>
+              <h3 style={{ marginTop: 0 }}>Rate Limits</h3>
+              <p style={{ color: '#6c757d' }}>Configure usage limits and document retention per plan</p>
+              <button
+                onClick={() => router.push('/admin/rate-limits')}
+                style={{
+                  marginTop: '15px',
+                  padding: '8px 16px',
+                  backgroundColor: '#6366F1',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Configure Limits
+              </button>
+            </div>
+
+            <div style={{
+              padding: '20px',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '8px',
+              border: '1px solid #dee2e6'
+            }}>
               <h3 style={{ marginTop: 0 }}>System Status</h3>
               <p style={{ color: '#6c757d' }}>Monitor system health and performance</p>
               <button

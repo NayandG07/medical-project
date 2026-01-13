@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Upload, X, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { Upload, X, FileText, CheckCircle, AlertCircle, Loader2, MessageSquare, FileQuestion, BookOpen, Lightbulb, Sparkles } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface DocumentUploadProps {
@@ -7,12 +7,24 @@ interface DocumentUploadProps {
   onUploadError: (error: string) => void
 }
 
+type Feature = 'chat' | 'mcq' | 'flashcard' | 'explain' | 'highyield'
+
 export default function DocumentUpload({ onUploadSuccess, onUploadError }: DocumentUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFeature, setSelectedFeature] = useState<Feature>('chat')
   const [isDragging, setIsDragging] = useState(false)
+  const [showFeatureSelect, setShowFeatureSelect] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const features = [
+    { id: 'chat' as Feature, name: 'Chat', icon: MessageSquare, color: '#6366F1', desc: 'Ask questions about this document' },
+    { id: 'mcq' as Feature, name: 'MCQs', icon: FileQuestion, color: '#10B981', desc: 'Generate practice questions' },
+    { id: 'flashcard' as Feature, name: 'Flashcards', icon: BookOpen, color: '#F59E0B', desc: 'Create study flashcards' },
+    { id: 'explain' as Feature, name: 'Explain', icon: Lightbulb, color: '#EF4444', desc: 'Get detailed explanations' },
+    { id: 'highyield' as Feature, name: 'High Yield', icon: Sparkles, color: '#8B5CF6', desc: 'Extract key points' },
+  ]
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -34,6 +46,7 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError }: Docum
       }
 
       setSelectedFile(file)
+      setShowFeatureSelect(true)
     }
   }
 
@@ -75,6 +88,7 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError }: Docum
 
       const formData = new FormData()
       formData.append('file', selectedFile)
+      formData.append('feature', selectedFeature)
 
       const xhr = new XMLHttpRequest()
       xhr.upload.addEventListener('progress', (e) => {
@@ -87,12 +101,13 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError }: Docum
       xhr.addEventListener('load', () => {
         if (xhr.status === 201) {
           setSelectedFile(null)
+          setShowFeatureSelect(false)
           if (fileInputRef.current) fileInputRef.current.value = ''
           onUploadSuccess()
         } else {
           try {
             const response = JSON.parse(xhr.responseText)
-            onUploadError(response.detail?.error?.message || 'Upload failed')
+            onUploadError(response.detail || 'Upload failed')
           } catch {
             onUploadError('Upload failed')
           }
@@ -187,6 +202,36 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError }: Docum
       </div>
 
       <AnimatePresence>
+        {showFeatureSelect && selectedFile && !uploading && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="feature-select-section"
+          >
+            <h4>Enable RAG for:</h4>
+            <div className="feature-grid">
+              {features.map((feature) => {
+                const Icon = feature.icon
+                return (
+                  <button
+                    key={feature.id}
+                    className={`feature-btn ${selectedFeature === feature.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedFeature(feature.id)}
+                    style={{ '--feature-color': feature.color } as any}
+                  >
+                    <Icon size={20} />
+                    <span className="feature-name">{feature.name}</span>
+                    <span className="feature-desc">{feature.desc}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {selectedFile && !uploading && (
           <motion.button
             initial={{ opacity: 0, y: 10 }}
@@ -195,7 +240,7 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError }: Docum
             className="start-upload-btn"
             onClick={handleUpload}
           >
-            Confirm & Upload
+            Upload & Enable RAG
           </motion.button>
         )}
       </AnimatePresence>
@@ -364,6 +409,65 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError }: Docum
           background: #4F46E5;
           transform: translateY(-2px);
           box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .feature-select-section {
+          background: white;
+          border: 2px solid #E2E8F0;
+          border-radius: 20px;
+          padding: 24px;
+        }
+
+        .feature-select-section h4 {
+          margin: 0 0 16px 0;
+          font-size: 15px;
+          font-weight: 700;
+          color: #1E293B;
+        }
+
+        .feature-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          gap: 12px;
+        }
+
+        .feature-btn {
+          background: white;
+          border: 2px solid #E2E8F0;
+          border-radius: 16px;
+          padding: 16px 12px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: #64748B;
+        }
+
+        .feature-btn:hover {
+          border-color: var(--feature-color);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .feature-btn.selected {
+          border-color: var(--feature-color);
+          background: var(--feature-color);
+          color: white;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .feature-name {
+          font-size: 14px;
+          font-weight: 700;
+        }
+
+        .feature-desc {
+          font-size: 11px;
+          opacity: 0.8;
+          text-align: center;
+          line-height: 1.3;
         }
 
         @keyframes spin {
