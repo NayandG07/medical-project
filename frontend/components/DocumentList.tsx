@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { FileText, Trash2, Clock, CheckCircle2, AlertCircle, Loader2, MoreVertical, ExternalLink, MessageSquare } from 'lucide-react'
+import { FileText, Trash2, Clock, CheckCircle2, AlertCircle, Loader2, MoreVertical, ExternalLink, MessageSquare, FileQuestion, BookOpen, Lightbulb, Sparkles } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useRouter } from 'next/router'
 
 export interface Document {
   id: string
@@ -22,6 +23,32 @@ interface DocumentListProps {
 
 export default function DocumentList({ documents, onDelete, loading }: DocumentListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [showFeatureMenu, setShowFeatureMenu] = useState<string | null>(null)
+  const router = useRouter()
+
+  const features = [
+    { id: 'chat', name: 'Chat', icon: MessageSquare, color: '#6366F1', route: '/chat' },
+    { id: 'mcq', name: 'MCQs', icon: FileQuestion, color: '#10B981', route: '/mcqs' },
+    { id: 'flashcard', name: 'Flashcards', icon: BookOpen, color: '#F59E0B', route: '/flashcards' },
+    { id: 'explain', name: 'Explain', icon: Lightbulb, color: '#EF4444', route: '/explain' },
+    { id: 'highyield', name: 'High Yield', icon: Sparkles, color: '#8B5CF6', route: '/highyield' },
+  ]
+
+  const handleUseWithFeature = (doc: Document, featureId: string) => {
+    const feature = features.find(f => f.id === featureId)
+    if (!feature) return
+
+    // Store document context in sessionStorage
+    sessionStorage.setItem('activeDocument', JSON.stringify({
+      id: doc.id,
+      filename: doc.filename,
+      feature: featureId,
+      timestamp: Date.now()
+    }))
+
+    // Redirect to feature page
+    router.push(`${feature.route}?document=${doc.id}`)
+  }
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`
@@ -147,8 +174,45 @@ export default function DocumentList({ documents, onDelete, loading }: DocumentL
             <div className="doc-footer">
               <span className="date">{formatDate(doc.created_at)}</span>
               <div className="actions">
-                <button className="action-icon-btn" title="Chat with document"><MessageSquare size={16} /></button>
-                <button className="action-icon-btn" title="View document"><ExternalLink size={16} /></button>
+                <div className="feature-menu-wrapper">
+                  <button 
+                    className="action-icon-btn primary" 
+                    title="Use with feature"
+                    onClick={() => setShowFeatureMenu(showFeatureMenu === doc.id ? null : doc.id)}
+                  >
+                    <MessageSquare size={16} />
+                  </button>
+                  
+                  <AnimatePresence>
+                    {showFeatureMenu === doc.id && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        className="feature-dropdown"
+                      >
+                        <div className="dropdown-header">Use with:</div>
+                        {features.map((feature) => {
+                          const Icon = feature.icon
+                          return (
+                            <button
+                              key={feature.id}
+                              className="feature-option"
+                              onClick={() => {
+                                handleUseWithFeature(doc, feature.id)
+                                setShowFeatureMenu(null)
+                              }}
+                              style={{ '--feature-color': feature.color } as any}
+                            >
+                              <Icon size={16} />
+                              <span>{feature.name}</span>
+                            </button>
+                          )
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -295,11 +359,71 @@ export default function DocumentList({ documents, onDelete, loading }: DocumentL
           color: #64748B;
           cursor: pointer;
           transition: all 0.2s;
+          position: relative;
         }
 
         .action-icon-btn:hover {
           background: #6366F1;
           color: white;
+        }
+
+        .action-icon-btn.primary {
+          background: #6366F1;
+          color: white;
+        }
+
+        .action-icon-btn.primary:hover {
+          background: #4F46E5;
+          transform: scale(1.05);
+        }
+
+        .feature-menu-wrapper {
+          position: relative;
+        }
+
+        .feature-dropdown {
+          position: absolute;
+          bottom: 100%;
+          right: 0;
+          margin-bottom: 8px;
+          background: white;
+          border: 2px solid #E2E8F0;
+          border-radius: 16px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+          padding: 8px;
+          min-width: 180px;
+          z-index: 100;
+        }
+
+        .dropdown-header {
+          padding: 8px 12px;
+          font-size: 11px;
+          font-weight: 700;
+          color: #94A3B8;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .feature-option {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 12px;
+          background: none;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: #1E293B;
+          font-weight: 600;
+          font-size: 14px;
+        }
+
+        .feature-option:hover {
+          background: var(--feature-color);
+          color: white;
+          transform: translateX(4px);
         }
 
         @keyframes spin {

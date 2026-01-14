@@ -100,10 +100,37 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError }: Docum
 
       xhr.addEventListener('load', () => {
         if (xhr.status === 201) {
+          const response = JSON.parse(xhr.responseText)
+          const documentId = response.id
+          
           setSelectedFile(null)
           setShowFeatureSelect(false)
           if (fileInputRef.current) fileInputRef.current.value = ''
-          onUploadSuccess()
+          
+          // Redirect to the selected feature with document context
+          const featureRoutes = {
+            chat: '/chat',
+            mcq: '/mcqs',
+            flashcard: '/flashcards',
+            explain: '/explain',
+            highyield: '/highyield'
+          }
+          
+          const route = featureRoutes[selectedFeature]
+          if (route) {
+            // Store document context in sessionStorage for the feature to use
+            sessionStorage.setItem('activeDocument', JSON.stringify({
+              id: documentId,
+              filename: selectedFile.name,
+              feature: selectedFeature,
+              timestamp: Date.now()
+            }))
+            
+            // Redirect to feature page
+            window.location.href = `${route}?document=${documentId}`
+          } else {
+            onUploadSuccess()
+          }
         } else {
           try {
             const response = JSON.parse(xhr.responseText)

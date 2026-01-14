@@ -19,8 +19,28 @@ export default function Chat() {
   const [error, setError] = useState<string | null>(null)
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [sessionsError, setSessionsError] = useState<string | null>(null)
+  const [activeDocument, setActiveDocument] = useState<any>(null)
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+  // Check for document context on mount
+  useEffect(() => {
+    const documentId = router.query.document as string
+    if (documentId) {
+      // Try to load from sessionStorage
+      const stored = sessionStorage.getItem('activeDocument')
+      if (stored) {
+        try {
+          const docData = JSON.parse(stored)
+          if (docData.id === documentId) {
+            setActiveDocument(docData)
+          }
+        } catch (e) {
+          console.error('Failed to parse document data:', e)
+        }
+      }
+    }
+  }, [router.query.document])
 
   // Helper function to get auth token
   const getAuthToken = async () => {
@@ -262,7 +282,34 @@ export default function Chat() {
       }
       setMessages(prev => [...prev, tempUserMessage])
 
-      // Send message to backend
+      // If document is active, search for relevant context
+      let documentContext = ''
+      if (activeDocument) {
+        try {
+          const searchResponse = await fetch(
+            `${API_URL}/api/documents/search?query=${encodeURIComponent(content)}&feature=chat&top_k=3`,
+            {
+              headers: {
+                'Authorization': `Bearer ${authToken}`
+              }
+            }
+          )
+          
+          if (searchResponse.ok) {
+            const searchResults = await searchResponse.json()
+            if (searchResults.length > 0) {
+              documentContext = '\n\n[Document Context]\n' + searchResults.map((r: any) => r.content).join('\n\n')
+            }
+          }
+        } catch (searchErr) {
+          console.error('Document search failed:', searchErr)
+          // Continue without context
+        }
+      }
+
+      // Send message to backend with document context
+      const messageContent = documentContext ? content + documentContext : content
+      
       const response = await fetch(`${API_URL}/api/chat/sessions/${activeSessionId}/messages`, {
         method: 'POST',
         headers: {
@@ -270,7 +317,7 @@ export default function Chat() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          message: content,
+          message: messageContent,
           role: 'user'
         })
       })
@@ -350,6 +397,53 @@ export default function Chat() {
             overflow: 'hidden',
             position: 'relative'
           }}>
+            {/* Document Context Banner */}
+            {activeDocument && (
+              <div style={{
+                background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+                color: 'white',
+                padding: '12px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)',
+                zIndex: 20
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '14px' }}>📚 RAG Enabled</div>
+                    <div style={{ fontSize: '12px', opacity: 0.9 }}>{activeDocument.filename}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setActiveDocument(null)
+                    sessionStorage.removeItem('activeDocument')
+                    router.push('/chat')
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    border: 'none',
+                    color: 'white',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+                >
+                  Disable RAG
+                </button>
+              </div>
+            )}
+            
             <ChatWindow
               messages={messages}
               loading={messagesLoading}
