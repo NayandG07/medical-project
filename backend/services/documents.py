@@ -23,6 +23,21 @@ class DocumentService:
     def __init__(self, supabase: Client):
         self.supabase = supabase
         self.storage_bucket = "documents"
+        self.hf_provider = None
+        self._init_hf_provider()
+    
+    def _init_hf_provider(self):
+        """Initialize HuggingFace provider for embeddings"""
+        try:
+            from services.providers.huggingface import get_huggingface_provider
+            self.hf_provider = get_huggingface_provider()
+            if self.hf_provider and self.hf_provider.inference_client:
+                logger.info("HuggingFace provider initialized for embeddings")
+            else:
+                logger.warning("HuggingFace provider not available - embeddings will not be generated")
+        except Exception as e:
+            logger.error(f"Failed to initialize HuggingFace provider: {str(e)}")
+            self.hf_provider = None
         
     async def upload_document(
         self,
@@ -266,13 +281,26 @@ class DocumentService:
     async def _store_chunks_with_embeddings(self, document_id: str, chunks: List[str]):
         """Store text chunks with embeddings"""
         try:
-            # For now, store chunks without embeddings
-            # In production, you'd call an embedding API (OpenAI, Cohere, etc.)
             for i, chunk in enumerate(chunks):
+                # Generate embedding if HuggingFace provider is available
+                embedding = None
+                if self.hf_provider:
+                    try:
+                        # Don't prepend instruction for documents/passages
+                        result = await self.hf_provider.generate_embedding(chunk, prepend_instruction=False)
+                        if result["success"]:
+                            embedding = result["embedding"]
+                            logger.info(f"Generated embedding for chunk {i}, dimension: {len(embedding) if embedding else 0}")
+                        else:
+                            logger.error(f"Failed to generate embedding for chunk {i}: {result['error']}")
+                    except Exception as e:
+                        logger.error(f"Failed to generate embedding for chunk {i}: {str(e)}")
+                
                 chunk_data = {
                     "document_id": document_id,
                     "chunk_index": i,
                     "content": chunk,
+                    "embedding": embedding,
                     "created_at": datetime.now().isoformat()
                 }
                 
@@ -333,19 +361,34 @@ class DocumentService:
         user_id: str,
         query: str,
         feature: Optional[str] = None,
-        top_k: int = 5
+        top_k: int = 5,
+        document_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Search for relevant document chunks
-        In production, this would use vector similarity search
-        For now, uses simple text matching
+        Search for relevant document chunks using vector similarity or text search
+        
+        Args:
+            user_id: User ID
+            query: Search query
+            feature: Optional feature filter
+            top_k: Number of results to return
+            document_id: Optional specific document ID to search within
+        
+        Returns:
+            List of relevant chunks with metadata
         """
         try:
+            # Log RAG usage for monitoring
+            await self._log_rag_usage(user_id, feature or "unknown", query, document_id)
+            
             # Get user's documents
             docs_query = self.supabase.table("documents").select("id").eq("user_id", user_id).eq("processing_status", "completed")
             
             if feature:
                 docs_query = docs_query.eq("feature", feature)
+            
+            if document_id:
+                docs_query = docs_query.eq("id", document_id)
             
             docs_result = docs_query.execute()
             
@@ -354,15 +397,64 @@ class DocumentService:
             
             doc_ids = [d["id"] for d in docs_result.data]
             
-            # Search chunks (simple text search for now)
-            # In production, use pgvector similarity search
+            # Try vector similarity search if embeddings are available
+            if self.hf_provider:
+                try:
+                    # Generate query embedding with instruction for better retrieval
+                    result = await self.hf_provider.generate_embedding(query, prepend_instruction=True)
+                    
+                    if result["success"] and result["embedding"]:
+                        query_embedding = result["embedding"]
+                        
+                        # Use pgvector similarity search
+                        chunks_result = self.supabase.rpc(
+                            'match_document_chunks',
+                            {
+                                'query_embedding': query_embedding,
+                                'match_count': top_k,
+                                'filter_doc_ids': doc_ids
+                            }
+                        ).execute()
+                        
+                        if chunks_result.data:
+                            logger.info(f"Vector search returned {len(chunks_result.data)} results")
+                            await self._log_rag_usage(user_id, feature or "unknown", query, document_id, len(chunks_result.data))
+                            return chunks_result.data
+                    else:
+                        logger.warning(f"Embedding generation failed: {result.get('error')}")
+                except Exception as e:
+                    logger.warning(f"Vector search failed, falling back to text search: {str(e)}")
+            
+            # Fallback to simple text search
             chunks_result = self.supabase.table("document_chunks").select("*, documents(filename)").in_("document_id", doc_ids).ilike("content", f"%{query}%").limit(top_k).execute()
             
-            return chunks_result.data or []
+            # Log RAG usage for monitoring
+            results = chunks_result.data or []
+            await self._log_rag_usage(user_id, feature or "unknown", query, document_id, len(results))
+            
+            logger.info(f"Text search returned {len(results)} results")
+            return results
             
         except Exception as e:
             logger.error(f"Document search failed: {str(e)}")
             return []
+    
+    async def _log_rag_usage(self, user_id: str, feature: str, query: str, document_id: Optional[str] = None, results_count: int = 0):
+        """Log RAG usage for monitoring"""
+        try:
+            log_data = {
+                "user_id": user_id,
+                "feature": feature,
+                "query_preview": query[:100],  # First 100 chars
+                "document_id": document_id,
+                "timestamp": datetime.now().isoformat(),
+                "success": True,
+                "results_count": results_count
+            }
+            
+            self.supabase.table("rag_usage_logs").insert(log_data).execute()
+        except Exception as e:
+            logger.error(f"Failed to log RAG usage: {str(e)}")
     
     async def cleanup_expired_documents(self):
         """Delete expired documents (run as scheduled job)"""

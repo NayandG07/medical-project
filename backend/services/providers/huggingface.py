@@ -5,11 +5,9 @@ No model downloads required - all inference happens via API
 Requirements: Medical model fallback, cost optimization
 """
 import os
-import httpx
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
 import logging
-import json
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -18,10 +16,9 @@ logger = logging.getLogger(__name__)
 class HuggingFaceProvider:
     """Provider for Hugging Face Inference API"""
     
-    # Medical-specific models available on Hugging Face Router
-    # Using router.huggingface.co/v1 with inference provider suffixes
+    # Medical-specific models available on Hugging Face
     MEDICAL_MODELS = {
-        # Medical reasoning - Med42-70B via Featherless AI provider
+        # Medical reasoning - Med42-70B via Featherless AI provider (Router)
         "chat": "m42-health/Llama3-Med42-70B:featherless-ai",
         "clinical": "m42-health/Llama3-Med42-70B:featherless-ai",
         "osce": "m42-health/Llama3-Med42-70B:featherless-ai",
@@ -37,17 +34,29 @@ class HuggingFaceProvider:
         "safety": "m42-health/Llama3-Med42-70B:featherless-ai",
         "image": "microsoft/llava-med-v1.5-mistral-7b",
         
-        # Embeddings
-        "embedding": "BAAI/bge-small-en-v1.5",
+        # Embeddings - Using BAAI BGE (best free model, MTEB: 62.17)
+        # "embedding": "BAAI/bge-small-en-v1.5",
+        "embedding": "Qwen/Qwen3-Embedding-8B",
     }
     
     def __init__(self):
         """Initialize Hugging Face provider"""
         self.api_key = os.getenv("HUGGINGFACE_API_KEY")
-        # Router endpoint (OpenAI-compatible) - old inference endpoint is deprecated
+        # Router endpoint for chat models (OpenAI-compatible)
         self.router_url = "https://router.huggingface.co/v1"
+        # Inference API endpoint for embeddings
+        self.inference_url = "https://api-inference.huggingface.co/models"
         
-        if not self.api_key:
+        # Initialize InferenceClient for embeddings
+        self.inference_client = None
+        if self.api_key:
+            try:
+                from huggingface_hub import InferenceClient
+                self.inference_client = InferenceClient(token=self.api_key)
+                logger.info("HuggingFace InferenceClient initialized")
+            except ImportError:
+                logger.warning("huggingface_hub not installed. Install with: pip install huggingface_hub")
+        else:
             logger.warning("HUGGINGFACE_API_KEY not set - Hugging Face provider will not work")
     
     async def call_huggingface(
@@ -55,7 +64,7 @@ class HuggingFaceProvider:
         feature: str,
         prompt: str,
         system_prompt: Optional[str] = None,
-        max_tokens: int = 1024,
+        max_tokens: int = 2048,
         temperature: float = 0.7
     ) -> Dict[str, Any]:
         """
@@ -83,6 +92,8 @@ class HuggingFaceProvider:
         logger.info(f"Calling Hugging Face model: {model} for feature: {feature}")
         
         try:
+            import httpx
+            
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
@@ -140,15 +151,6 @@ class HuggingFaceProvider:
                         "provider": "huggingface"
                     }
                     
-        except httpx.TimeoutException:
-            return {
-                "success": False,
-                "error": "Hugging Face API timeout",
-                "content": "",
-                "tokens_used": 0,
-                "model": model,
-                "provider": "huggingface"
-            }
         except Exception as e:
             return {
                 "success": False,
@@ -159,59 +161,58 @@ class HuggingFaceProvider:
                 "provider": "huggingface"
             }
     
-    async def generate_embedding(self, text: str) -> Dict[str, Any]:
+    async def generate_embedding(self, text: str, prepend_instruction: bool = True) -> Dict[str, Any]:
         """
-        Generate embeddings using Hugging Face model
+        Generate embeddings using Hugging Face Inference API
         
         Args:
             text: Text to embed
+            prepend_instruction: Whether to prepend BGE instruction for queries (default: True)
             
         Returns:
-            Dict with success, embedding, error
+            Dict with success, embedding, error, model
         """
-        if not self.api_key:
+        if not self.api_key or not self.inference_client:
             return {
                 "success": False,
-                "error": "Hugging Face API key not configured",
+                "error": "Hugging Face API key not configured or InferenceClient not available",
                 "embedding": None
             }
         
         model = self.MEDICAL_MODELS["embedding"]
         
         try:
-            url = f"{self.router_url}/embeddings"
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
+            # For BGE models, prepend instruction to queries for better retrieval
+            # Documents/passages don't need instructions
+            if prepend_instruction and "bge" in model.lower():
+                text_to_embed = f"Represent this sentence for searching relevant passages: {text}"
+            else:
+                text_to_embed = text
             
-            payload = {
-                "model": model,
-                "input": text
-            }
+            logger.info(f"Generating embedding with model: {model}")
             
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    embedding = result.get("data", [{}])[0].get("embedding")
-                    
-                    return {
-                        "success": True,
-                        "embedding": embedding,
-                        "error": None,
-                        "model": model
-                    }
-                else:
-                    error_msg = f"Embedding API error: {response.status_code} - {response.text}"
-                    logger.error(error_msg)
-                    
-                    return {
-                        "success": False,
-                        "error": error_msg,
-                        "embedding": None
-                    }
+            # Use InferenceClient for feature extraction (embeddings)
+            embedding = self.inference_client.feature_extraction(
+                text=text_to_embed,
+                model=model
+            )
+            
+            # Convert to list if it's a numpy array or tensor
+            if hasattr(embedding, 'tolist'):
+                embedding = embedding.tolist()
+            elif isinstance(embedding, list) and len(embedding) > 0:
+                # If it's a list of lists (batch), take first element
+                if isinstance(embedding[0], list):
+                    embedding = embedding[0]
+            
+            logger.info(f"Embedding generated successfully, dimension: {len(embedding) if embedding else 0}")
+            
+            return {
+                "success": True,
+                "embedding": embedding,
+                "error": None,
+                "model": model
+            }
                     
         except Exception as e:
             error_msg = f"Embedding API error: {str(e)}"
@@ -219,7 +220,8 @@ class HuggingFaceProvider:
             return {
                 "success": False,
                 "error": error_msg,
-                "embedding": None
+                "embedding": None,
+                "model": model
             }
     async def health_check(self, feature: str = "chat") -> Dict[str, Any]:
         """
@@ -244,6 +246,7 @@ class HuggingFaceProvider:
         logger.info(f"Performing health check on Hugging Face model: {model}")
         
         import time
+        import httpx
         start_time = time.time()
         
         try:
@@ -291,14 +294,6 @@ class HuggingFaceProvider:
                         "error": error_msg
                     }
                     
-        except httpx.TimeoutException:
-            response_time = int((time.time() - start_time) * 1000)
-            return {
-                "success": False,
-                "model": model,
-                "response_time_ms": response_time,
-                "error": "Health check timeout"
-            }
         except Exception as e:
             response_time = int((time.time() - start_time) * 1000)
             return {

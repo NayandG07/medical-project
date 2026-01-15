@@ -31,10 +31,29 @@ export default function HighYield() {
   const [generating, setGenerating] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [activeDocument, setActiveDocument] = useState<any>(null)
 
   useEffect(() => {
     checkAuth()
+    checkDocumentContext()
   }, [])
+
+  const checkDocumentContext = () => {
+    const documentId = router.query.document as string
+    if (documentId) {
+      const stored = sessionStorage.getItem('activeDocument')
+      if (stored) {
+        try {
+          const docData = JSON.parse(stored)
+          if (docData.id === documentId) {
+            setActiveDocument(docData)
+          }
+        } catch (e) {
+          console.error('Failed to parse document data:', e)
+        }
+      }
+    }
+  }
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -60,6 +79,32 @@ export default function HighYield() {
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
 
+      // If document is active, search for relevant context
+      let documentContext = ''
+      if (activeDocument) {
+        try {
+          const searchResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/documents/search?query=${encodeURIComponent(topic)}&feature=highyield&top_k=5`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            }
+          )
+          
+          if (searchResponse.ok) {
+            const searchResults = await searchResponse.json()
+            if (searchResults.length > 0) {
+              documentContext = '\n\n[Document Context]\n' + searchResults.map((r: any) => r.content).join('\n\n')
+            }
+          }
+        } catch (searchErr) {
+          console.error('Document search failed:', searchErr)
+        }
+      }
+
+      const topicWithContext = documentContext ? topic + documentContext : topic
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/study-tools/highyield`,
         {
@@ -69,7 +114,7 @@ export default function HighYield() {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ 
-            topic: topic,
+            topic: topicWithContext,
             format: 'interactive'
           })
         }
@@ -104,6 +149,54 @@ export default function HighYield() {
       </Head>
       <DashboardLayout user={user}>
         <div className={styles.container}>
+          {/* Document Context Banner */}
+          {activeDocument && (
+            <div style={{
+              background: 'linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%)',
+              color: 'white',
+              padding: '16px 24px',
+              borderRadius: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '24px',
+              boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '15px' }}>📚 RAG Enabled</div>
+                  <div style={{ fontSize: '13px', opacity: 0.9 }}>{activeDocument.filename}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setActiveDocument(null)
+                  sessionStorage.removeItem('activeDocument')
+                  router.push('/highyield')
+                }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  color: 'white',
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+              >
+                Disable RAG
+              </button>
+            </div>
+          )}
+          
           <div className={styles.header}>
             <h1>⭐ High-Yield Notes</h1>
             <p>Generate key summary points for any medical topic</p>

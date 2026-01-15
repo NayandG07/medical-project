@@ -36,6 +36,11 @@ export default function AdminSidebar() {
       icon: '⚡'
     },
     {
+      label: 'RAG Monitoring',
+      path: '/admin/rag-monitoring',
+      icon: '📊'
+    },
+    {
       label: 'Audit Logs',
       path: '/admin/audit-logs',
       icon: '📋'

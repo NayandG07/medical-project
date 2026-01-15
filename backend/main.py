@@ -931,6 +931,67 @@ async def update_rate_limits(
 
 
 # ============================================================================
+# RAG MONITORING ENDPOINTS
+# ============================================================================
+
+@app.get("/api/admin/rag-stats")
+async def get_rag_stats(
+    time_range: str = "24h",
+    feature: Optional[str] = None,
+    admin: Dict[str, Any] = Depends(verify_admin)
+):
+    """Get RAG usage statistics"""
+    try:
+        from datetime import timedelta
+        
+        # Calculate time range
+        time_ranges = {
+            "24h": timedelta(hours=24),
+            "7d": timedelta(days=7),
+            "30d": timedelta(days=30)
+        }
+        delta = time_ranges.get(time_range, timedelta(hours=24))
+        start_time = datetime.now() - delta
+        
+        # Build query
+        query = supabase.table("rag_usage_logs").select("*").gte("timestamp", start_time.isoformat())
+        
+        if feature and feature != "all":
+            query = query.eq("feature", feature)
+        
+        result = query.execute()
+        logs = result.data or []
+        
+        # Calculate stats
+        total_queries = len(logs)
+        successful_queries = sum(1 for log in logs if log.get("success", False))
+        
+        # Calculate average grounding score
+        grounding_scores = [log.get("grounding_score") for log in logs if log.get("grounding_score") is not None]
+        avg_grounding_score = sum(grounding_scores) / len(grounding_scores) if grounding_scores else None
+        
+        # Group by feature
+        by_feature = {}
+        for log in logs:
+            feat = log.get("feature", "unknown")
+            by_feature[feat] = by_feature.get(feat, 0) + 1
+        
+        # Get recent logs (last 20)
+        recent_logs = sorted(logs, key=lambda x: x.get("timestamp", ""), reverse=True)[:20]
+        
+        return {
+            "total_queries": total_queries,
+            "successful_queries": successful_queries,
+            "avg_grounding_score": avg_grounding_score,
+            "by_feature": by_feature,
+            "recent_logs": recent_logs
+        }
+    except Exception as e:
+        logger.error(f"Failed to get RAG stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # DOCUMENT ENDPOINTS (kept for backward compatibility, but simplified)
 # ============================================================================
 
