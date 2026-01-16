@@ -20,6 +20,8 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null)
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
 
+  const [plan, setPlan] = useState<string>('free')
+
   useEffect(() => {
     checkUser()
   }, [])
@@ -34,6 +36,18 @@ export default function ProfilePage() {
       }
 
       setUser(user as AuthUser)
+
+      // Fetch user plan
+      const { data: userData } = await supabase
+        .from('users')
+        .select('plan')
+        .eq('id', user.id)
+        .single()
+
+      if (userData?.plan) {
+        setPlan(userData.plan)
+      }
+
       await fetchUserKey(user.id)
     } catch (err) {
       console.error('Error checking user:', err)
@@ -134,6 +148,16 @@ export default function ProfilePage() {
 
   const userName = user.user_metadata?.name || user.email?.split('@')[0]
   const userInitials = userName?.[0]?.toUpperCase() || 'U'
+
+  const getPlanLabel = (plan: string) => {
+    const plans: Record<string, string> = {
+      free: 'Free Plan',
+      student: 'Student Plan',
+      pro: 'Premium Plan',
+      admin: 'Admin Plan'
+    }
+    return plans[plan.toLowerCase()] || 'Free Plan'
+  }
 
   return (
     <>
@@ -244,7 +268,7 @@ export default function ProfilePage() {
                     gap: '6px'
                   }}>
                     <Sparkles size={14} style={{ color: '#eab308' }} />
-                    {user.user_metadata?.plan || 'Free Plan'}
+                    {getPlanLabel(plan)}
                   </span>
                 </div>
               </div>

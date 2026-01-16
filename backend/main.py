@@ -996,6 +996,843 @@ async def get_rag_stats(
 # ============================================================================
 
 
+# ============================================================================
+# STUDY PLANNER ENDPOINTS
+# ============================================================================
+
+from services.enhanced_study_planner import get_enhanced_study_planner_service
+
+
+class CreatePlanEntryRequest(BaseModel):
+    subject: str
+    study_type: str
+    scheduled_date: str
+    start_time: str
+    end_time: str
+    topic: Optional[str] = None
+    priority: str = "medium"
+    notes: Optional[str] = None
+    tags: Optional[List[str]] = None
+    color_code: str = "#5C67F2"
+    is_recurring: bool = False
+    recurrence_pattern: Optional[str] = None
+
+
+@app.post("/api/planner/entries", status_code=201)
+async def create_plan_entry(
+    request: CreatePlanEntryRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Create a new study plan entry"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        entry = await planner_service.create_plan_entry(
+            user_id=user["id"],
+            subject=request.subject,
+            study_type=request.study_type,
+            scheduled_date=request.scheduled_date,
+            start_time=request.start_time,
+            end_time=request.end_time,
+            topic=request.topic,
+            priority=request.priority,
+            notes=request.notes,
+            tags=request.tags,
+            color_code=request.color_code,
+            is_recurring=request.is_recurring,
+            recurrence_pattern=request.recurrence_pattern
+        )
+        return entry
+    except Exception as e:
+        logger.error(f"Failed to create plan entry: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/planner/entries")
+async def get_plan_entries(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    status: Optional[str] = None,
+    study_type: Optional[str] = None,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get study plan entries with optional filters"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        entries = await planner_service.get_plan_entries(
+            user_id=user["id"],
+            start_date=start_date,
+            end_date=end_date,
+            status=status,
+            study_type=study_type
+        )
+        return {"entries": entries, "count": len(entries)}
+    except Exception as e:
+        logger.error(f"Failed to get plan entries: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/planner/entries/daily/{target_date}")
+async def get_daily_entries(
+    target_date: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get all entries for a specific day"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        entries = await planner_service.get_daily_entries(user["id"], target_date)
+        return {"entries": entries, "count": len(entries), "date": target_date}
+    except Exception as e:
+        logger.error(f"Failed to get daily entries: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/planner/entries/weekly/{week_start}")
+async def get_weekly_entries(
+    week_start: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get all entries for a week"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        entries = await planner_service.get_weekly_entries(user["id"], week_start)
+        return {"entries": entries, "count": len(entries), "week_start": week_start}
+    except Exception as e:
+        logger.error(f"Failed to get weekly entries: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/planner/entries/monthly/{year}/{month}")
+async def get_monthly_entries(
+    year: int,
+    month: int,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get all entries for a month"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        entries = await planner_service.get_monthly_entries(user["id"], year, month)
+        return {"entries": entries, "count": len(entries), "year": year, "month": month}
+    except Exception as e:
+        logger.error(f"Failed to get monthly entries: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class UpdatePlanEntryRequest(BaseModel):
+    subject: Optional[str] = None
+    topic: Optional[str] = None
+    study_type: Optional[str] = None
+    scheduled_date: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    priority: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[List[str]] = None
+    color_code: Optional[str] = None
+    completion_percentage: Optional[int] = None
+
+
+@app.put("/api/planner/entries/{entry_id}")
+async def update_plan_entry(
+    entry_id: str,
+    request: UpdatePlanEntryRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Update a study plan entry"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        updates = {k: v for k, v in request.dict().items() if v is not None}
+        entry = await planner_service.update_plan_entry(user["id"], entry_id, updates)
+        return entry
+    except Exception as e:
+        logger.error(f"Failed to update plan entry: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class CompletePlanEntryRequest(BaseModel):
+    performance_score: Optional[int] = None
+    accuracy_percentage: Optional[float] = None
+    notes: Optional[str] = None
+
+
+@app.post("/api/planner/entries/{entry_id}/complete")
+async def complete_plan_entry(
+    entry_id: str,
+    request: CompletePlanEntryRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Mark a study plan entry as completed"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        entry = await planner_service.complete_entry(
+            user_id=user["id"],
+            entry_id=entry_id,
+            performance_score=request.performance_score,
+            accuracy_percentage=request.accuracy_percentage,
+            notes=request.notes
+        )
+        return entry
+    except Exception as e:
+        logger.error(f"Failed to complete plan entry: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/planner/entries/{entry_id}/start")
+async def start_plan_entry(
+    entry_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Mark a study plan entry as in progress"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        entry = await planner_service.start_entry(user["id"], entry_id)
+        return entry
+    except Exception as e:
+        logger.error(f"Failed to start plan entry: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/planner/entries/{entry_id}/skip")
+async def skip_plan_entry(
+    entry_id: str,
+    reason: Optional[str] = None,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Mark a study plan entry as skipped"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        entry = await planner_service.skip_entry(user["id"], entry_id, reason)
+        return entry
+    except Exception as e:
+        logger.error(f"Failed to skip plan entry: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ReschedulePlanEntryRequest(BaseModel):
+    new_date: str
+    new_start_time: str
+    new_end_time: str
+    reason: Optional[str] = None
+
+
+@app.post("/api/planner/entries/{entry_id}/reschedule")
+async def reschedule_plan_entry(
+    entry_id: str,
+    request: ReschedulePlanEntryRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Reschedule a study plan entry"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        entry = await planner_service.reschedule_entry(
+            user_id=user["id"],
+            entry_id=entry_id,
+            new_date=request.new_date,
+            new_start_time=request.new_start_time,
+            new_end_time=request.new_end_time,
+            reason=request.reason
+        )
+        return entry
+    except Exception as e:
+        logger.error(f"Failed to reschedule plan entry: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/planner/entries/{entry_id}")
+async def delete_plan_entry(
+    entry_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete a study plan entry"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        await planner_service.delete_plan_entry(user["id"], entry_id)
+        return {"message": "Entry deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete plan entry: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Study Goals Endpoints
+class CreateGoalRequest(BaseModel):
+    title: str
+    goal_type: str
+    start_date: str
+    end_date: str
+    target_hours: Optional[float] = None
+    target_sessions: Optional[int] = None
+    target_topics: Optional[int] = None
+    target_accuracy: Optional[float] = None
+    description: Optional[str] = None
+
+
+@app.post("/api/planner/goals", status_code=201)
+async def create_goal(
+    request: CreateGoalRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Create a new study goal"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        goal = await planner_service.create_goal(
+            user_id=user["id"],
+            title=request.title,
+            goal_type=request.goal_type,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            target_hours=request.target_hours,
+            target_sessions=request.target_sessions,
+            target_topics=request.target_topics,
+            target_accuracy=request.target_accuracy,
+            description=request.description
+        )
+        return goal
+    except Exception as e:
+        logger.error(f"Failed to create goal: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/planner/goals")
+async def get_goals(
+    status: Optional[str] = None,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get study goals"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        goals = await planner_service.get_goals(user["id"], status)
+        return {"goals": goals, "count": len(goals)}
+    except Exception as e:
+        logger.error(f"Failed to get goals: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/planner/goals/{goal_id}")
+async def delete_goal(
+    goal_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete a study goal"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        await planner_service.delete_goal(user["id"], goal_id)
+        return {"message": "Goal deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete goal: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Performance & Analytics Endpoints
+@app.get("/api/planner/performance/summary")
+async def get_performance_summary(
+    days: int = 30,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get performance summary"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        summary = await planner_service.get_performance_summary(user["id"], days)
+        return summary
+    except Exception as e:
+        logger.error(f"Failed to get performance summary: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/planner/performance/metrics")
+async def get_performance_metrics(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get detailed performance metrics"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        metrics = await planner_service.get_performance_metrics(user["id"], start_date, end_date)
+        return {"metrics": metrics, "count": len(metrics)}
+    except Exception as e:
+        logger.error(f"Failed to get performance metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/planner/performance/subjects")
+async def get_subject_breakdown(
+    days: int = 30,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get study time breakdown by subject"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        breakdown = await planner_service.get_subject_breakdown(user["id"], days)
+        return {"subjects": breakdown}
+    except Exception as e:
+        logger.error(f"Failed to get subject breakdown: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Streak Endpoints
+@app.get("/api/planner/streak")
+async def get_streak(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get current streak data"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        streak = await planner_service.get_streak(user["id"])
+        return streak
+    except Exception as e:
+        logger.error(f"Failed to get streak: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# AI Recommendations Endpoints
+@app.get("/api/planner/recommendations")
+async def get_recommendations(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get AI-powered study recommendations"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        recommendations = await planner_service.generate_recommendations(user["id"])
+        return {"recommendations": recommendations}
+    except Exception as e:
+        logger.error(f"Failed to get recommendations: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Daily Brief Endpoint
+@app.get("/api/planner/daily-brief")
+async def get_daily_brief(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get daily study brief"""
+    try:
+        planner_service = get_enhanced_study_planner_service(supabase)
+        brief = await planner_service.get_daily_brief(user["id"])
+        return brief
+    except Exception as e:
+        logger.error(f"Failed to get daily brief: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# CLINICAL REASONING ENGINE ENDPOINTS
+# ============================================================================
+
+from services.clinical_reasoning_engine import get_clinical_reasoning_engine
+
+
+class CreateClinicalCaseRequest(BaseModel):
+    specialty: str = "general_medicine"
+    difficulty: str = "intermediate"
+    case_type: str = "clinical_reasoning"
+
+
+class SubmitReasoningStepRequest(BaseModel):
+    step_type: str
+    user_input: str
+    notes: Optional[str] = None
+
+
+class CreateOSCERequest(BaseModel):
+    scenario_type: str = "history_taking"
+    specialty: str = "general_medicine"
+    difficulty: str = "intermediate"
+
+
+class OSCEInteractionRequest(BaseModel):
+    user_action: str
+
+
+@app.post("/api/clinical/cases", status_code=201)
+async def create_clinical_case(
+    request: CreateClinicalCaseRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Generate a new clinical reasoning case
+    
+    Creates a structured patient case with progressive information disclosure
+    for clinical reasoning practice.
+    """
+    try:
+        engine = get_clinical_reasoning_engine(supabase)
+        case = await engine.generate_clinical_case(
+            user_id=user["id"],
+            specialty=request.specialty,
+            difficulty=request.difficulty,
+            case_type=request.case_type
+        )
+        return case
+    except Exception as e:
+        logger.error(f"Failed to create clinical case: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/clinical/cases")
+async def get_clinical_cases(
+    status: Optional[str] = None,
+    specialty: Optional[str] = None,
+    limit: int = 20,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get user's clinical cases with optional filters"""
+    try:
+        query = supabase.table("clinical_cases")\
+            .select("id, case_type, specialty, difficulty, status, chief_complaint, current_stage, created_at")\
+            .eq("user_id", user["id"])\
+            .order("created_at", desc=True)\
+            .limit(limit)
+        
+        if status:
+            query = query.eq("status", status)
+        if specialty:
+            query = query.eq("specialty", specialty)
+        
+        response = query.execute()
+        return {"cases": response.data or [], "count": len(response.data or [])}
+    except Exception as e:
+        logger.error(f"Failed to get clinical cases: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/clinical/cases/{case_id}")
+async def get_clinical_case(
+    case_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get a specific clinical case with current stage data"""
+    try:
+        engine = get_clinical_reasoning_engine(supabase)
+        case_data = await engine.get_case_stage(case_id, user["id"])
+        return case_data
+    except Exception as e:
+        logger.error(f"Failed to get clinical case: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/clinical/cases/{case_id}/steps")
+async def submit_reasoning_step(
+    case_id: str,
+    request: SubmitReasoningStepRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Submit a clinical reasoning step for evaluation
+    
+    Evaluates the user's reasoning and provides feedback.
+    May advance the case to the next stage based on performance.
+    """
+    try:
+        engine = get_clinical_reasoning_engine(supabase)
+        result = await engine.submit_reasoning_step(
+            case_id=case_id,
+            user_id=user["id"],
+            step_type=request.step_type,
+            user_input=request.user_input,
+            notes=request.notes
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Failed to submit reasoning step: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/clinical/cases/{case_id}/advance")
+async def advance_case_stage(
+    case_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Advance the case to the next stage"""
+    try:
+        # Get current case
+        response = supabase.table("clinical_cases")\
+            .select("current_stage, stages")\
+            .eq("id", case_id)\
+            .eq("user_id", user["id"])\
+            .single()\
+            .execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Case not found")
+        
+        current_stage = response.data.get("current_stage", 0)
+        total_stages = len(response.data.get("stages", []))
+        
+        if current_stage >= total_stages - 1:
+            raise HTTPException(status_code=400, detail="Case already at final stage")
+        
+        # Advance stage
+        supabase.table("clinical_cases")\
+            .update({"current_stage": current_stage + 1})\
+            .eq("id", case_id)\
+            .execute()
+        
+        engine = get_clinical_reasoning_engine(supabase)
+        return await engine.get_case_stage(case_id, user["id"])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to advance case stage: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/clinical/cases/{case_id}/complete")
+async def complete_clinical_case(
+    case_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Complete a clinical case and get final feedback"""
+    try:
+        engine = get_clinical_reasoning_engine(supabase)
+        result = await engine.complete_case(case_id, user["id"])
+        return result
+    except Exception as e:
+        logger.error(f"Failed to complete clinical case: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# OSCE Simulation Endpoints
+
+@app.post("/api/clinical/osce", status_code=201)
+async def create_osce_scenario(
+    request: CreateOSCERequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Create a new OSCE examination scenario
+    
+    Generates a structured OSCE station with simulated patient
+    and examiner interactions.
+    """
+    try:
+        engine = get_clinical_reasoning_engine(supabase)
+        scenario = await engine.create_osce_scenario(
+            user_id=user["id"],
+            scenario_type=request.scenario_type,
+            specialty=request.specialty,
+            difficulty=request.difficulty
+        )
+        return scenario
+    except Exception as e:
+        logger.error(f"Failed to create OSCE scenario: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/clinical/osce")
+async def get_osce_scenarios(
+    status: Optional[str] = None,
+    scenario_type: Optional[str] = None,
+    limit: int = 20,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get user's OSCE scenarios with optional filters"""
+    try:
+        query = supabase.table("osce_scenarios")\
+            .select("id, scenario_type, specialty, difficulty, status, candidate_instructions, created_at")\
+            .eq("user_id", user["id"])\
+            .order("created_at", desc=True)\
+            .limit(limit)
+        
+        if status:
+            query = query.eq("status", status)
+        if scenario_type:
+            query = query.eq("scenario_type", scenario_type)
+        
+        response = query.execute()
+        return {"scenarios": response.data or [], "count": len(response.data or [])}
+    except Exception as e:
+        logger.error(f"Failed to get OSCE scenarios: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/clinical/osce/{scenario_id}")
+async def get_osce_scenario(
+    scenario_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get a specific OSCE scenario"""
+    try:
+        response = supabase.table("osce_scenarios")\
+            .select("*")\
+            .eq("id", scenario_id)\
+            .eq("user_id", user["id"])\
+            .single()\
+            .execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Scenario not found")
+        
+        # Remove examiner-only fields
+        scenario = response.data
+        scenario.pop("examiner_checklist", None)
+        scenario.pop("expected_actions", None)
+        
+        return scenario
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get OSCE scenario: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/clinical/osce/{scenario_id}/interact")
+async def osce_interact(
+    scenario_id: str,
+    request: OSCEInteractionRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Interact with OSCE scenario (patient/examiner)
+    
+    Sends user action and receives simulated patient response
+    with examiner assessment.
+    """
+    try:
+        engine = get_clinical_reasoning_engine(supabase)
+        response = await engine.osce_interaction(
+            scenario_id=scenario_id,
+            user_id=user["id"],
+            user_action=request.user_action
+        )
+        return response
+    except Exception as e:
+        logger.error(f"Failed to process OSCE interaction: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/clinical/osce/{scenario_id}/complete")
+async def complete_osce_scenario(
+    scenario_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Complete an OSCE scenario and get performance feedback"""
+    try:
+        # Get scenario with full data
+        response = supabase.table("osce_scenarios")\
+            .select("*")\
+            .eq("id", scenario_id)\
+            .eq("user_id", user["id"])\
+            .single()\
+            .execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Scenario not found")
+        
+        scenario = response.data
+        
+        # Calculate score
+        checklist = scenario.get("examiner_checklist", [])
+        interaction_history = scenario.get("interaction_history", [])
+        
+        # Collect triggered items from all interactions
+        triggered_items = set()
+        for interaction in interaction_history:
+            for item in interaction.get("checklist_items", []):
+                triggered_items.add(item)
+        
+        total_points = sum(item.get("points", 1) for item in checklist)
+        earned_points = 0
+        completed_items = []
+        missed_items = []
+        
+        for item in checklist:
+            if item.get("item") in triggered_items:
+                earned_points += item.get("points", 1)
+                completed_items.append(item.get("item"))
+            else:
+                missed_items.append(item.get("item"))
+        
+        score = (earned_points / total_points * 100) if total_points > 0 else 0
+        
+        # Update scenario status
+        from datetime import datetime, timezone
+        supabase.table("osce_scenarios")\
+            .update({
+                "status": "completed",
+                "time_completed": datetime.now(timezone.utc).isoformat(),
+                "checklist_score": score
+            })\
+            .eq("id", scenario_id)\
+            .execute()
+        
+        return {
+            "scenario_id": scenario_id,
+            "final_score": round(score, 1),
+            "earned_points": earned_points,
+            "total_points": total_points,
+            "completed_items": completed_items,
+            "missed_items": missed_items,
+            "interaction_count": len(interaction_history),
+            "expected_actions": scenario.get("expected_actions", [])
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to complete OSCE scenario: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Clinical Performance Endpoints
+
+@app.get("/api/clinical/performance")
+async def get_clinical_performance(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get user's clinical performance summary"""
+    try:
+        engine = get_clinical_reasoning_engine(supabase)
+        performance = await engine.get_performance_summary(user["id"])
+        return performance
+    except Exception as e:
+        logger.error(f"Failed to get clinical performance: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/clinical/performance/history")
+async def get_clinical_history(
+    days: int = 30,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get user's clinical practice history"""
+    try:
+        from datetime import datetime, timedelta
+        
+        start_date = (datetime.now() - timedelta(days=days)).isoformat()
+        
+        # Get cases
+        cases_response = supabase.table("clinical_cases")\
+            .select("id, specialty, difficulty, status, created_at")\
+            .eq("user_id", user["id"])\
+            .gte("created_at", start_date)\
+            .order("created_at", desc=True)\
+            .execute()
+        
+        # Get OSCE scenarios
+        osce_response = supabase.table("osce_scenarios")\
+            .select("id, scenario_type, difficulty, status, checklist_score, created_at")\
+            .eq("user_id", user["id"])\
+            .gte("created_at", start_date)\
+            .order("created_at", desc=True)\
+            .execute()
+        
+        # Get reasoning steps
+        steps_response = supabase.table("clinical_reasoning_steps")\
+            .select("step_type, score, created_at")\
+            .eq("user_id", user["id"])\
+            .gte("created_at", start_date)\
+            .execute()
+        
+        return {
+            "cases": cases_response.data or [],
+            "osce_scenarios": osce_response.data or [],
+            "reasoning_steps": steps_response.data or [],
+            "period_days": days
+        }
+    except Exception as e:
+        logger.error(f"Failed to get clinical history: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Run the application
 if __name__ == "__main__":
     import uvicorn

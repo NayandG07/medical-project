@@ -2,18 +2,30 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { AuthUser } from '@/lib/supabase'
+import { ChevronLeft, Menu } from 'lucide-react'
 
 interface SidebarProps {
   user: AuthUser
   currentPath: string
   collapsed?: boolean
   onToggle?: (collapsed: boolean) => void
+  plan?: string
 }
 
 // Store collapsed state globally to persist across pages
 let globalCollapsed = false
 
-export default function Sidebar({ user, currentPath, collapsed: controlledCollapsed, onToggle }: SidebarProps) {
+const getPlanLabel = (plan: string = 'free') => {
+  const plans: Record<string, string> = {
+    free: 'Standard Plan',
+    student: 'Student Plan',
+    pro: 'Premium Plan',
+    admin: 'Admin'
+  }
+  return plans[plan.toLowerCase()] || 'Standard Plan'
+}
+
+export default function Sidebar({ user, currentPath, collapsed: controlledCollapsed, onToggle, plan = 'free' }: SidebarProps) {
   const router = useRouter()
   const [isCollapsed, setIsCollapsed] = useState(globalCollapsed)
 
@@ -39,8 +51,9 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
     { name: 'High Yield', path: '/highyield', icon: '⭐' },
     { name: 'Explain', path: '/explain', icon: '📚' },
     { name: 'Concept Map', path: '/conceptmap', icon: '🗺️' },
-    { name: 'Clinical Reasoning', path: '/clinical-reasoning', icon: '🧠' },
-    { name: 'OSCE', path: '/osce', icon: '👨‍⚕️' },
+    { name: 'Clinical Cases', path: '/clinical-cases', icon: '🏥' },
+    { name: 'OSCE Simulator', path: '/osce-simulator', icon: '👨‍⚕️' },
+    { name: 'Study Planner', path: '/study-planner', icon: '📅' },
     { name: 'Documents', path: '/documents', icon: '📄' },
     { name: 'Profile', path: '/profile', icon: '👤' },
   ]
@@ -49,267 +62,334 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
   const sidebarWidth = isCollapsed ? '70px' : '240px'
 
   return (
-    <div style={{
-      width: sidebarWidth,
-      height: '100vh',
-      backgroundColor: '#2c3e50',
-      color: 'white',
-      display: 'flex',
-      flexDirection: 'column',
-      position: 'fixed',
-      left: 0,
-      top: 0,
-      overflow: 'hidden', // Hide main scrollbar
-      transition: 'width 0.2s ease',
-      zIndex: 100
-    }} data-lenis-prevent>
+    <div className="sidebar-container" data-lenis-prevent>
       {/* Logo & Toggle */}
-      <div style={{
-        padding: isCollapsed ? '20px 0' : '20px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: isCollapsed ? 'center' : 'space-between',
-        gap: '10px',
-        minHeight: '72px'
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px'
-        }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '18px',
-            fontWeight: 'bold',
-            flexShrink: 0
-          }}>
-            V
+      <div className="sidebar-header">
+        <div className="logo-section">
+          <div className="logo-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
           </div>
-          {!isCollapsed && (
-            <span style={{ fontSize: '20px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Vaidya AI</span>
-          )}
+          {!isCollapsed && <span className="logo-text">Vaidya AI</span>}
         </div>
 
         {!isCollapsed && (
-          <button
-            onClick={handleToggle}
-            style={{
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '6px 8px',
-              cursor: 'pointer',
-              color: 'white',
-              fontSize: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            title="Collapse sidebar"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect width="18" height="18" x="3" y="3" rx="2" />
-              <path d="M9 3v18" />
-              <path d="m14 9-3 3 3 3" />
-            </svg>
+          <button onClick={handleToggle} className="toggle-btn" title="Collapse sidebar">
+            <ChevronLeft size={18} />
           </button>
         )}
       </div>
 
-      {/* Expand button when collapsed */}
       {isCollapsed && (
-        <button
-          onClick={handleToggle}
-          style={{
-            background: 'rgba(255, 255, 255, 0.1)',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px',
-            margin: '10px auto',
-            cursor: 'pointer',
-            color: 'white',
-            fontSize: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '40px'
-          }}
-          title="Expand sidebar"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
+        <button onClick={handleToggle} className="toggle-btn-collapsed" title="Expand sidebar">
+          <Menu size={18} />
         </button>
       )}
 
-      {/* Menu Items - Scrollable Middle Section */}
-      <nav style={{
-        flex: 1,
-        padding: '10px 0',
-        overflowY: 'auto',
-        scrollbarWidth: 'none', // Firefox
-        msOverflowStyle: 'none', // IE/Edge
-      }}>
-        {/* Hide scrollbar for Chrome/Safari */}
-        <style jsx>{`
-          nav::-webkit-scrollbar {
-            display: none;
-          }
-        `}</style>
+      {/* Menu Items */}
+      <nav className="sidebar-nav">
         {menuItems.map((item) => (
           <Link
             key={item.path}
             href={item.path}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: isCollapsed ? '12px 0' : '12px 20px',
-              justifyContent: isCollapsed ? 'center' : 'flex-start',
-              color: 'white',
-              textDecoration: 'none',
-              backgroundColor: isActive(item.path) ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-              borderLeft: isActive(item.path) ? '3px solid #667eea' : '3px solid transparent',
-              transition: 'all 0.2s ease',
-              cursor: 'pointer'
-            }}
-            title={isCollapsed ? item.name : undefined}
-            onMouseEnter={(e) => {
-              if (!isActive(item.path)) {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isActive(item.path)) {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }
-            }}
+            passHref
+            className="link-wrapper"
           >
-            <span style={{ fontSize: '20px', flexShrink: 0 }}>{item.icon}</span>
-            {!isCollapsed && <span style={{ fontSize: '15px', whiteSpace: 'nowrap' }}>{item.name}</span>}
+            <div className={`nav-item ${isActive(item.path) ? 'active' : ''}`} title={isCollapsed ? item.name : undefined}>
+              <span className="nav-icon">{item.icon}</span>
+              {!isCollapsed && <span className="nav-label">{item.name}</span>}
+            </div>
           </Link>
         ))}
       </nav>
 
-      {/* User Profile - simplified when collapsed */}
-      <div style={{
-        padding: isCollapsed ? '15px 10px' : '20px',
-        borderTop: '1px solid rgba(255, 255, 255, 0.1)'
-      }}>
+      {/* User Area */}
+      <div className="sidebar-footer">
         {isCollapsed ? (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '50%',
-              backgroundColor: '#667eea',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '14px',
-              fontWeight: 'bold'
-            }}>
-              {(user.user_metadata?.name || user.email)?.[0].toUpperCase()}
-            </div>
+          <div className="user-avatar-small">
+            {(user.user_metadata?.name || user.email)?.[0].toUpperCase()}
           </div>
         ) : (
-          <>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              marginBottom: '15px'
-            }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                backgroundColor: '#667eea',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                flexShrink: 0
-              }}>
+          <div className="user-full-card">
+            <div className="user-info-row">
+              <div className="user-avatar">
                 {(user.user_metadata?.name || user.email)?.[0].toUpperCase()}
               </div>
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {user.user_metadata?.name || user.email?.split('@')[0]}
-                </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)' }}>
-                  Tokens: 1,520
-                </div>
+              <div className="user-text">
+                <p className="user-name">{user.user_metadata?.name || user.email?.split('@')[0]}</p>
+                <p className="user-subtext">{getPlanLabel(plan)}</p>
               </div>
             </div>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: '12px',
-              color: 'rgba(255, 255, 255, 0.6)',
-              marginBottom: '10px'
-            }}>
-              <span>Tokens: 1,520</span>
-              <span>2,000k Remaining</span>
+            <div className="token-meter-container">
+              <div className="token-labels">
+                <span>Tokens</span>
+                <span>1.5k / 2k</span>
+              </div>
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: '76%' }}></div>
+              </div>
             </div>
 
-            <div style={{
-              height: '6px',
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              borderRadius: '3px',
-              overflow: 'hidden',
-              marginBottom: '15px'
-            }}>
-              <div style={{
-                height: '100%',
-                width: '76%',
-                background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
-                borderRadius: '3px'
-              }} />
-            </div>
-
-            <button
-              onClick={() => router.push('/upgrade')}
-              style={{
-                width: '100%',
-                padding: '10px',
-                backgroundColor: '#667eea',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#5568d3'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#667eea'
-              }}
-            >
-              Upgrade →
+            <button onClick={() => router.push('/upgrade')} className="upgrade-button">
+              Upgrade Plan
             </button>
-          </>
+          </div>
         )}
       </div>
+
+      <style jsx>{`
+        .sidebar-container {
+          width: ${sidebarWidth};
+          height: 100vh;
+          background-color: #212529;
+          border-right: 1px solid rgba(255, 255, 255, 0.08);
+          display: flex;
+          flex-direction: column;
+          position: fixed;
+          left: 0;
+          top: 0;
+          transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: 100;
+          color: #E9ECEF;
+        }
+
+        .sidebar-header {
+          padding: ${isCollapsed ? '20px 0' : '16px 20px'};
+          display: flex;
+          align-items: center;
+          justify-content: ${isCollapsed ? 'center' : 'space-between'};
+          min-height: 70px;
+        }
+
+        .logo-section {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .logo-icon {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .logo-text {
+          font-size: 18px;
+          font-weight: 800;
+          color: white;
+          letter-spacing: -0.03em;
+        }
+
+        .toggle-btn {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          width: 24px;
+          height: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          color: #ADB5BD;
+          transition: all 0.2s;
+        }
+
+        .toggle-btn:hover {
+          background-color: rgba(255, 255, 255, 0.1);
+          color: white;
+        }
+
+        .toggle-btn-collapsed {
+          margin: 10px auto;
+          background: transparent;
+          border: none;
+          color: #ADB5BD;
+          cursor: pointer;
+          padding: 8px;
+        }
+
+        .sidebar-nav {
+          flex: 1;
+          padding: 8px 12px;
+          overflow-y: auto;
+          scrollbar-width: none;
+        }
+
+        .sidebar-nav::-webkit-scrollbar {
+          display: none;
+        }
+
+        /* Ensure link wrapper doesn't break flex layout */
+        :global(.link-wrapper) {
+          text-decoration: none;
+          display: block;
+          width: 100%;
+          margin-bottom: 2px;
+        }
+
+        .nav-item {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important; 
+          gap: 12px;
+          padding: ${isCollapsed ? '10px 0' : '10px 12px'};
+          justify-content: ${isCollapsed ? 'center' : 'flex-start'};
+          color: #ADB5BD;
+          border-radius: 10px;
+          transition: background-color 0.2s, color 0.2s;
+          font-weight: 600;
+          font-size: 13px;
+          width: 100%;
+          white-space: nowrap;
+        }
+
+        .nav-item:hover {
+          background-color: rgba(255, 255, 255, 0.08);
+          color: white;
+        }
+
+        .nav-item.active {
+          background-color: rgba(255, 255, 255, 0.15);
+          color: white;
+        }
+
+        .nav-icon {
+          font-size: 16px;
+          width: 20px;
+          height: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .nav-label {
+           white-space: nowrap;
+        }
+
+        .sidebar-footer {
+          padding: 16px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .user-avatar-small {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background-color: #334155;
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+          margin: 0 auto;
+        }
+
+        .user-full-card {
+           display: flex;
+           flex-direction: column;
+           gap: 10px;
+        }
+
+        .user-info-row {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          gap: 10px;
+        }
+
+        .user-avatar {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #E9ECEF 0%, #ADB5BD 100%);
+          color: #212529;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 800;
+          flex-shrink: 0;
+          font-size: 12px;
+        }
+
+        .user-text {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .user-name {
+          font-size: 13px;
+          font-weight: 700;
+          color: white;
+          margin: 0;
+          line-height: 1.2;
+        }
+
+        .user-subtext {
+          font-size: 10px;
+          color: #ADB5BD;
+          margin: 0;
+          font-weight: 600;
+        }
+
+        .token-meter-container {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          background: rgba(255, 255, 255, 0.04);
+          padding: 8px;
+          border-radius: 10px;
+        }
+
+        .token-labels {
+          display: flex;
+          justify-content: space-between;
+          font-size: 9px;
+          font-weight: 700;
+          color: #ADB5BD;
+        }
+
+        .progress-bar {
+          height: 4px;
+          background-color: rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
+          overflow: hidden;
+        }
+
+        .progress-fill {
+          height: 100%;
+          background: linear-gradient(to right, #6366F1, #8B5CF6);
+          border-radius: 10px;
+        }
+
+        .upgrade-button {
+          width: 100%;
+          padding: 8px;
+          background: linear-gradient(to right, #6366f1, #8b5cf6);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .upgrade-button:hover {
+          filter: brightness(1.1);
+          box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+        }
+      `}</style>
     </div>
   )
 }
