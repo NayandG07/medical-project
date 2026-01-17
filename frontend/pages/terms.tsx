@@ -91,7 +91,7 @@ export default function TermsPage() {
 
             <Section title="5. Educational Disclaimer">
                 <div style={{ padding: '24px', backgroundColor: '#fff7ed', borderLeft: '4px solid #f97316', borderRadius: '16px' }}>
-                    <p style={{ margin: 0, color: '#9a3412', fontWeight: '700', fontSize: '0.9rem', textTransform: 'uppercase', tracking: '0.05em', marginBottom: '8px' }}>Important Disclaimer</p>
+                    <p style={{ margin: 0, color: '#9a3412', fontWeight: '700', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Important Disclaimer</p>
                     <p style={{ margin: 0, color: '#431407', lineHeight: '1.6', fontWeight: '500' }}>
                         Vaidya AI is an educational tool designed to assist medical students. It is NOT a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your physician or other qualified health provider with any questions you may have regarding a medical condition.
                     </p>

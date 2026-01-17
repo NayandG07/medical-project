@@ -250,18 +250,71 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
 
     def _parse_json_response(self, content: str) -> Dict[str, Any]:
         """Extract and parse JSON from AI response"""
+        import logging
+        import re
+        
+        logger = logging.getLogger(__name__)
+        original_content = content
         content = content.strip()
         
+        # Try to extract JSON from markdown code blocks
         if "```json" in content:
             start = content.find("```json") + 7
             end = content.find("```", start)
-            content = content[start:end].strip()
+            if end != -1:
+                content = content[start:end].strip()
         elif "```" in content:
             start = content.find("```") + 3
             end = content.find("```", start)
-            content = content[start:end].strip()
+            if end != -1:
+                content = content[start:end].strip()
         
-        return json.loads(content)
+        # Try to find JSON object boundaries
+        # Look for the first { and last }
+        first_brace = content.find('{')
+        last_brace = content.rfind('}')
+        
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            content = content[first_brace:last_brace + 1]
+        
+        # Remove any trailing commas before closing braces/brackets (common JSON error)
+        content = re.sub(r',(\s*[}\]])', r'\1', content)
+        
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing failed: {e}")
+            
+            # Log the problematic area around the error position
+            error_pos = e.pos if hasattr(e, 'pos') else 0
+            start_pos = max(0, error_pos - 100)
+            end_pos = min(len(content), error_pos + 100)
+            logger.error(f"Content around error position {error_pos}:")
+            logger.error(f"...{content[start_pos:end_pos]}...")
+            logger.error(f"Full content length: {len(content)} chars")
+            logger.error(f"Original content length: {len(original_content)} chars")
+            
+            # Try to fix common issues
+            # Remove comments (not valid in JSON)
+            content = re.sub(r'//.*?\n', '\n', content)
+            content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+            
+            # Fix unescaped quotes in strings
+            # This is tricky, but we can try to escape quotes that appear to be inside string values
+            
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError as e2:
+                logger.error(f"JSON parsing failed again after cleanup: {e2}")
+                
+                # Last resort: try to use json5 or ast.literal_eval
+                try:
+                    import json5
+                    return json5.loads(content)
+                except:
+                    pass
+                
+                raise Exception(f"Failed to parse AI response as JSON: {str(e2)}. Error at position {error_pos}. Check logs for details.")
     
     def _sanitize_case_for_user(self, case: Dict[str, Any]) -> Dict[str, Any]:
         """Remove answer fields from case before sending to user"""

@@ -128,6 +128,11 @@ class HuggingFaceProvider:
                         generated_text = str(result)
                         tokens_used = len(prompt + generated_text) // 4
                     
+                    # Log the full response for debugging JSON parsing issues
+                    if feature == "clinical":
+                        logger.info(f"Full HF response length: {len(generated_text)} chars")
+                        logger.debug(f"Full HF response: {generated_text}")
+                    
                     logger.info(f"Hugging Face call succeeded. Model: {model}, Tokens: ~{tokens_used}")
                     
                     return {
