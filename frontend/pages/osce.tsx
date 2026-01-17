@@ -267,9 +267,9 @@ export default function OSCE() {
                           <div className="w-20 h-20 rounded-[2rem] bg-indigo-500 flex items-center justify-center mb-8 shadow-xl shadow-indigo-500/30 self-center">
                             <Play fill="white" size={28} className="ml-1" />
                           </div>
-                          <h4 className="text-3xl font-bold mb-5 leading-tight">Begin Evaluation</h4>
+                          <h4 className="text-3xl font-bold mb-5 leading-tight ml-5">Begin Evaluation</h4>
                           <p className="text-slate-400 mb-12 text-lg leading-relaxed font-medium">
-                            Your virtual station is prepared. Enter the room when you're ready to start the clinical encounter.
+                            Your virtual station is well prepared. Enter the room when you're ready to start the clinical encounter.
                           </p>
 
                           <button
@@ -330,7 +330,8 @@ export default function OSCE() {
                     {/* Chat Messages - Now directly on page */}
                     <div
                       ref={scrollRef}
-                      className="flex-1 overflow-y-auto space-y-8 scroll-smooth min-h-[500px] max-h-[600px] pr-4"
+                      className="flex-1 overflow-y-auto space-y-8 scroll-smooth min-h-[500px] max-h-[600px] pr-4 no-scrollbar"
+                      data-lenis-prevent
                     >
                       {conversation.map((msg, idx) => (
                         <motion.div
@@ -361,7 +362,7 @@ export default function OSCE() {
                                 : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none shadow-slate-100'
                                 }`}
                             >
-                              <div className="whitespace-pre-wrap">{msg.content}</div>
+                              <div className="whitespace-pre-wrap">{msg.content || (msg as any).detail || "..."}</div>
                             </div>
                           </div>
                         </motion.div>
