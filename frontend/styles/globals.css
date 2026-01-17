@@ -1,10 +1,16 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 @import "tailwindcss";
 
 :root {
-  --medical-blue: #6366f1;
-  --medical-bg: #fdfbf7;
+  --cream-bg: #F9F9F7;
+  --cream-card: #FFFFFF;
+  --cream-accent: #E2E2DF;
+  --cream-accent-soft: #F2F2F0;
+  --cream-text-main: #1F2937;
+  --cream-text-muted: #6B7280;
+  --medical-blue: #5C67F2;
+  --medical-blue-soft: #EDEEFF;
 }
 
 * {
@@ -16,9 +22,14 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--medical-bg);
-  color: #1e293b;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--cream-bg);
+  color: var(--cream-text-main);
+}
+
+::selection {
+  background-color: var(--cream-accent);
+  color: var(--cream-text-main);
 }
 
 html.lenis {
@@ -88,6 +99,7 @@ html.lenis {
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);

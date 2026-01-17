@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import { AuthUser } from '@/lib/supabase'
+import { AuthUser, supabase } from '@/lib/supabase'
 import Sidebar from './Sidebar'
 
 interface DashboardLayoutProps {
@@ -18,8 +18,11 @@ const getPageTitle = (pathname: string): string => {
     '/highyield': 'High Yield',
     '/explain': 'Explain',
     '/conceptmap': 'Concept Map',
+    '/clinical-cases': 'Clinical Cases',
+    '/osce-simulator': 'OSCE Simulator',
     '/clinical-reasoning': 'Clinical Reasoning',
-    '/osce': 'OSCE',
+    '/osce': 'OSCE Station',
+    '/study-planner': 'Study Planner',
     '/documents': 'Documents',
     '/profile': 'Profile',
   }
@@ -34,6 +37,29 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
   const [sidebarCollapsed, setSidebarCollapsed] = useState(globalSidebarCollapsed)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
+  const [plan, setPlan] = useState<string>(user.user_metadata?.plan || 'free')
+
+  useEffect(() => {
+    const fetchUserPlan = async () => {
+      try {
+        const { data } = await supabase
+          .from('users')
+          .select('plan')
+          .eq('id', user.id)
+          .single()
+
+        if (data?.plan) {
+          setPlan(data.plan)
+        }
+      } catch (error) {
+        console.error('Error fetching user plan:', error)
+      }
+    }
+
+    if (user?.id) {
+      fetchUserPlan()
+    }
+  }, [user.id])
 
   const handleSidebarToggle = (collapsed: boolean) => {
     setSidebarCollapsed(collapsed)
@@ -41,7 +67,6 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
   }
 
   const handleSignOut = async () => {
-    const { supabase } = await import('@/lib/supabase')
     await supabase.auth.signOut()
     router.push('/')
   }
@@ -67,324 +92,443 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
   const sidebarWidth = sidebarCollapsed ? '70px' : '240px'
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#fdfbf7' }}>
+    <div className="layout-root">
       <Sidebar
         user={user}
         currentPath={router.pathname}
         collapsed={sidebarCollapsed}
         onToggle={handleSidebarToggle}
+        plan={plan}
       />
 
-      <div style={{
-        marginLeft: sidebarWidth,
-        flex: 1,
-        transition: 'margin-left 0.2s ease',
-        minWidth: 0
-      }}>
-        {/* Top Bar - Compact */}
-        <div style={{
-          height: '56px',
-          backgroundColor: 'white',
-          borderBottom: '1px solid #e5e7eb',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 24px',
-          position: 'sticky',
-          top: 0,
-          zIndex: 50
-        }}>
-          <h1 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: '#1e293b', letterSpacing: '-0.025em' }}>
-            {getPageTitle(router.pathname)}
-          </h1>
+      <div className="main-content-wrapper" style={{ marginLeft: sidebarWidth }}>
+        {/* Top Bar */}
+        <div className="top-bar">
+          <div className="breadcrumb-section">
+            <h1 className="page-title">{getPageTitle(router.pathname)}</h1>
+          </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <button style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '18px',
-              color: '#6b7280',
-              padding: '8px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              🔔
+          <div className="actions-section">
+            <button className="icon-action-btn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
             </button>
 
-            <div id="user-profile-menu" style={{ position: 'relative' }}>
+            <div id="user-profile-menu" className="relative">
               <div
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  cursor: 'pointer',
-                  padding: '4px 8px',
-                  borderRadius: '8px',
-                  transition: 'background-color 0.2s',
-                  backgroundColor: isDropdownOpen ? '#f1f5f9' : 'transparent'
-                }}
+                className={`profile-trigger ${isDropdownOpen ? 'active' : ''}`}
               >
-                <div style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '50%',
-                  backgroundColor: '#94a3b8',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white',
-                  fontSize: '13px',
-                  fontWeight: 'bold'
-                }}>
+                <div className="avatar-mini">
                   {user.email?.[0].toUpperCase()}
                 </div>
-                <div className="user-info-desktop">
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>
-                    {user.user_metadata?.name || user.email?.split('@')[0]}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#6b7280', fontWeight: '500' }}>
-                    {user.user_metadata?.plan || 'Free Plan'}
-                  </div>
+                <div className="user-meta hidden sm:block">
+                  <p className="user-full-name">{user.user_metadata?.name || user.email?.split('@')[0]}</p>
+                  <p className="user-plan-badge">
+                    {plan === 'free' ? 'Standard' : plan === 'pro' ? 'Premium' : plan.charAt(0).toUpperCase() + plan.slice(1)}
+                  </p>
                 </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`arrow-icon ${isDropdownOpen ? 'rotate-180' : ''}`}>
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
               </div>
 
               {isDropdownOpen && (
-                <div style={{
-                  position: 'absolute',
-                  top: '115%',
-                  right: 0,
-                  width: '185px',
-                  backgroundColor: '#ffffff',
-                  borderRadius: '16px',
-                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(15, 23, 42, 0.08)',
-                  padding: '5px',
-                  zIndex: 100,
-                  animation: 'fadeIn 0.2s ease-out',
-                  border: '1px solid #e2e8f0'
-                }}>
-                  <div style={{
-                    padding: '10px 12px',
-                    borderBottom: '1px solid #f1f5f9',
-                    marginBottom: '4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    backgroundColor: '#f8fafc',
-                    borderRadius: '12px 12px 4px 4px'
-                  }}>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      backgroundColor: '#f1f5f9',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#475569',
-                      fontSize: '12px',
-                      fontWeight: '800',
-                      border: '1px solid #e2e8f0'
-                    }}>
-                      {(user.user_metadata?.name || user.email)?.[0].toUpperCase()}
-                    </div>
-                    <div style={{ overflow: 'hidden' }}>
-                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {user.user_metadata?.name || user.email?.split('@')[0]}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {user.email}
-                      </div>
+                <div className="dropdown-menu">
+                  <div className="dropdown-header">
+                    <div className="avatar-medium">{user.email?.[0].toUpperCase()}</div>
+                    <div className="header-meta">
+                      <p className="header-name">{user.user_metadata?.name || user.email?.split('@')[0]}</p>
+                      <p className="header-email">{user.email}</p>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      setIsDropdownOpen(false)
-                      router.push('/profile')
-                    }}
-                    id="profile-button"
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 10px',
-                      border: 'none',
-                      background: 'none',
-                      cursor: 'pointer',
-                      borderRadius: '10px',
-                      color: '#475569',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                      <circle cx="12" cy="7" r="4" />
-                    </svg>
-                    Profile
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsDropdownOpen(false)
-                      setIsLogoutModalOpen(true)
-                    }}
-                    id="signout-button"
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 10px',
-                      border: 'none',
-                      background: 'none',
-                      cursor: 'pointer',
-                      borderRadius: '10px',
-                      color: '#475569',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                      <polyline points="16 17 21 12 16 7" />
-                      <line x1="21" y1="12" x2="9" y2="12" />
-                    </svg>
-                    Sign out
-                  </button>
+                  <div className="dropdown-links">
+                    <button onClick={() => { setIsDropdownOpen(false); router.push('/profile'); }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                      Profile Settings
+                    </button>
+                    <button onClick={() => { setIsDropdownOpen(false); setIsLogoutModalOpen(true); }} className="logout-btn">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                      Log out
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Main Content - Reduced padding */}
-        <main style={{ padding: router.pathname === '/chat' ? 0 : '24px' }}>
+        {/* Main Content Area */}
+        <main className={`main-scroll-area ${router.pathname === '/chat' ? 'no-padding' : ''}`}>
           {children}
         </main>
       </div>
 
-      {/* Logout Confirmation Modal */}
+      {/* Logout Modal */}
       {isLogoutModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          animation: 'fadeIn 0.2s ease-out'
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            width: '90%',
-            maxWidth: '360px',
-            borderRadius: '20px',
-            padding: '32px',
-            textAlign: 'center',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-          }}>
-            <div style={{
-              width: '64px',
-              height: '64px',
-              backgroundColor: '#fef2f2',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 20px',
-              color: '#ef4444'
-            }}>
+        <div className="modal-backdrop">
+          <div className="modal-content">
+            <div className="modal-icon">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
               </svg>
             </div>
-
-            <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#1e293b', marginBottom: '8px' }}>
-              Sign out?
-            </h3>
-            <p style={{ fontSize: '15px', color: '#64748b', marginBottom: '28px', lineHeight: '1.5' }}>
-              Are you sure you want to sign out of your account?
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <button
-                onClick={handleSignOut}
-                id="modal-signout-button"
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  backgroundColor: '#ef4444',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '15px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s'
-                }}
-              >
-                Sign out
-              </button>
-              <button
-                onClick={() => setIsLogoutModalOpen(false)}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  backgroundColor: 'white',
-                  color: '#475569',
-                  border: '1.5px solid #e2e8f0',
-                  borderRadius: '12px',
-                  fontSize: '15px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                Cancel
-              </button>
+            <h2>Sign out?</h2>
+            <p>Ready to wrap up your clinical session? We'll save your progress.</p>
+            <div className="modal-actions">
+              <button onClick={handleSignOut} className="confirm-btn">Log out</button>
+              <button onClick={() => setIsLogoutModalOpen(false)} className="cancel-btn">Stay Logged In</button>
             </div>
           </div>
         </div>
       )}
 
       <style jsx global>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(5px); }
+        .layout-root {
+          display: flex;
+          min-height: 100vh;
+          background-color: var(--cream-bg);
+          font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .main-content-wrapper {
+          flex: 1;
+          transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .top-bar {
+          height: 64px;
+          background-color: rgba(255, 255, 255, 0.9);
+          backdrop-filter: blur(20px);
+          border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+          box-shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.02);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 32px;
+          position: sticky;
+          top: 0;
+          z-index: 50;
+        }
+
+        .page-title {
+          font-size: 18px;
+          font-weight: 800;
+          color: var(--cream-text-main);
+          letter-spacing: -0.02em;
+          margin: 0;
+          background: linear-gradient(135deg, #1F2937 0%, #4B5563 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+
+        .actions-section {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .icon-action-btn {
+          background: white;
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          width: 44px;
+          height: 44px;
+          border-radius: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--cream-text-muted);
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+
+        .icon-action-btn:hover {
+          background-color: white;
+          color: var(--cream-text-main);
+          border-color: var(--cream-accent);
+          transform: translateY(-1px);
+        }
+
+        .profile-trigger {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 6px 14px 6px 6px;
+          background: white;
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          border-radius: 16px;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        }
+
+        .profile-trigger:hover, .profile-trigger.active {
+          border-color: var(--cream-accent);
+          background-color: white;
+          transform: translateY(-1px);
+        }
+
+        .user-meta {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+        }
+
+        .avatar-mini {
+          width: 36px;
+          height: 36px;
+          background: linear-gradient(135deg, #E8D9C0 0%, #D4C3A9 100%);
+          color: var(--cream-text-main);
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 800;
+          font-size: 14px;
+          box-shadow: 0 2px 8px rgba(232, 217, 192, 0.4);
+        }
+
+        .user-full-name {
+          font-size: 13px;
+          font-weight: 700;
+          color: var(--cream-text-main);
+          margin: 0;
+          max-width: 130px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          line-height: 1.2;
+        }
+
+        .user-badge-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .user-plan-badge {
+          font-size: 10px;
+          font-weight: 800;
+          color: #8B5CF6;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin: 0;
+          background: rgba(139, 92, 246, 0.1);
+          padding: 3px 8px;
+          border-radius: 6px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 1;
+        }
+
+        .arrow-icon {
+          color: var(--cream-text-muted);
+          transition: transform 0.2s;
+        }
+
+        .arrow-icon.rotate-180 {
+          transform: rotate(180deg);
+        }
+
+        .dropdown-menu {
+          position: absolute;
+          top: calc(100% + 12px);
+          right: 0;
+          width: 280px;
+          background-color: white;
+          border-radius: 24px;
+          box-shadow: 0 20px 40px -8px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          overflow: hidden;
+          animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-10px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        #signout-button:hover {
-          background-color: #fef2f2 !important;
-          color: #ef4444 !important;
+
+        .dropdown-header {
+          padding: 24px 20px;
+          background-color: var(--cream-bg);
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
         }
-        #profile-button:hover {
-          background-color: #f8fafc !important;
-          color: #1e293b !important;
+
+        .avatar-medium {
+          width: 48px;
+          height: 48px;
+          min-width: 48px;
+          flex-shrink: 0;
+          background: linear-gradient(135deg, #E8D9C0 0%, #D4C3A9 100%);
+          border-radius: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 800;
+          font-size: 18px;
         }
-        #modal-signout-button:hover {
-          background-color: #dc2626 !important;
+
+        .header-name {
+          font-size: 15px;
+          font-weight: 800;
+          margin: 0;
+          color: var(--cream-text-main);
+          max-width: 160px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
-        .user-info-desktop {
-          display: none;
+
+        .header-email {
+          font-size: 12px;
+          color: var(--cream-text-muted);
+          margin: 2px 0 0 0;
+          font-weight: 600;
+          max-width: 160px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
-        @media (min-width: 640px) {
-          .user-info-desktop {
-            display: block;
-          }
+
+        .dropdown-links {
+          padding: 12px;
+        }
+
+        .dropdown-links button {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 16px;
+          border: none;
+          background: transparent;
+          color: var(--cream-text-muted);
+          font-size: 14px;
+          font-weight: 700;
+          border-radius: 14px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .dropdown-links button:hover {
+          background-color: var(--cream-bg);
+          color: var(--cream-text-main);
+        }
+
+        .dropdown-links button.logout-btn:hover {
+          background-color: #FFF5F5;
+          color: #EA4335;
+        }
+
+        .main-scroll-area {
+          flex: 1;
+          padding: 40px;
+          overflow-y: auto;
+        }
+
+        .main-scroll-area.no-padding {
+          padding: 0;
+        }
+
+        .modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background-color: rgba(26, 26, 26, 0.4);
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+        }
+
+        .modal-content {
+          background: #FFFFFF;
+          width: 100%;
+          max-width: 420px;
+          border-radius: 32px;
+          padding: 48px;
+          text-align: center;
+          box-shadow: 0 48px 96px -24px rgba(0,0,0,0.25);
+          border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .modal-icon {
+          width: 72px;
+          height: 72px;
+          background-color: #FFF5F5;
+          color: #EA4335;
+          border-radius: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 28px;
+        }
+
+        .modal-content h2 {
+          font-size: 26px;
+          font-weight: 800;
+          margin-bottom: 14px;
+          letter-spacing: -0.03em;
+          color: var(--cream-text-main);
+        }
+
+        .modal-content p {
+          color: var(--cream-text-muted);
+          font-size: 16px;
+          line-height: 1.6;
+          margin-bottom: 36px;
+          font-weight: 500;
+        }
+
+        .modal-actions {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .confirm-btn {
+          background-color: #333333;
+          color: white;
+          border: none;
+          padding: 16px;
+          border-radius: 18px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .confirm-btn:hover {
+          background-color: #1A1A1A;
+          transform: translateY(-1px);
+        }
+
+        .cancel-btn {
+          background-color: var(--cream-bg);
+          border: 1px solid rgba(0, 0, 0, 0.05);
+          padding: 14px;
+          border-radius: 18px;
+          font-weight: 700;
+          color: var(--cream-text-main);
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .cancel-btn:hover {
+          background-color: white;
+          border-color: var(--cream-accent);
         }
       `}</style>
     </div>
