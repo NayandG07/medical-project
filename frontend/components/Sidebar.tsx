@@ -52,7 +52,7 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
     { name: 'Explain', path: '/explain', icon: '📚' },
     { name: 'Concept Map', path: '/conceptmap', icon: '🗺️' },
     { name: 'Clinical Cases', path: '/clinical-cases', icon: '🏥' },
-    { name: 'OSCE Simulator', path: '/osce-simulator', icon: '👨‍⚕️' },
+    { name: 'OSCE Simulator', path: '/osce', icon: '👨‍⚕️' },
     { name: 'Study Planner', path: '/study-planner', icon: '📅' },
     { name: 'Documents', path: '/documents', icon: '📄' },
     { name: 'Profile', path: '/profile', icon: '👤' },

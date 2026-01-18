@@ -210,15 +210,19 @@ Generate 5-10 flashcards covering key concepts. Keep questions concise and answe
             
             # Get provider and generate content
             provider = await self.model_router.select_provider("flashcard")
-            content = await self.model_router.execute_with_fallback(
+            result = await self.model_router.execute_with_fallback(
                 provider=provider,
                 feature="flashcard",
                 prompt=prompt,
                 system_prompt=system_prompt
             )
             
+            # Extract content from result
+            content = result.get("content", "") if isinstance(result, dict) else str(result)
+            tokens_used = result.get("tokens_used", 100) if isinstance(result, dict) else 100
+            
             # Record usage
-            await self.rate_limiter.increment_usage(user_id, tokens=100, feature="flashcard")
+            await self.rate_limiter.increment_usage(user_id, tokens=tokens_used, feature="flashcard")
             
             # Save material
             material_id = str(uuid.uuid4())
@@ -230,7 +234,7 @@ Generate 5-10 flashcards covering key concepts. Keep questions concise and answe
                 "feature": "flashcard",
                 "topic": topic,
                 "content": content,
-                "tokens_used": 100,
+                "tokens_used": tokens_used,
                 "created_at": now
             }
             
@@ -291,14 +295,18 @@ Generate 5-10 high-quality MCQs that test understanding, not just memorization."
             prompt = f"Generate multiple choice questions about: {topic}"
             
             provider = await self.model_router.select_provider("mcq")
-            content = await self.model_router.execute_with_fallback(
+            result = await self.model_router.execute_with_fallback(
                 provider=provider,
                 feature="mcq",
                 prompt=prompt,
                 system_prompt=system_prompt
             )
             
-            await self.rate_limiter.increment_usage(user_id, tokens=150, feature="mcq")
+            # Extract content from result
+            content = result.get("content", "") if isinstance(result, dict) else str(result)
+            tokens_used = result.get("tokens_used", 150) if isinstance(result, dict) else 150
+            
+            await self.rate_limiter.increment_usage(user_id, tokens=tokens_used, feature="mcq")
             
             material_id = str(uuid.uuid4())
             now = datetime.utcnow().isoformat()
@@ -309,7 +317,7 @@ Generate 5-10 high-quality MCQs that test understanding, not just memorization."
                 "feature": "mcq",
                 "topic": topic,
                 "content": content,
-                "tokens_used": 150,
+                "tokens_used": tokens_used,
                 "created_at": now
             }
             
@@ -479,14 +487,18 @@ Format with clear headers and bullet points."""
             prompt = f"Generate high-yield summary points for: {topic}"
             
             provider = await self.model_router.select_provider("chat")
-            content = await self.model_router.execute_with_fallback(
+            result = await self.model_router.execute_with_fallback(
                 provider=provider,
                 feature="chat",
                 prompt=prompt,
                 system_prompt=system_prompt
             )
             
-            await self.rate_limiter.increment_usage(user_id, tokens=100, feature="chat")
+            # Extract content from result
+            content = result.get("content", "") if isinstance(result, dict) else str(result)
+            tokens_used = result.get("tokens_used", 100) if isinstance(result, dict) else 100
+            
+            await self.rate_limiter.increment_usage(user_id, tokens=tokens_used, feature="chat")
             
             material_id = str(uuid.uuid4())
             now = datetime.utcnow().isoformat()
@@ -497,7 +509,7 @@ Format with clear headers and bullet points."""
                 "feature": "highyield",
                 "topic": topic,
                 "content": content,
-                "tokens_used": 100,
+                "tokens_used": tokens_used,
                 "created_at": now
             }
             
@@ -552,14 +564,18 @@ Make it comprehensive but accessible."""
             prompt = f"Explain in detail: {topic}"
             
             provider = await self.model_router.select_provider("chat")
-            content = await self.model_router.execute_with_fallback(
+            result = await self.model_router.execute_with_fallback(
                 provider=provider,
                 feature="chat",
                 prompt=prompt,
                 system_prompt=system_prompt
             )
             
-            await self.rate_limiter.increment_usage(user_id, tokens=150, feature="chat")
+            # Extract content from result
+            content = result.get("content", "") if isinstance(result, dict) else str(result)
+            tokens_used = result.get("tokens_used", 150) if isinstance(result, dict) else 150
+            
+            await self.rate_limiter.increment_usage(user_id, tokens=tokens_used, feature="chat")
             
             material_id = str(uuid.uuid4())
             now = datetime.utcnow().isoformat()
@@ -570,7 +586,7 @@ Make it comprehensive but accessible."""
                 "feature": "explain",
                 "topic": topic,
                 "content": content,
-                "tokens_used": 150,
+                "tokens_used": tokens_used,
                 "created_at": now
             }
             

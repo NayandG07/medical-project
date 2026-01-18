@@ -43,12 +43,12 @@ export default function ChatInput({
     <div style={{
       backgroundColor: '#ffffff',
       borderRadius: '24px',
-      padding: '10px 10px 10px 24px',
+      padding: '6px 6px 6px 16px', // Reduced padding
       display: 'flex',
       alignItems: 'flex-end',
       boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.08), 0 4px 10px -2px rgba(0, 0, 0, 0.04)',
       border: '1px solid #e2e8f0',
-      gap: '12px',
+      gap: '8px', // Reduced gap
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       outline: 'none',
       cursor: 'text'
@@ -72,14 +72,14 @@ export default function ChatInput({
         rows={1}
         style={{
           flex: 1,
-          padding: '12px 0',
-          fontSize: '16px',
+          padding: '10px 0', // Reduced vertical padding
+          fontSize: '15px', // Slightly smaller font
           border: 'none',
           outline: 'none',
           resize: 'none',
           fontFamily: 'inherit',
-          lineHeight: '1.5',
-          minHeight: '24px',
+          lineHeight: '1.4',
+          minHeight: '22px',
           backgroundColor: 'transparent',
           cursor: disabled ? 'not-allowed' : 'text',
           color: '#1e293b'
@@ -91,19 +91,20 @@ export default function ChatInput({
         onClick={() => handleSubmit()}
         disabled={disabled || !message.trim()}
         style={{
-          width: '40px',
-          height: '40px',
+          width: '32px', // Smaller button
+          height: '32px', // Smaller button
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           background: disabled || !message.trim() ? '#f1f5f9' : 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
           color: disabled || !message.trim() ? '#94a3b8' : 'white',
           border: 'none',
-          borderRadius: '16px',
+          borderRadius: '12px', // Smaller radius
           cursor: disabled || !message.trim() ? 'not-allowed' : 'pointer',
           transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
           boxShadow: disabled || !message.trim() ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.3)',
-          flexShrink: 0
+          flexShrink: 0,
+          marginBottom: '2px' // Visual alignment
         }}
         onMouseEnter={(e) => {
           if (!disabled && message.trim()) {
@@ -120,8 +121,8 @@ export default function ChatInput({
       >
         <svg
           viewBox="0 0 24 24"
-          width="20"
-          height="20"
+          width="16" // Smaller icon
+          height="16" // Smaller icon
           stroke="currentColor"
           strokeWidth="2.5"
           fill="none"
