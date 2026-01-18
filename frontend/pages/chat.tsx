@@ -238,6 +238,39 @@ export default function Chat() {
     await selectSession(sessionId)
   }
 
+  const handleDeleteAllSessions = async () => {
+    try {
+      const authToken = await getAuthToken()
+      if (!authToken) throw new Error('No authentication token available')
+
+      // Optimistic update
+      const sessionsToDelete = [...sessions]
+      setSessions([])
+      setCurrentSessionId(null)
+      setMessages([])
+
+      // Delete all sessions in parallel
+      await Promise.all(sessionsToDelete.map(session =>
+        fetch(`${API_URL}/api/chat/sessions/${session.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        })
+      ))
+
+      // Sync state to ensure everything is clean
+      await loadSessions(authToken)
+
+    } catch (err) {
+      console.error('Failed to delete all sessions:', err)
+      setError('Failed to delete all sessions')
+      // Restore state if failed
+      const token = await getAuthToken()
+      if (token) loadSessions(token)
+    }
+  }
+
   const handleSendMessage = async (content: string) => {
     try {
       setSendingMessage(true)
@@ -294,7 +327,7 @@ export default function Chat() {
               }
             }
           )
-          
+
           if (searchResponse.ok) {
             const searchResults = await searchResponse.json()
             if (searchResults.length > 0) {
@@ -309,7 +342,7 @@ export default function Chat() {
 
       // Send message to backend with document context
       const messageContent = documentContext ? content + documentContext : content
-      
+
       const response = await fetch(`${API_URL}/api/chat/sessions/${activeSessionId}/messages`, {
         method: 'POST',
         headers: {
@@ -334,12 +367,65 @@ export default function Chat() {
         msg.id === tempUserMessage.id ? savedMessage : msg
       ))
 
-      // TODO: In future tasks, this will trigger AI response via model router
-      // For now, we'll add a placeholder assistant message
+      // Check if the message is a greeting
+      const lowerContent = content.toLowerCase().trim().replace(/[!.]+$/, '')
+      const greetingPatterns = [
+        /^hi+$/,
+        /^he+l+o+$/,
+        /^he+y+$/,
+        /^yo+$/,
+        /^g(ood)?\s*m(orning)?$/,
+        /^gm$/
+      ]
+
+      const isGreeting = greetingPatterns.some(pattern => pattern.test(lowerContent))
+
+      let assistantContent = 'AI response will be implemented when the model router is integrated in Phase 2.'
+
+      if (isGreeting) {
+        const greetingReplies = [
+          "Hello! How can I assist you with your medical studies today?",
+          "Hi there! Ready to dive into some clinical cases?",
+          "Hey! What medical concepts are we exploring today?",
+          "Greetings! I'm here to support your learning journey."
+        ]
+        assistantContent = greetingReplies[Math.floor(Math.random() * greetingReplies.length)]
+      }
+
+      // Attempt to save assistant message to backend (especially for greetings)
+      try {
+        // Only verify persistence for greetings now as the other is a placeholder
+        // But if the backend supports it, we might as well save both to maintain flow
+        // For now, let's persist the greeting to make it a "real" cheap interaction
+
+        if (isGreeting) {
+          const aiResponse = await fetch(`${API_URL}/api/chat/sessions/${activeSessionId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              message: assistantContent,
+              role: 'assistant'
+            })
+          })
+
+          if (aiResponse.ok) {
+            const savedAiMessage = await aiResponse.json()
+            setMessages(prev => [...prev, savedAiMessage])
+            return
+          }
+        }
+      } catch (e) {
+        console.error("Error saving AI response", e)
+      }
+
+      // Fallback / Local display if save failed or for placeholder
       const assistantMessage: Message = {
         id: `assistant-${Date.now()}`,
         role: 'assistant',
-        content: 'AI response will be implemented when the model router is integrated in Phase 2.',
+        content: assistantContent,
         created_at: new Date().toISOString()
       }
       setMessages(prev => [...prev, assistantMessage])
@@ -371,24 +457,12 @@ export default function Chat() {
       <DashboardLayout user={user}>
         {/* Full Page Chat Container */}
         <div style={{
-          height: 'calc(100vh - 56px)', // Exact height minus top bar
+          height: 'calc(100vh - 64px)', // Exact height minus top bar (64px)
           display: 'flex',
           backgroundColor: '#fdfbf7',
           overflow: 'hidden', // Contain scrolling within this app-like view
           position: 'relative' // Create stacking context
         }}>
-          {/* Session Sidebar */}
-          <SessionSidebar
-            sessions={sessions}
-            currentSessionId={currentSessionId}
-            onSelectSession={handleSelectSession}
-            onNewSession={handleNewSession}
-            onDeleteSession={handleDeleteSession}
-            isNewChatDisabled={messages.length === 0}
-            loading={sessionsLoading}
-            error={sessionsError}
-          />
-
           {/* Main Chat Area */}
           <div style={{
             flex: 1,
@@ -443,7 +517,7 @@ export default function Chat() {
                 </button>
               </div>
             )}
-            
+
             <ChatWindow
               messages={messages}
               loading={messagesLoading}
@@ -467,6 +541,20 @@ export default function Chat() {
               </div>
             </div>
           </div>
+
+          {/* Session Sidebar - Now on the right */}
+          <SessionSidebar
+            sessions={sessions}
+            currentSessionId={currentSessionId}
+            onSelectSession={handleSelectSession}
+            onNewSession={handleNewSession}
+            onDeleteSession={handleDeleteSession}
+            onDeleteAllSessions={handleDeleteAllSessions}
+            isNewChatDisabled={messages.length === 0}
+            loading={sessionsLoading}
+            error={sessionsError}
+            position="right"
+          />
         </div>
       </DashboardLayout>
     </>

@@ -171,6 +171,7 @@ async def update_system_settings(
 
 class StudyToolRequest(BaseModel):
     topic: str
+    session_id: Optional[str] = None
 
 
 @app.post("/api/study-tools/flashcards")
@@ -180,8 +181,12 @@ async def generate_flashcards(
 ):
     """Generate flashcards for a topic"""
     try:
-        command_service = get_command_service(supabase)
-        result = await command_service.generate_flashcards(user["id"], request.topic)
+        study_tools_service = get_study_tools_service(supabase)
+        result = await study_tools_service.generate_flashcards(
+            user_id=user["id"],
+            topic=request.topic,
+            session_id=request.session_id
+        )
         return result
     except Exception as e:
         logger.error(f"Failed to generate flashcards: {str(e)}")
@@ -195,8 +200,12 @@ async def generate_mcqs(
 ):
     """Generate MCQs for a topic"""
     try:
-        command_service = get_command_service(supabase)
-        result = await command_service.generate_mcqs(user["id"], request.topic)
+        study_tools_service = get_study_tools_service(supabase)
+        result = await study_tools_service.generate_mcq(
+            user_id=user["id"],
+            topic=request.topic,
+            session_id=request.session_id
+        )
         return result
     except Exception as e:
         logger.error(f"Failed to generate MCQs: {str(e)}")
@@ -210,8 +219,12 @@ async def generate_highyield(
 ):
     """Generate high-yield summary for a topic"""
     try:
-        command_service = get_command_service(supabase)
-        result = await command_service.generate_summary(user["id"], request.topic)
+        study_tools_service = get_study_tools_service(supabase)
+        result = await study_tools_service.generate_highyield(
+            user_id=user["id"],
+            topic=request.topic,
+            session_id=request.session_id
+        )
         return result
     except Exception as e:
         logger.error(f"Failed to generate summary: {str(e)}")
@@ -225,8 +238,12 @@ async def generate_explanation(
 ):
     """Generate detailed explanation for a topic"""
     try:
-        command_service = get_command_service(supabase)
-        result = await command_service.generate_explanation(user["id"], request.topic)
+        study_tools_service = get_study_tools_service(supabase)
+        result = await study_tools_service.generate_explanation(
+            user_id=user["id"],
+            topic=request.topic,
+            session_id=request.session_id
+        )
         return result
     except Exception as e:
         logger.error(f"Failed to generate explanation: {str(e)}")
@@ -547,8 +564,102 @@ async def send_chat_message(
 
 
 # ============================================================================
+# STUDY TOOL SESSION ENDPOINTS
+# ============================================================================
+
+@app.get("/api/study-tools/sessions")
+async def get_study_tool_sessions(
+    feature: Optional[str] = None,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get user's study tool sessions, optionally filtered by feature"""
+    try:
+        study_tools_service = get_study_tools_service(supabase)
+        sessions = await study_tools_service.get_user_sessions(user["id"], feature)
+        return sessions
+    except Exception as e:
+        logger.error(f"Failed to get study tool sessions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/study-tools/sessions", status_code=201)
+async def create_study_tool_session(
+    request: CreateSessionRequest,
+    feature: str = "mcq",
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Create a new study tool session"""
+    try:
+        study_tools_service = get_study_tools_service(supabase)
+        session = await study_tools_service.create_session(user["id"], feature, request.title)
+        return session
+    except Exception as e:
+        logger.error(f"Failed to create study tool session: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/study-tools/sessions/{session_id}/materials")
+async def get_session_materials_history(
+    session_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get materials for a study tool session"""
+    try:
+        study_tools_service = get_study_tools_service(supabase)
+        materials = await study_tools_service.get_session_materials(session_id, user["id"])
+        return materials
+    except Exception as e:
+        logger.error(f"Failed to get session materials: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/study-tools/sessions/{session_id}")
+async def delete_study_tool_session(
+    session_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete a study tool session"""
+    try:
+        study_tools_service = get_study_tools_service(supabase)
+        await study_tools_service.delete_session(session_id, user["id"])
+        return {"message": "Session deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete study tool session: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# DELETE ALL STUDY TOOL SESSIONS
+# ============================================================================
+
+@app.delete("/api/study-tools/sessions/all")
+async def delete_all_study_tool_sessions(
+    feature: Optional[str] = None,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete all study tool sessions for a user, optionally filtered by feature"""
+    try:
+        study_tools_service = get_study_tools_service(supabase)
+        sessions = await study_tools_service.get_user_sessions(user["id"], feature)
+        
+        deleted_count = 0
+        for session in sessions:
+            try:
+                await study_tools_service.delete_session(session["id"], user["id"])
+                deleted_count += 1
+            except Exception as e:
+                logger.warning(f"Failed to delete session {session['id']}: {str(e)}")
+        
+        return {"message": f"Deleted {deleted_count} sessions successfully", "deleted_count": deleted_count}
+    except Exception as e:
+        logger.error(f"Failed to delete all study tool sessions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # ADMIN ENDPOINTS - Model Usage Reports
 # ============================================================================
+
 
 @app.get("/api/admin/model-usage/stats")
 async def get_model_usage_stats(

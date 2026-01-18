@@ -1,0 +1,1833 @@
+/* ============================================================
+   OSCE SIMULATOR - Premium Medical SaaS Design
+   Inspired by: Notion, Linear, Apple Health
+   ============================================================ */
+
+/* CSS Variables */
+:root {
+    --osce-primary: #4F46E5;
+    --osce-primary-soft: #EEF2FF;
+    --osce-accent: #14B8A6;
+    --osce-accent-soft: #CCFBF1;
+    --osce-bg: #E2E8F0;
+    --osce-bg-warm: #CBD5E1;
+    --osce-card: rgba(255, 255, 255, 0.85);
+    --osce-glass: rgba(255, 255, 255, 0.7);
+    --osce-border: rgba(0, 0, 0, 0.06);
+    --osce-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+    --osce-shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.08);
+    --osce-text: #1E293B;
+    --osce-text-muted: #64748B;
+    --osce-success: #10B981;
+    --osce-warning: #F59E0B;
+    --osce-danger: #EF4444;
+    --osce-radius: 20px;
+    --osce-radius-sm: 12px;
+}
+
+/* ============================================================
+   MAIN CONTAINER & LAYOUT
+   ============================================================ */
+.osceWrapper {
+    min-height: 100vh;
+    background: transparent;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Apply background to the global page when in OSCE mode */
+:global(body:has(.clinicalContextPanel)) {
+    background-color: #F1F5F9 !important;
+}
+
+/* Subtle Pulse Wave Background Animation */
+.pulseBackground {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+}
+
+.pulseWave {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    background: linear-gradient(transparent, rgba(79, 70, 229, 0.03));
+}
+
+.pulseWave::before {
+    content: '';
+    position: absolute;
+    bottom: 40px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(79, 70, 229, 0.1) 20%,
+            rgba(20, 184, 166, 0.2) 40%,
+            rgba(79, 70, 229, 0.1) 60%,
+            transparent 100%);
+    animation: pulseMove 4s ease-in-out infinite;
+}
+
+@keyframes pulseMove {
+
+    0%,
+    100% {
+        transform: translateX(-20%);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: translateX(20%);
+        opacity: 1;
+    }
+}
+
+.mainContent {
+    position: relative;
+    z-index: 1;
+    padding: 0;
+}
+
+/* ============================================================
+   TOP FLOATING COMMAND BAR
+   ============================================================ */
+.commandBar {
+    max-width: 1400px;
+    margin: 20px auto 10px auto;
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 20px;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    z-index: 100;
+}
+
+.commandBarLeft {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.stationTitle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.stationIcon {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.stationInfo h1 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--osce-text);
+    margin: 0;
+    letter-spacing: -0.02em;
+}
+
+.stationMeta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.metaBadge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.metaBadge.specialty {
+    background: var(--osce-primary-soft);
+    color: var(--osce-primary);
+}
+
+.metaBadge.difficulty {
+    background: var(--osce-accent-soft);
+    color: #0D9488;
+}
+
+.metaBadge.difficulty.beginner {
+    background: #D1FAE5;
+    color: #059669;
+}
+
+.metaBadge.difficulty.intermediate {
+    background: #FEF3C7;
+    color: #D97706;
+}
+
+.metaBadge.difficulty.advanced {
+    background: #FEE2E2;
+    color: #DC2626;
+}
+
+.commandBarRight {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Circular Timer */
+.timerContainer {
+    position: relative;
+    width: 64px;
+    height: 64px;
+}
+
+.timerRing {
+    transform: rotate(-90deg);
+}
+
+.timerRingBg {
+    fill: none;
+    stroke: rgba(0, 0, 0, 0.06);
+    stroke-width: 4;
+}
+
+.timerRingProgress {
+    fill: none;
+    stroke: var(--osce-success);
+    stroke-width: 4;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
+}
+
+.timerRingProgress.warning {
+    stroke: var(--osce-warning);
+}
+
+.timerRingProgress.critical {
+    stroke: var(--osce-danger);
+    animation: timerPulse 0.5s ease-in-out infinite;
+}
+
+@keyframes timerPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.timerText {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.85rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--osce-text);
+}
+
+.endStationBtn {
+    padding: 10px 20px;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--osce-danger);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--osce-radius-sm);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.endStationBtn:hover {
+    background: var(--osce-danger);
+    color: white;
+    border-color: var(--osce-danger);
+}
+
+/* ============================================================
+   3-ZONE LAYOUT
+   ============================================================ */
+.threeZoneLayout {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 20px;
+    padding: 20px 0;
+    /* No horizontal padding, use the max-width + margin: 0 auto */
+    height: calc(100vh - 160px);
+    min-height: 700px;
+}
+
+/* ============================================================
+   LEFT CLINICAL CONTEXT PANEL
+   ============================================================ */
+/* Separated Clinical Context Panel */
+.clinicalContextPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: 100%;
+}
+
+.patientCard,
+.progressChecklist {
+    background: #FFFFFF;
+    /* High-readability white */
+    border-radius: var(--osce-radius);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    box-shadow:
+        0 10px 15px -3px rgba(0, 0, 0, 0.08),
+        0 4px 6px -4px rgba(0, 0, 0, 0.1);
+    padding: 24px;
+    transition: all 0.3s ease;
+}
+
+.progressChecklist {
+    flex-grow: 1;
+    /* Stretch the checklist to align with the bottom of the right card */
+}
+
+.instructionsCard {
+    display: none;
+    /* Removed as requested */
+}
+
+.instructionsCard h4 {
+    color: var(--osce-primary);
+}
+
+.instructionsCard p {
+    color: var(--osce-text-muted);
+}
+
+.clinicalContextPanel::-webkit-scrollbar {
+    width: 4px;
+}
+
+.clinicalContextPanel::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.clinicalContextPanel::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+/* Patient Card */
+.patientCard {
+    background: var(--osce-card);
+    backdrop-filter: blur(10px);
+    border-radius: var(--osce-radius);
+    padding: 20px;
+    border: 1px solid var(--osce-border);
+    box-shadow: var(--osce-shadow);
+}
+
+.patientHeader {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.patientAvatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #E0E7FF 0%, #C7D2FE 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    position: relative;
+}
+
+.emotionalIndicator {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+}
+
+.emotionalIndicator.calm {
+    background: #D1FAE5;
+}
+
+.emotionalIndicator.anxious {
+    background: #FEF3C7;
+}
+
+.emotionalIndicator.distressed {
+    background: #FEE2E2;
+}
+
+.patientInfo h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--osce-text);
+    margin: 0;
+}
+
+.patientMeta {
+    font-size: 0.8rem;
+    color: var(--osce-text-muted);
+    margin-top: 2px;
+}
+
+.emotionalBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-top: 8px;
+}
+
+.emotionalBadge.calm {
+    background: #D1FAE5;
+    color: #059669;
+}
+
+.emotionalBadge.anxious {
+    background: #FEF3C7;
+    color: #D97706;
+}
+
+.emotionalBadge.distressed {
+    background: #FEE2E2;
+    color: #DC2626;
+}
+
+.complaintSection {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(124, 58, 237, 0.05) 100%);
+    border-radius: var(--osce-radius-sm);
+    padding: 14px;
+    margin-top: 12px;
+}
+
+.complaintLabel {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--osce-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+}
+
+.complaintText {
+    font-size: 0.9rem;
+    color: var(--osce-text);
+    line-height: 1.5;
+    font-weight: 500;
+}
+
+/* Severity Meter */
+.severityMeter {
+    margin-top: 16px;
+}
+
+.severityLabel {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--osce-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+
+.severityBar {
+    height: 6px;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.severityFill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.severityFill.low {
+    background: linear-gradient(90deg, #10B981, #34D399);
+    width: 30%;
+}
+
+.severityFill.moderate {
+    background: linear-gradient(90deg, #F59E0B, #FBBF24);
+    width: 60%;
+}
+
+.severityFill.high {
+    background: linear-gradient(90deg, #EF4444, #F87171);
+    width: 90%;
+}
+
+/* Progress Checklist */
+.progressChecklist {
+    background: var(--osce-card);
+    backdrop-filter: blur(10px);
+    border-radius: var(--osce-radius);
+    padding: 20px;
+    border: 1px solid var(--osce-border);
+    box-shadow: var(--osce-shadow);
+}
+
+.checklistTitle {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--osce-text);
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checklistItems {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.checklistItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 10px;
+    transition: all 0.2s ease;
+}
+
+.checklistItem.completed {
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.checklistItem.active {
+    background: rgba(79, 70, 229, 0.08);
+    border: 1px solid rgba(79, 70, 229, 0.2);
+}
+
+.checklistIcon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+
+.checklistIcon.pending {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--osce-text-muted);
+}
+
+.checklistIcon.completed {
+    background: var(--osce-success);
+    color: white;
+}
+
+.checklistIcon.active {
+    background: var(--osce-primary);
+    color: white;
+}
+
+.checklistText {
+    font-size: 0.8rem;
+    color: var(--osce-text);
+    font-weight: 500;
+}
+
+.checklistItem.completed .checklistText {
+    color: var(--osce-success);
+}
+
+/* Instructions Card */
+.instructionsCard {
+    background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
+    border-radius: var(--osce-radius);
+    padding: 20px;
+    color: white;
+    box-shadow: 0 8px 24px rgba(79, 70, 229, 0.25);
+}
+
+.instructionsCard h4 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin: 0 0 12px 0;
+    opacity: 0.9;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.instructionsCard p {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    margin: 0;
+    opacity: 0.95;
+}
+
+/* ============================================================
+   MAIN INTERACTION CANVAS
+   ============================================================ */
+.interactionCanvas {
+    display: flex;
+    flex-direction: column;
+    background: #FDFDFD;
+    /* Ultra-soft off-white for zero eye strain */
+    border-radius: var(--osce-radius);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    box-shadow:
+        0 20px 25px -5px rgba(0, 0, 0, 0.1),
+        0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    height: 100%;
+}
+
+/* Clinical Transcript */
+.clinicalTranscript {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.clinicalTranscript::-webkit-scrollbar {
+    width: 6px;
+}
+
+.clinicalTranscript::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.clinicalTranscript::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+}
+
+.transcriptEntry {
+    display: flex;
+    gap: 14px;
+    max-width: 85%;
+    animation: messageSlide 0.3s ease;
+}
+
+@keyframes messageSlide {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.transcriptEntry.student {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.entryAvatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.transcriptEntry.patient .entryAvatar {
+    background: linear-gradient(135deg, #E0E7FF 0%, #C7D2FE 100%);
+}
+
+.transcriptEntry.student .entryAvatar {
+    background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
+}
+
+.entryContent {
+    padding: 14px 18px;
+    border-radius: 18px;
+    position: relative;
+}
+
+.transcriptEntry.patient .entryContent {
+    background: #F1F5F9;
+    border-bottom-left-radius: 6px;
+}
+
+.transcriptEntry.student .entryContent {
+    background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
+    color: white;
+    border-bottom-right-radius: 6px;
+}
+
+.entryRole {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    opacity: 0.7;
+}
+
+.entryText {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Typing Indicator */
+.typingIndicator {
+    display: flex;
+    gap: 4px;
+    padding: 8px 0;
+}
+
+.typingDot {
+    width: 8px;
+    height: 8px;
+    background: var(--osce-text-muted);
+    border-radius: 50%;
+    animation: typingBounce 1.4s infinite ease-in-out;
+}
+
+.typingDot:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.typingDot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typingDot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typingBounce {
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Examiner Note */
+.examinerNote {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: var(--osce-radius-sm);
+    padding: 12px 16px;
+    margin: 8px 0;
+}
+
+.examinerNote .noteLabel {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #D97706;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.examinerNote .noteText {
+    font-size: 0.85rem;
+    color: #92400E;
+}
+
+/* ============================================================
+   CLINICAL COMMAND BOX
+   ============================================================ */
+.clinicalCommandBox {
+    padding: 20px;
+    border-top: 1px solid var(--osce-border);
+    background: rgba(248, 250, 252, 0.8);
+}
+
+.commandInputWrapper {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+.commandInput {
+    flex: 1;
+    position: relative;
+}
+
+.commandInput textarea {
+    width: 100%;
+    padding: 16px 20px;
+    padding-right: 140px;
+    border: 2px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    resize: none;
+    background: white;
+    transition: all 0.2s ease;
+    min-height: 56px;
+    max-height: 150px;
+}
+
+.commandInput textarea:focus {
+    outline: none;
+    border-color: var(--osce-primary);
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+}
+
+.commandInput textarea::placeholder {
+    color: var(--osce-text-muted);
+}
+
+.commandActions {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    gap: 6px;
+}
+
+.commandActionBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    border: none;
+    background: rgba(0, 0, 0, 0.04);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    color: var(--osce-text-muted);
+}
+
+.commandActionBtn:hover {
+    background: var(--osce-primary-soft);
+    color: var(--osce-primary);
+}
+
+.commandActionBtn.active {
+    background: var(--osce-primary);
+    color: white;
+}
+
+.sendButton {
+    padding: 16px 28px;
+    background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.sendButton:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+}
+
+.sendButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Quick Suggestions */
+.quickSuggestions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.suggestionChip {
+    padding: 8px 14px;
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--osce-text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.suggestionChip:hover {
+    background: var(--osce-primary-soft);
+    border-color: var(--osce-primary);
+    color: var(--osce-primary);
+}
+
+/* ============================================================
+   FLOATING OSCE TIPS PANEL
+   ============================================================ */
+.tipsPanel {
+    display: none;
+    /* Removed as requested */
+}
+
+.tipsTrigger {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--osce-accent) 0%, #0D9488 100%);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    color: white;
+    box-shadow: 0 4px 16px rgba(20, 184, 166, 0.4);
+    transition: all 0.3s ease;
+}
+
+.tipsTrigger:hover {
+    transform: scale(1.05);
+}
+
+.tipsContent {
+    position: absolute;
+    bottom: 70px;
+    right: 0;
+    width: 320px;
+    background: var(--osce-card);
+    backdrop-filter: blur(20px);
+    border-radius: var(--osce-radius);
+    border: 1px solid var(--osce-border);
+    box-shadow: var(--osce-shadow-lg);
+    padding: 20px;
+    animation: tipsSlide 0.3s ease;
+}
+
+@keyframes tipsSlide {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tipsContent h4 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--osce-text);
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tipsList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tipItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.8rem;
+    color: var(--osce-text-muted);
+    line-height: 1.5;
+}
+
+.tipItem strong {
+    color: var(--osce-text);
+}
+
+.tipIcon {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+/* ============================================================
+   SETUP VIEW - Premium Design
+   ============================================================ */
+.setupView {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 24px;
+    animation: fadeSlide 0.5s ease;
+}
+
+@keyframes fadeSlide {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.setupHeader {
+    text-align: center;
+    margin-bottom: 48px;
+}
+
+.setupIcon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    box-shadow: 0 8px 32px rgba(79, 70, 229, 0.3);
+}
+
+.setupHeader h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--osce-text);
+    margin: 0;
+    letter-spacing: -0.03em;
+}
+
+.setupHeader p {
+    font-size: 1.1rem;
+    color: var(--osce-text-muted);
+    margin-top: 8px;
+}
+
+/* Station Type Grid */
+.stationTypeGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 48px;
+}
+
+.stationTypeCard {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    /* Ultra-sharp border */
+    border-radius: 20px;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.1), 0 4px 12px -2px rgba(0, 0, 0, 0.04);
+    /* High-contrast elevation */
+}
+
+/* Left Accent Strip */
+.stationTypeCard::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 4px;
+    background: transparent;
+    transition: all 0.3s ease;
+}
+
+.stationTypeCard:hover {
+    transform: translateX(4px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+    border-color: rgba(79, 70, 229, 0.2);
+}
+
+.stationTypeCard.active {
+    background: #F5F7FF;
+    /* Soft clinical blue */
+    border-color: var(--osce-primary);
+    box-shadow: 0 15px 40px -10px rgba(79, 70, 229, 0.25);
+    /* Softened glowing shadow */
+}
+
+/* Accent strip removed as per user request */
+.stationTypeCard.active::after {
+    display: none;
+}
+
+.iconWell {
+    background: rgba(0, 0, 0, 0.04);
+    /* Slightly darker well for contrast */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    border-right: 2px solid rgba(0, 0, 0, 0.15);
+    /* Sharper separator between icon and content */
+    transition: all 0.4s ease;
+}
+
+.active .iconWell {
+    background: var(--osce-primary-soft);
+    color: var(--osce-primary);
+    border-right-color: rgba(79, 70, 229, 0.2);
+    /* Indigo themed separator when active */
+}
+
+.cardBody {
+    padding: 24px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.cardHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.stationCode {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--osce-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.categoryBadge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--osce-text-muted);
+}
+
+.active .categoryBadge {
+    background: var(--osce-primary-soft);
+    color: var(--osce-primary);
+}
+
+.stationTypeName {
+    display: block;
+    font-size: 1.2rem;
+    /* Slightly larger */
+    font-weight: 800;
+    color: #0F172A;
+    margin-bottom: 6px;
+    letter-spacing: -0.025em;
+}
+
+.active .stationTypeName {
+    color: var(--osce-primary);
+}
+
+.active .stationTypeDesc {
+    color: #475569;
+}
+
+.stationTypeDesc {
+    display: block;
+    font-size: 0.92rem;
+    /* Slightly larger for micro-readability */
+    color: #475569;
+    line-height: 1.6;
+    font-weight: 600;
+    /* Bolder for clarity */
+    max-width: 95%;
+}
+
+.cardFooter {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+.tag {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--osce-text-muted);
+}
+
+.tag span:first-child {
+    font-size: 0.9rem;
+}
+
+/* Options Row */
+.optionsRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-bottom: 40px;
+}
+
+/* Specialty and Difficulty Sections */
+.optionSection h3 {
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.optionSection h3::before {
+    content: '';
+    width: 4px;
+    height: 4px;
+    background: var(--osce-primary);
+    border-radius: 50%;
+}
+
+/* Specialty Grid - High-End Tiles */
+.optionChips {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.optionChip {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 16px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
+}
+
+.optionChip:hover {
+    border-color: rgba(79, 70, 229, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+}
+
+.optionChip.active {
+    background: #EEF2FF;
+    /* Light indigo bg */
+    border-color: var(--osce-primary);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
+}
+
+.optionChip span:first-child {
+    font-size: 1.4rem;
+    background: rgba(0, 0, 0, 0.03);
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.optionChip.active span:first-child {
+    background: var(--osce-primary);
+    color: white;
+    transform: rotate(-5deg);
+}
+
+.optionChip span:last-child {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: #1E293B;
+}
+
+/* Difficulty - Vertical Segmented Stack */
+.difficultyTrack {
+    display: flex;
+    flex-direction: column;
+    background: white;
+    padding: 8px;
+    border-radius: 18px;
+    gap: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.04);
+}
+
+.difficultyBtn {
+    width: 100%;
+    padding: 16px 20px;
+    border: 1px solid transparent;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #64748B;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.difficultyBtn::after {
+    content: '→';
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: all 0.3s ease;
+}
+
+.difficultyBtn:hover {
+    color: #1E293B;
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.difficultyBtn:hover::after {
+    opacity: 0.5;
+    transform: translateX(0);
+}
+
+.difficultyBtn.active {
+    background: #F8FAFF;
+    color: var(--osce-primary);
+    border-color: rgba(79, 70, 229, 0.15);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.08);
+}
+
+.difficultyBtn.active::after {
+    opacity: 1;
+    transform: translateX(0);
+    color: var(--osce-primary);
+}
+
+/* Themed light backgrounds for active states */
+.difficultyBtn.active.beginner {
+    background: #ECFDF5;
+    color: #065F46;
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.difficultyBtn.active.intermediate {
+    background: #FFFBEB;
+    color: #92400E;
+    border-color: rgba(245, 158, 11, 0.2);
+}
+
+.difficultyBtn.active.advanced {
+    background: #FEF2F2;
+    color: #991B1B;
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+/* Start Button */
+.startSection {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.startButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 48px;
+    background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
+    color: white;
+    border: none;
+    border-radius: var(--osce-radius);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 32px rgba(79, 70, 229, 0.3);
+}
+
+.startButton:hover:not(:disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(79, 70, 229, 0.4);
+}
+
+.startButton:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Tips Card in Setup */
+.setupTipsCard {
+    background: var(--osce-card);
+    border-radius: var(--osce-radius);
+    padding: 28px;
+    box-shadow: var(--osce-shadow);
+}
+
+.setupTipsCard h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--osce-text);
+    margin: 0 0 20px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.setupTipsList {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.setupTipItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: var(--osce-radius-sm);
+}
+
+.setupTipItem strong {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--osce-text);
+    margin-bottom: 2px;
+}
+
+.setupTipItem span {
+    font-size: 0.8rem;
+    color: var(--osce-text-muted);
+    line-height: 1.4;
+}
+
+/* ============================================================
+   COMPLETION VIEW
+   ============================================================ */
+.completionView {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 100px);
+    padding: 40px 24px;
+}
+
+.completionCard {
+    background: var(--osce-card);
+    border-radius: 28px;
+    padding: 48px;
+    max-width: 700px;
+    width: 100%;
+    box-shadow: var(--osce-shadow-lg);
+    animation: fadeSlide 0.5s ease;
+}
+
+.completionHeader {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.completionBadge {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+}
+
+.completionHeader h2 {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--osce-text);
+    margin: 0;
+}
+
+.scoreSection {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.scoreRing {
+    width: 140px;
+    height: 140px;
+    margin: 0 auto 16px;
+    position: relative;
+}
+
+.scoreRing svg {
+    transform: rotate(-90deg);
+}
+
+.scoreRingBg {
+    fill: none;
+    stroke: rgba(0, 0, 0, 0.06);
+    stroke-width: 8;
+}
+
+.scoreRingProgress {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s ease;
+}
+
+.scoreRingProgress.excellent {
+    stroke: var(--osce-success);
+}
+
+.scoreRingProgress.good {
+    stroke: var(--osce-warning);
+}
+
+.scoreRingProgress.needsWork {
+    stroke: var(--osce-danger);
+}
+
+.scoreValue {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.scoreValue span {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--osce-text);
+}
+
+.scoreValue small {
+    font-size: 1.25rem;
+    color: var(--osce-text-muted);
+}
+
+.scoreLabel {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--osce-text-muted);
+}
+
+/* Stats Grid */
+.statsGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.statCard {
+    text-align: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: var(--osce-radius-sm);
+}
+
+.statCard .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--osce-text);
+}
+
+.statCard .label {
+    font-size: 0.8rem;
+    color: var(--osce-text-muted);
+    margin-top: 4px;
+}
+
+/* Feedback Sections */
+.feedbackSection {
+    padding: 20px;
+    border-radius: var(--osce-radius-sm);
+    margin-bottom: 16px;
+}
+
+.feedbackSection.completed {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.feedbackSection.missed {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.feedbackSection.expected {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.feedbackSection h3 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin: 0 0 12px 0;
+}
+
+.feedbackSection.completed h3 {
+    color: #059669;
+}
+
+.feedbackSection.missed h3 {
+    color: #DC2626;
+}
+
+.feedbackSection.expected h3 {
+    color: #D97706;
+}
+
+.feedbackSection ul,
+.feedbackSection ol {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.feedbackSection li {
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.feedbackSection.completed li {
+    color: #047857;
+}
+
+.feedbackSection.missed li {
+    color: #B91C1C;
+}
+
+.feedbackSection.expected li {
+    color: #B45309;
+}
+
+/* Completion Actions */
+.completionActions {
+    display: flex;
+    gap: 16px;
+    margin-top: 32px;
+}
+
+.primaryBtn,
+.secondaryBtn {
+    flex: 1;
+    padding: 16px 24px;
+    border: none;
+    border-radius: var(--osce-radius-sm);
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.primaryBtn {
+    background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.primaryBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+}
+
+.secondaryBtn {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--osce-text);
+}
+
+.secondaryBtn:hover {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+/* ============================================================
+   CLINICAL MODE - Full Screen Immersive
+   ============================================================ */
+.clinicalMode .commandBar {
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(20px);
+}
+
+.clinicalMode .commandBar * {
+    color: white;
+}
+
+.clinicalMode .threeZoneLayout {
+    background: #0F172A;
+}
+
+.clinicalMode .patientCard,
+.clinicalMode .progressChecklist,
+.clinicalMode .interactionCanvas {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.clinicalMode .patientCard *,
+.clinicalMode .progressChecklist *,
+.clinicalMode .interactionCanvas * {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* ============================================================
+   LOADING & SPINNER
+   ============================================================ */
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.loadingContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    gap: 16px;
+}
+
+.loadingSpinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(79, 70, 229, 0.2);
+    border-top-color: var(--osce-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* ============================================================
+   RESPONSIVE DESIGN
+   ============================================================ */
+@media (max-width: 1024px) {
+    .threeZoneLayout {
+        grid-template-columns: 280px 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .threeZoneLayout {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .clinicalContextPanel {
+        max-height: 300px;
+        padding-right: 0;
+    }
+
+    .interactionCanvas {
+        height: 500px;
+    }
+
+    .optionsRow {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .setupTipsList {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .commandBar {
+        padding: 12px 16px;
+        flex-wrap: wrap;
+    }
+
+    .stationTypeGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .setupHeader h1 {
+        font-size: 1.75rem;
+    }
+
+    .statsGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .completionActions {
+        flex-direction: column;
+    }
+
+    .timerContainer {
+        width: 52px;
+        height: 52px;
+    }
+}

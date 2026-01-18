@@ -602,8 +602,8 @@ export default function StudyPlanner() {
                                 <Flame size={20} />
                             </div>
                             <div className="stat-content">
-                                <span className="stat-value">{dailyBrief?.streak?.current || 0}</span>
-                                <span className="stat-label">Day Streak</span>
+                                <div className="stat-value">{dailyBrief?.streak?.current || 0}</div>
+                                <div className="stat-label">Day Streak</div>
                             </div>
                         </div>
                         <div className="stat-card">
@@ -611,8 +611,11 @@ export default function StudyPlanner() {
                                 <Target size={20} />
                             </div>
                             <div className="stat-content">
-                                <span className="stat-value">{computedStats.completedSessions}/{computedStats.totalSessions}</span>
-                                <span className="stat-label">Sessions Done</span>
+                                <div className="stat-value">
+                                    {computedStats.completedSessions}
+                                    <span className="stat-value-sub">/{computedStats.totalSessions}</span>
+                                </div>
+                                <div className="stat-label">Sessions Done</div>
                             </div>
                         </div>
                         <div className="stat-card">
@@ -620,8 +623,11 @@ export default function StudyPlanner() {
                                 <Clock size={20} />
                             </div>
                             <div className="stat-content">
-                                <span className="stat-value">{computedStats.completedHours}/{computedStats.plannedHours}h</span>
-                                <span className="stat-label">Hours</span>
+                                <div className="stat-value">
+                                    {computedStats.completedHours}
+                                    <span className="stat-value-sub">/{computedStats.plannedHours}h</span>
+                                </div>
+                                <div className="stat-label">Hours</div>
                             </div>
                         </div>
                         <div className="stat-card">
@@ -629,8 +635,8 @@ export default function StudyPlanner() {
                                 <TrendingUp size={20} />
                             </div>
                             <div className="stat-content">
-                                <span className="stat-value">{computedStats.completionRate}%</span>
-                                <span className="stat-label">Completion</span>
+                                <div className="stat-value">{computedStats.completionRate}%</div>
+                                <div className="stat-label">Completion</div>
                             </div>
                         </div>
                         <div className="stat-card">
@@ -638,8 +644,8 @@ export default function StudyPlanner() {
                                 <Zap size={20} />
                             </div>
                             <div className="stat-content">
-                                <span className="stat-value">{computedStats.highPriorityCount}</span>
-                                <span className="stat-label">High Priority</span>
+                                <div className="stat-value">{computedStats.highPriorityCount}</div>
+                                <div className="stat-label">High Priority</div>
                             </div>
                         </div>
                         <div className="stat-card">
@@ -647,8 +653,8 @@ export default function StudyPlanner() {
                                 <Award size={20} />
                             </div>
                             <div className="stat-content">
-                                <span className="stat-value">{computedStats.avgPerformance || '—'}</span>
-                                <span className="stat-label">Avg Score</span>
+                                <div className="stat-value">{computedStats.avgPerformance || '—'}</div>
+                                <div className="stat-label">Avg Score</div>
                             </div>
                         </div>
                     </div>
@@ -964,39 +970,48 @@ export default function StudyPlanner() {
                     }
                     .add-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 28px -4px rgba(0,0,0,0.25); background: #111; }
                     
-                    .stats-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px; }
+                    .stats-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; margin-bottom: 32px; }
                     .stat-card { 
-                        background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 100%);
-                        backdrop-filter: blur(20px);
-                        border-radius: 20px; padding: 20px; display: flex; align-items: center; gap: 14px; 
-                        border: 1px solid rgba(255,255,255,0.8); 
-                        box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,1);
+                        background: white;
+                        border-radius: 24px; padding: 24px 20px; 
+                        display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 24px; 
+                        border: 1px solid rgba(0,0,0,0.06); 
+                        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.02);
                         transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
                         position: relative;
                         overflow: hidden;
+                        height: 100%;
                     }
-                    .stat-card::before {
+                    .stat-card::after {
                         content: '';
-                        position: absolute;
-                        top: 0; left: 0; right: 0;
-                        height: 3px;
-                        background: linear-gradient(90deg, transparent, rgba(92, 103, 242, 0.3), transparent);
-                        opacity: 0;
-                        transition: opacity 0.3s;
+                        position: absolute; bottom: 0; left: 0; right: 0; height: 4px;
+                        background: linear-gradient(90deg, transparent, currentColor, transparent);
+                        opacity: 0; transition: opacity 0.3s;
                     }
                     .stat-card:hover { 
-                        transform: translateY(-6px); 
-                        box-shadow: 0 20px 40px rgba(0,0,0,0.1), 0 4px 12px rgba(0,0,0,0.05);
+                        transform: translateY(-5px); 
+                        box-shadow: 0 20px 30px -10px rgba(0,0,0,0.08);
                         border-color: rgba(92, 103, 242, 0.2);
                     }
-                    .stat-card:hover::before { opacity: 1; }
                     .stat-icon { 
-                        width: 48px; height: 48px; border-radius: 14px; 
+                        width: 44px; height: 44px; border-radius: 14px; 
                         display: flex; align-items: center; justify-content: center;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                        transition: transform 0.3s ease;
                     }
-                    .stat-value { font-size: 22px; font-weight: 800; color: var(--cream-text-main); display: block; line-height: 1.2; }
-                    .stat-label { font-size: 10px; font-weight: 700; color: var(--cream-text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+                    .stat-card:hover .stat-icon { transform: scale(1.1); }
+                    
+                    .stat-content { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+                    .stat-value { 
+                        font-size: 28px; font-weight: 800; color: var(--cream-text-main); 
+                        line-height: 1; letter-spacing: -0.02em; display: flex; align-items: baseline; gap: 2px;
+                    }
+                    .stat-value-sub {
+                        font-size: 16px; color: var(--cream-text-muted); font-weight: 600;
+                    }
+                    .stat-label { 
+                        font-size: 13px; font-weight: 600; color: var(--cream-text-muted); 
+                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                    }
                     
                     .week-nav { 
                         display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 24px; 
