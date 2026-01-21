@@ -298,7 +298,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
         </div>
 
         {/* Main Content Area */}
-        <main className={`main-scroll-area ${['/chat', '/mcqs', '/flashcards', '/explain', '/osce', '/clinical-cases'].includes(router.pathname) ? 'no-padding' : ''}`}>
+        <main className={`main-scroll-area ${['/chat', '/mcqs', '/flashcards', '/explain', '/osce', '/clinical-cases', '/highyield'].includes(router.pathname) ? 'no-padding' : ''}`}>
           {children}
         </main>
       </div>

@@ -1,0 +1,371 @@
+/* ============================================================
+   HIGH YIELD - Premium Medical SaaS Design
+   Inspired by: Notion, Linear, Apple Health
+   ============================================================ */
+
+:root {
+    --hy-primary: #8B5CF6;
+    --hy-primary-soft: #EDE9FE;
+    --hy-accent: #F59E0B;
+    --hy-bg: #fdfbf7;
+    --hy-card: #ffffff;
+    --hy-border: rgba(0, 0, 0, 0.08);
+    --hy-text: #1E293B;
+    --hy-text-muted: #64748B;
+    --hy-radius: 20px;
+    --hy-radius-sm: 12px;
+}
+
+.hyWrapper {
+    height: 100%;
+    max-height: 100%;
+    background: var(--hy-bg);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.mainContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 24px;
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+/* ============================================================
+   LANDING / SETUP VIEW
+   ============================================================ */
+.landingView {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    text-align: center;
+    gap: 32px;
+    animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.heroIcon {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, var(--hy-primary) 0%, #7C3AED 100%);
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    box-shadow: 0 20px 40px rgba(139, 92, 246, 0.2);
+    margin-bottom: 8px;
+}
+
+.heroText h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--hy-text);
+    margin: 0;
+    letter-spacing: -0.03em;
+}
+
+.heroText p {
+    font-size: 1.1rem;
+    color: var(--hy-text-muted);
+    margin-top: 12px;
+}
+
+/* ============================================================
+   INPUT SECTION
+   ============================================================ */
+.inputSection {
+    width: 100%;
+    max-width: 800px;
+    display: flex;
+    gap: 12px;
+    background: white;
+    padding: 10px;
+    border-radius: var(--hy-radius);
+    border: 1px solid var(--hy-border);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+}
+
+.inputSection:focus-within {
+    border-color: var(--hy-primary);
+    box-shadow: 0 10px 30px rgba(139, 92, 246, 0.1);
+}
+
+.topicInput {
+    flex: 1;
+    border: none;
+    padding: 12px 20px;
+    font-size: 1rem;
+    font-weight: 500;
+    outline: none;
+    background: transparent;
+    color: var(--hy-text);
+}
+
+.generateBtn {
+    background: linear-gradient(135deg, var(--hy-primary) 0%, #7C3AED 100%);
+    color: white;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.generateBtn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);
+}
+
+.generateBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   RESULTS VIEW
+   ============================================================ */
+.resultsView {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 24px;
+    animation: fadeIn 0.4s ease;
+}
+
+.resultHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.resultTitle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.titleIcon {
+    width: 40px;
+    height: 40px;
+    background: var(--hy-primary-soft);
+    color: var(--hy-primary);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+.resultHeader h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.clearBtn {
+    padding: 8px 16px;
+    background: #FFF5F5;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #E53E3E;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.clearBtn:hover {
+    background: #FEB2B2;
+    color: white;
+    border-color: #F56565;
+}
+
+.resultCard {
+    background: #FDFDFD;
+    /* Ultra-soft creamy whitish for near-zero eye strain */
+    border-radius: var(--hy-radius);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.05),
+        0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.scrollArea {
+    flex: 1;
+    padding: 32px;
+    overflow-y: auto;
+}
+
+.scrollArea::-webkit-scrollbar {
+    width: 6px;
+}
+
+.scrollArea::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.scrollArea::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 3px;
+}
+
+.noteContent {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: #334155;
+}
+
+/* Markdown styling inside noteContent */
+.noteContent h1,
+.noteContent h2,
+.noteContent h3 {
+    color: var(--hy-text);
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+}
+
+.noteContent p {
+    margin-bottom: 1em;
+}
+
+.noteContent ul,
+.noteContent ol {
+    margin-bottom: 1em;
+    padding-left: 1.5em;
+}
+
+.noteContent li {
+    margin-bottom: 0.5em;
+}
+
+.citationsSection {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--hy-border);
+}
+
+.citationsSection h4 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--hy-text-muted);
+    margin-bottom: 12px;
+}
+
+.citationItem {
+    padding: 10px 16px;
+    background: #f1f5f9;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    color: #475569;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ============================================================
+   MISC
+   ============================================================ */
+.errorBanner {
+    padding: 16px;
+    background: #FEF2F2;
+    border-left: 4px solid #EF4444;
+    border-radius: 10px;
+    color: #B91C1C;
+    font-weight: 500;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.loadingSpinner {
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: rotate 0.8s linear infinite;
+}
+
+@keyframes rotate {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.quickSuggestions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.suggestionChip {
+    padding: 8px 16px;
+    background: #f1f5f9;
+    color: #475569;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.suggestionChip:hover {
+    background: var(--hy-primary-soft);
+    color: var(--hy-primary);
+    border-color: rgba(139, 92, 246, 0.2);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+    .inputSection {
+        flex-direction: column;
+        padding: 16px;
+    }
+
+    .generateBtn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .heroText h1 {
+        font-size: 1.75rem;
+    }
+}
