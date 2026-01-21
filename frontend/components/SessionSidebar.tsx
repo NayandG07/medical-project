@@ -133,7 +133,7 @@ export default function SessionSidebar({
                 bottom: 0,
                 width: '80%',
                 maxWidth: '300px',
-                background: 'white',
+                background: '#F7F7F6',
                 zIndex: 51,
                 display: 'flex',
                 flexDirection: 'column',
@@ -212,7 +212,7 @@ export default function SessionSidebar({
     return (
       <div style={{
         width: '70px',
-        backgroundColor: '#fdfbf7',
+        backgroundColor: '#F7F7F6',
         borderLeft: position === 'right' ? '1px solid rgba(0,0,0,0.06)' : 'none',
         borderRight: position === 'left' ? '1px solid rgba(0,0,0,0.06)' : 'none',
         display: 'flex',
@@ -271,7 +271,7 @@ export default function SessionSidebar({
   return (
     <div style={{
       width: '320px',
-      backgroundColor: '#fdfbf7', // Matches chat bg slightly
+      backgroundColor: '#F7F7F6', // Creamy Silver Whitish for Sidebars
       borderLeft: position === 'right' ? '1px solid rgba(0,0,0,0.06)' : 'none',
       borderRight: position === 'left' ? '1px solid rgba(0,0,0,0.06)' : 'none',
       display: 'flex',
@@ -443,7 +443,7 @@ export default function SessionSidebar({
       <div style={{
         padding: '20px',
         borderTop: '1px solid rgba(0,0,0,0.06)',
-        backgroundColor: '#fdfbf7'
+        backgroundColor: '#F7F7F6'
       }}>
         <button
           onClick={() => setDeleteAllConfirmation(true)}

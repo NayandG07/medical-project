@@ -3,11 +3,13 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { ArrowRight, Brain, Zap, Shield, Heart, Activity, CheckCircle2, ChevronRight, Menu, X } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/router'
 import { supabase } from '@/lib/supabase'
 import LandingNavbar from '@/components/LandingNavbar'
 import LandingFooter from '@/components/LandingFooter'
 
 export default function LandingPage() {
+  const router = useRouter()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -20,6 +22,9 @@ export default function LandingPage() {
 
     // Check auth status
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.push('/dashboard')
+      }
       setIsLoggedIn(!!session)
     })
 

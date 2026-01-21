@@ -12,12 +12,12 @@ import SessionSidebar, { ChatSession } from '@/components/SessionSidebar'
 // Premium styles (similar to MCQs for consistency)
 const styles = {
   container: "max-w-[1200px] mx-auto",
-  mainArea: "flex-1 flex flex-col overflow-y-auto p-4 pt-20 sm:p-10 custom-scrollbar bg-[#FAF9F6]", // Increased top padding for mobile to avoid overlap
-  searchOnlyState: "bg-white rounded-[24px] sm:rounded-[32px] p-6 sm:p-20 text-center shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-[#E2E8F0] mt-4 sm:mt-10 w-full max-w-[850px] mx-auto",
-  sparkleIcon: "w-12 h-12 sm:w-16 sm:h-16 bg-[#EEF2FF] rounded-xl sm:rounded-2xl mx-auto mb-4 sm:mb-6 flex items-center justify-center",
-  h1: "text-2xl sm:text-3xl font-[800] mb-2 sm:mb-3 text-[#0F172A]",
-  p: "text-sm sm:text-base text-[#64748B] mb-6 sm:mb-8",
-  largeSearch: "bg-white border-[1.5px] border-[#E2E8F0] p-1.5 pl-4 sm:p-2 sm:pl-6 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-4 shadow-sm focus-within:border-[#6366F1] focus-within:ring-4 focus-within:ring-[#6366F1]/5 transition-all outline-none",
+  mainArea: "flex-1 flex flex-col overflow-y-auto p-4 pt-12 sm:p-8 custom-scrollbar bg-[#fdfbf7]", // Matches chat theme color
+  searchOnlyState: "bg-white rounded-[24px] sm:rounded-[32px] p-6 sm:p-10 text-center shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-[#E2E8F0] mt-4 sm:mt-0 w-full max-w-[750px] mx-auto", // Reduced padding, margin and max-width
+  sparkleIcon: "w-10 h-10 sm:w-14 sm:h-14 bg-[#EEF2FF] rounded-xl sm:rounded-2xl mx-auto mb-3 sm:mb-4 flex items-center justify-center", // Reduced size and margin
+  h1: "text-2xl sm:text-2xl font-[800] mb-1 sm:mb-2 text-[#0F172A]", // Reduced text size and margin
+  p: "text-sm sm:text-base text-[#64748B] mb-5 sm:mb-6", // Reduced margin
+  largeSearch: "bg-white border-[1.5px] border-[#E2E8F0] p-1.5 pl-4 sm:p-1.5 sm:pl-5 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-sm focus-within:border-[#6366F1] focus-within:ring-4 focus-within:ring-[#6366F1]/5 transition-all outline-none", // Reduced padding
   topicInput: "border-none bg-transparent flex-1 text-sm sm:text-base font-medium outline-none text-[#1E293B] placeholder:text-slate-400 min-w-0",
   generateBtn: "bg-gradient-to-r from-[#6366F1] to-[#4F46E5] text-white border-none px-4 py-2.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl font-bold cursor-pointer hover:shadow-lg hover:shadow-[#6366F1]/25 hover:translate-y-[-2px] transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm sm:text-base",
   activeHeader: "flex flex-col gap-3 mb-6 sm:mb-10 w-full",
@@ -242,7 +242,7 @@ export default function Flashcards() {
                 </div>
                 <h1 className={styles.h1}>Generate flashcards</h1>
                 <p className={styles.p}>Enter any medical topic to create interactive study cards</p>
-                
+
                 {/* Count selector */}
                 <div className="mb-4 flex items-center justify-center gap-3">
                   <label className="text-sm font-medium text-gray-600">Number of cards:</label>
@@ -257,7 +257,7 @@ export default function Flashcards() {
                     <option value={20}>20 cards</option>
                   </select>
                 </div>
-                
+
                 <div className={styles.largeSearch}>
                   <input
                     type="text"
@@ -311,7 +311,7 @@ export default function Flashcards() {
                       CLEAR
                     </button>
                   </div>
-                  
+
                   {result.flashcards && result.flashcards.length > 0 ? (
                     <FlashcardViewer flashcards={result.flashcards} />
                   ) : result.content ? (
@@ -367,7 +367,7 @@ export default function Flashcards() {
             display: flex;
             min-height: calc(100vh - 64px);
             position: relative;
-            background-color: #F1F5F9; /* Neutral slate background for high card contrast */
+            background-color: #fdfbf7; /* Consistent with main app theme */
           }
 
           .content-area {
@@ -383,7 +383,7 @@ export default function Flashcards() {
             right: 0;
             bottom: 0;
             z-index: 10;
-            background-color: #fdfbf7;
+            background-color: #F7F7F6;
           }
 
           @media (max-width: 1024px) {

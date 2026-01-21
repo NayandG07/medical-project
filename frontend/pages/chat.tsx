@@ -195,6 +195,9 @@ export default function Chat() {
   }
 
   const handleNewSession = async () => {
+    // Unfunctional until conversation starts
+    if (messages.length === 0) return;
+
     try {
       setSessionsLoading(true)
       setSessionsError(null)
@@ -550,7 +553,7 @@ export default function Chat() {
             onNewSession={handleNewSession}
             onDeleteSession={handleDeleteSession}
             onDeleteAllSessions={handleDeleteAllSessions}
-            isNewChatDisabled={messages.length === 0}
+            isNewChatDisabled={false}
             loading={sessionsLoading}
             error={sessionsError}
             position="right"

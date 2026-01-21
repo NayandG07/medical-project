@@ -200,7 +200,7 @@ export default function OSCESimulator() {
       const scenario = await response.json()
       const examinerChecklist = scenario.examiner_checklist || []
       const interactionHistory = scenario.interaction_history || []
-      
+
       // Collect all triggered items from interaction history
       const triggeredItems = new Set()
       interactionHistory.forEach((interaction: any) => {
@@ -208,7 +208,7 @@ export default function OSCESimulator() {
           triggeredItems.add(item)
         })
       })
-      
+
       // Build checklist with status based on triggered items
       const checklistWithStatus = examinerChecklist.map((item: any, index: number) => ({
         id: `item-${index}`,
@@ -217,7 +217,7 @@ export default function OSCESimulator() {
         critical: item.critical || false,
         notes: item.notes || null
       }))
-      
+
       setChecklist(checklistWithStatus)
     } catch (error) {
       console.error('Failed to load checklist:', error)
@@ -258,7 +258,7 @@ export default function OSCESimulator() {
       setTimeRemaining(scenario.time_limit_seconds || 480)
       setShowSetup(false)
       setTimerActive(true)
-      
+
       // Build checklist from backend's examiner_checklist
       await loadScenarioChecklist(scenario.id)
 
@@ -302,7 +302,7 @@ export default function OSCESimulator() {
       if (!response.ok) throw new Error('Failed to process interaction')
 
       const result = await response.json()
-      
+
       // Add patient response
       setConversation(prev => [...prev, {
         role: 'patient',
@@ -316,7 +316,7 @@ export default function OSCESimulator() {
           content: result.feedback
         }])
       }
-      
+
       // Add hint if provided
       if (result.hint) {
         setConversation(prev => [...prev, {
@@ -324,12 +324,12 @@ export default function OSCESimulator() {
           content: `💡 Hint: ${result.hint}`
         }])
       }
-      
+
       // Reload checklist to show updated status
       if (activeScenario) {
         await loadScenarioChecklist(activeScenario.id)
       }
-      
+
     } catch (error) {
       console.error('Failed to send message:', error)
       setConversation(prev => [...prev, {
@@ -477,7 +477,10 @@ export default function OSCESimulator() {
         <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </Head>
       <DashboardLayout user={user}>
-        <div className={`${styles.osceWrapper} ${clinicalMode ? styles.clinicalMode : ''}`}>
+        <div
+          className={`${styles.osceWrapper} ${clinicalMode ? styles.clinicalMode : ''}`}
+          data-station-active={activeScenario && !completed ? "true" : "false"}
+        >
           {/* Subtle Pulse Wave Background */}
           <div className={styles.pulseBackground}>
             <div className={styles.pulseWave}></div>
@@ -486,14 +489,18 @@ export default function OSCESimulator() {
           <div className={styles.mainContent}>
             {/* Setup View */}
             {showSetup && !activeScenario && (
-              <div className={styles.setupView}>
-                <div className={styles.setupHeader}>
+              <div className={styles.setupView} data-lenis-prevent>
+                <div className={styles.setupHeader} style={{ display: 'none' }}>
                   <div className={styles.setupIcon}>🏥</div>
                   <h1>OSCE Simulator</h1>
                   <p>Practice structured clinical examinations with AI patients</p>
                 </div>
 
+                {/* Divider Line */}
+                <div className={styles.divider} />
+
                 {/* Station Type Selection */}
+                <h3 className={styles.gridHeader}>ASSESSMENT MODULES</h3>
                 <div className={styles.stationTypeGrid}>
                   {SCENARIO_TYPES.map((type, index) => (
                     <button
@@ -509,16 +516,8 @@ export default function OSCESimulator() {
                         </div>
                         <span className={styles.stationTypeName}>{type.name}</span>
                         <span className={styles.stationTypeDesc}>{type.desc}</span>
-                        <div className={styles.cardFooter}>
-                          <div className={styles.tag}>
-                            <span>⏱️</span>
-                            <span>8-10 mins</span>
-                          </div>
-                          <div className={styles.tag}>
-                            <span>📊</span>
-                            <span>Score Weight: 15%</span>
-                          </div>
-                        </div>
+                        {/* Footer removed as requested */}
+                        <div className={styles.cardFooter} style={{ display: 'none' }}></div>
                       </div>
                     </button>
                   ))}
@@ -632,57 +631,36 @@ export default function OSCESimulator() {
             {/* Active OSCE View */}
             {activeScenario && !completed && (
               <>
-                {/* Top Floating Command Bar */}
-                <div className={styles.commandBar}>
-                  <div className={styles.commandBarLeft}>
-                    <div className={styles.stationTitle}>
-                      <div className={styles.stationIcon}>
-                        {SCENARIO_TYPES.find(t => t.id === activeScenario.scenario_type)?.icon}
-                      </div>
-                      <div className={styles.stationInfo}>
-                        <h1>OSCE Station</h1>
-                        <div className={styles.stationMeta}>
-                          <span className={`${styles.metaBadge} ${styles.specialty}`}>
-                            {activeScenario.specialty.replace(/_/g, ' ')}
-                          </span>
-                          <span className={`${styles.metaBadge} ${styles.difficulty} ${styles[activeScenario.difficulty]}`}>
-                            {activeScenario.difficulty}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className={styles.commandBarRight}>
-                    {/* Circular Timer */}
-                    <div className={styles.timerContainer}>
-                      <svg className={styles.timerRing} width="64" height="64">
-                        <circle
-                          className={styles.timerRingBg}
-                          cx="32"
-                          cy="32"
-                          r={timerRadius}
-                        />
-                        <circle
-                          className={`${styles.timerRingProgress} ${styles[getTimerColor()]}`}
-                          cx="32"
-                          cy="32"
-                          r={timerRadius}
-                          strokeDasharray={timerCircumference}
-                          strokeDashoffset={timerOffset}
-                        />
-                      </svg>
-                      <span className={styles.timerText}>{formatTime(timeRemaining)}</span>
-                    </div>
-                    <button className={styles.endStationBtn} onClick={completeScenario}>
-                      End Station
-                    </button>
-                  </div>
-                </div>
-
-                {/* 3-Zone Layout */}
+                {/* 2-Zone Layout */}
                 <div className={styles.threeZoneLayout}>
-                  {/* Left Clinical Context Panel */}
+                  {/* Left Panel */}
                   <div className={styles.clinicalContextPanel}>
+                    {/* Timer Card - New placement */}
+                    <div className={styles.timerCard}>
+                      <div className={styles.timerContainer}>
+                        <svg className={styles.timerRing} width="56" height="56">
+                          <circle
+                            className={styles.timerRingBg}
+                            cx="28"
+                            cy="28"
+                            r="24"
+                          />
+                          <circle
+                            className={`${styles.timerRingProgress} ${styles[getTimerColor()]}`}
+                            cx="28"
+                            cy="28"
+                            r="24"
+                            strokeDasharray={2 * Math.PI * 24}
+                            strokeDashoffset={2 * Math.PI * 24 - (getTimerProgress() / 100) * (2 * Math.PI * 24)}
+                          />
+                        </svg>
+                        <span className={styles.timerText}>{formatTime(timeRemaining)}</span>
+                      </div>
+                      <button className={styles.endStationBtn} onClick={completeScenario}>
+                        End Station
+                      </button>
+                    </div>
+
                     {/* Patient Card */}
                     <div className={styles.patientCard}>
                       <div className={styles.patientHeader}>
@@ -690,27 +668,20 @@ export default function OSCESimulator() {
                           🧑
                         </div>
                         <div className={styles.patientInfo}>
-                          <h3>{activeScenario.patient_info.name || 'Unknown Patient'}</h3>
+                          <h3 className="line-clamp-1">{activeScenario.patient_info.name || 'Unknown Patient'}</h3>
                           <span className={styles.patientMeta}>
-                            {activeScenario.patient_info.age || 'N/A'} years, {activeScenario.patient_info.gender || 'N/A'}
+                            {activeScenario.patient_info.age || 'N/A'}y, {activeScenario.patient_info.gender || 'N/A'}
                           </span>
-                          <span className={`${styles.emotionalBadge} ${styles[activeScenario.patient_info.emotional_state || 'calm']}`}>
-                            {getEmotionalIcon(activeScenario.patient_info.emotional_state)} {activeScenario.patient_info.emotional_state || 'Calm'}
-                          </span>
+                        </div>
+                        <div className={`${styles.emotionalBadgeMini} ${styles[activeScenario.patient_info.emotional_state || 'calm']}`}>
+                          {getEmotionalIcon(activeScenario.patient_info.emotional_state)}
                         </div>
                       </div>
 
-                      <div className={styles.complaintSection}>
+                      <div className={styles.complaintSectionSmall}>
                         <div className={styles.complaintLabel}>Chief Complaint</div>
-                        <div className={styles.complaintText}>
-                          {(activeScenario.patient_info.presenting_complaint || 'Not specified').charAt(0).toUpperCase() + (activeScenario.patient_info.presenting_complaint || '').slice(1)}
-                        </div>
-                      </div>
-
-                      <div className={styles.severityMeter}>
-                        <div className={styles.severityLabel}>Scenario Severity</div>
-                        <div className={styles.severityBar}>
-                          <div className={`${styles.severityFill} ${styles[activeScenario.patient_info.severity || 'moderate']}`}></div>
+                        <div className={styles.complaintTextSmall}>
+                          {activeScenario.patient_info.presenting_complaint || 'Not specified'}
                         </div>
                       </div>
                     </div>
@@ -718,9 +689,9 @@ export default function OSCESimulator() {
                     {/* Progress Checklist */}
                     <div className={styles.progressChecklist}>
                       <h4 className={styles.checklistTitle}>
-                        📋 Progress Checklist
+                        📋 Checklist
                       </h4>
-                      <div className={styles.checklistItems}>
+                      <div className={styles.checklistItems} data-lenis-prevent>
                         {checklist.map(item => (
                           <div key={item.id} className={`${styles.checklistItem} ${styles[item.status]}`}>
                             <div className={`${styles.checklistIcon} ${styles[item.status]}`}>
@@ -731,13 +702,12 @@ export default function OSCESimulator() {
                         ))}
                       </div>
                     </div>
-
                   </div>
 
                   {/* Main Interaction Canvas */}
                   <div className={styles.interactionCanvas}>
                     {/* Clinical Transcript */}
-                    <div className={styles.clinicalTranscript} ref={chatContainerRef}>
+                    <div className={styles.clinicalTranscript} ref={chatContainerRef} data-lenis-prevent>
                       {conversation.map((msg, i) => (
                         msg.role === 'examiner' ? (
                           <div key={i} className={styles.examinerNote}>

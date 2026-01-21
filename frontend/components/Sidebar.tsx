@@ -5,7 +5,7 @@ import { AuthUser } from '@/lib/supabase'
 import { ChevronLeft, Menu } from 'lucide-react'
 
 interface SidebarProps {
-  user: AuthUser
+  user: AuthUser | null
   currentPath: string
   collapsed?: boolean
   onToggle?: (collapsed: boolean) => void
@@ -20,6 +20,7 @@ const getPlanLabel = (plan: string = 'free') => {
     free: 'Standard Plan',
     student: 'Student Plan',
     pro: 'Premium Plan',
+    premium: 'Premium Plan',
     admin: 'Admin'
   }
   return plans[plan.toLowerCase()] || 'Standard Plan'
@@ -108,33 +109,28 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
       <div className="sidebar-footer">
         {isCollapsed ? (
           <div className="user-avatar-small">
-            {(user.user_metadata?.name || user.email)?.[0].toUpperCase()}
+            {user ? (user.user_metadata?.name || user.email)?.[0].toUpperCase() : '?'}
           </div>
         ) : (
           <div className="user-full-card">
             <div className="user-info-row">
               <div className="user-avatar">
-                {(user.user_metadata?.name || user.email)?.[0].toUpperCase()}
+                {user ? (user.user_metadata?.name || user.email)?.[0].toUpperCase() : '?'}
               </div>
               <div className="user-text">
-                <p className="user-name">{user.user_metadata?.name || user.email?.split('@')[0]}</p>
+                <p className="user-name">{user ? (user.user_metadata?.name || user.email?.split('@')[0]) : 'Loading...'}</p>
                 <p className="user-subtext">{getPlanLabel(plan)}</p>
               </div>
             </div>
 
-            <div className="token-meter-container">
-              <div className="token-labels">
-                <span>Tokens</span>
-                <span>1.5k / 2k</span>
-              </div>
-              <div className="progress-bar">
-                <div className="progress-fill" style={{ width: '76%' }}></div>
-              </div>
-            </div>
+            {/* Token Meter Removed */}
 
-            <button onClick={() => router.push('/upgrade')} className="upgrade-button">
-              Upgrade Plan
-            </button>
+            {/* Only show upgrade button for free users */}
+            {plan.toLowerCase() === 'free' && (
+              <button onClick={() => router.push('/upgrade')} className="upgrade-button">
+                Upgrade Plan
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -143,7 +139,7 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
         .sidebar-container {
           width: ${sidebarWidth};
           height: 100vh;
-          background-color: #212529;
+          background-color: #2C3238;
           border-right: 1px solid rgba(255, 255, 255, 0.08);
           display: flex;
           flex-direction: column;
@@ -341,35 +337,7 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
           font-weight: 600;
         }
 
-        .token-meter-container {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          background: rgba(255, 255, 255, 0.04);
-          padding: 8px;
-          border-radius: 10px;
-        }
-
-        .token-labels {
-          display: flex;
-          justify-content: space-between;
-          font-size: 9px;
-          font-weight: 700;
-          color: #ADB5BD;
-        }
-
-        .progress-bar {
-          height: 4px;
-          background-color: rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-          overflow: hidden;
-        }
-
-        .progress-fill {
-          height: 100%;
-          background: linear-gradient(to right, #6366F1, #8B5CF6);
-          border-radius: 10px;
-        }
+/* Token Styles Removed */
 
         .upgrade-button {
           width: 100%;

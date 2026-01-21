@@ -9,8 +9,8 @@
     --osce-primary-soft: #EEF2FF;
     --osce-accent: #14B8A6;
     --osce-accent-soft: #CCFBF1;
-    --osce-bg: #E2E8F0;
-    --osce-bg-warm: #CBD5E1;
+    --osce-bg: #fdfbf7;
+    --osce-bg-warm: #f7f3ed;
     --osce-card: rgba(255, 255, 255, 0.85);
     --osce-glass: rgba(255, 255, 255, 0.7);
     --osce-border: rgba(0, 0, 0, 0.06);
@@ -23,21 +23,38 @@
     --osce-danger: #EF4444;
     --osce-radius: 20px;
     --osce-radius-sm: 12px;
+    --osce-card-bg: #F7F7F6;
+    /* Creamy Silver Whitish used for cards */
 }
 
 /* ============================================================
    MAIN CONTAINER & LAYOUT
    ============================================================ */
 .osceWrapper {
-    min-height: 100vh;
-    background: transparent;
+    height: 100%;
+    max-height: 100%;
+    background: var(--osce-bg);
+    /* Use opaque background to fix color lines */
     position: relative;
-    overflow: hidden;
+    overflow: hidden !important;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+/* Ensure the background is consistent even if parents vary */
+:global(.main-content-wrapper:has(.osceWrapper)) {
+    background-color: var(--osce-bg) !important;
+}
+
+.osceWrapper * {
+    box-sizing: border-box;
 }
 
 /* Apply background to the global page when in OSCE mode */
 :global(body:has(.clinicalContextPanel)) {
-    background-color: #F1F5F9 !important;
+    background-color: #fdfbf7 !important;
 }
 
 /* Subtle Pulse Wave Background Animation */
@@ -53,28 +70,8 @@
 }
 
 .pulseWave {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 120px;
-    background: linear-gradient(transparent, rgba(79, 70, 229, 0.03));
-}
-
-.pulseWave::before {
-    content: '';
-    position: absolute;
-    bottom: 40px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg,
-            transparent 0%,
-            rgba(79, 70, 229, 0.1) 20%,
-            rgba(20, 184, 166, 0.2) 40%,
-            rgba(79, 70, 229, 0.1) 60%,
-            transparent 100%);
-    animation: pulseMove 4s ease-in-out infinite;
+    display: none;
+    /* Removed the line causing the bottom visual glitch */
 }
 
 @keyframes pulseMove {
@@ -95,6 +92,11 @@
     position: relative;
     z-index: 1;
     padding: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
 }
 
 /* ============================================================
@@ -102,11 +104,11 @@
    ============================================================ */
 .commandBar {
     max-width: 1400px;
-    margin: 20px auto 10px auto;
+    margin: 10px auto 10px auto;
     background: white;
     border: 1px solid rgba(0, 0, 0, 0.12);
     border-radius: 20px;
-    padding: 16px 24px;
+    padding: 10px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -197,8 +199,8 @@
 /* Circular Timer */
 .timerContainer {
     position: relative;
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
 }
 
 .timerRing {
@@ -245,10 +247,15 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     font-weight: 700;
     font-family: 'JetBrains Mono', monospace;
     color: var(--osce-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
 }
 
 .endStationBtn {
@@ -276,12 +283,13 @@
     max-width: 1400px;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: 340px 1fr;
-    gap: 20px;
-    padding: 20px 0;
-    /* No horizontal padding, use the max-width + margin: 0 auto */
-    height: calc(100vh - 160px);
-    min-height: 700px;
+    grid-template-columns: 300px 1fr;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden !important;
 }
 
 /* ============================================================
@@ -291,26 +299,39 @@
 .clinicalContextPanel {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 8px;
     height: 100%;
+    min-height: 0;
 }
 
-.patientCard,
-.progressChecklist {
-    background: #FFFFFF;
-    /* High-readability white */
-    border-radius: var(--osce-radius);
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    box-shadow:
-        0 10px 15px -3px rgba(0, 0, 0, 0.08),
-        0 4px 6px -4px rgba(0, 0, 0, 0.1);
-    padding: 24px;
-    transition: all 0.3s ease;
+.timerCard {
+    background: white;
+    border-radius: var(--osce-radius-sm);
+    padding: 6px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.patientCard {
+    background: white;
+    border-radius: var(--osce-radius-sm);
+    padding: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .progressChecklist {
-    flex-grow: 1;
-    /* Stretch the checklist to align with the bottom of the right card */
+    background: white;
+    border-radius: var(--osce-radius-sm);
+    padding: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .instructionsCard {
@@ -344,7 +365,7 @@
     background: var(--osce-card);
     backdrop-filter: blur(10px);
     border-radius: var(--osce-radius);
-    padding: 20px;
+    padding: 16px;
     border: 1px solid var(--osce-border);
     box-shadow: var(--osce-shadow);
 }
@@ -352,108 +373,67 @@
 .patientHeader {
     display: flex;
     align-items: center;
-    gap: 14px;
-    margin-bottom: 16px;
+    gap: 10px;
+    margin-bottom: 8px;
 }
 
 .patientAvatar {
-    width: 56px;
-    height: 56px;
-    border-radius: 16px;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
     background: linear-gradient(135deg, #E0E7FF 0%, #C7D2FE 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.6rem;
-    position: relative;
-}
-
-.emotionalIndicator {
-    position: absolute;
-    bottom: -4px;
-    right: -4px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    border: 2px solid white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.65rem;
-}
-
-.emotionalIndicator.calm {
-    background: #D1FAE5;
-}
-
-.emotionalIndicator.anxious {
-    background: #FEF3C7;
-}
-
-.emotionalIndicator.distressed {
-    background: #FEE2E2;
+    font-size: 1.1rem;
+    flex-shrink: 0;
 }
 
 .patientInfo h3 {
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 700;
     color: var(--osce-text);
     margin: 0;
 }
 
 .patientMeta {
-    font-size: 0.8rem;
-    color: var(--osce-text-muted);
-    margin-top: 2px;
-}
-
-.emotionalBadge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 20px;
     font-size: 0.7rem;
-    font-weight: 600;
-    margin-top: 8px;
+    color: var(--osce-text-muted);
 }
 
-.emotionalBadge.calm {
-    background: #D1FAE5;
-    color: #059669;
+.emotionalBadgeMini {
+    padding: 4px;
+    border-radius: 8px;
+    font-size: 1rem;
+    margin-left: auto;
 }
 
-.emotionalBadge.anxious {
-    background: #FEF3C7;
-    color: #D97706;
-}
-
-.emotionalBadge.distressed {
-    background: #FEE2E2;
-    color: #DC2626;
-}
-
-.complaintSection {
-    background: linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(124, 58, 237, 0.05) 100%);
-    border-radius: var(--osce-radius-sm);
-    padding: 14px;
-    margin-top: 12px;
+.complaintSectionSmall {
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 12px;
+    padding: 10px 12px;
 }
 
 .complaintLabel {
-    font-size: 0.7rem;
-    font-weight: 600;
+    font-size: 0.65rem;
+    font-weight: 700;
     color: var(--osce-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
 }
 
-.complaintText {
-    font-size: 0.9rem;
+.complaintTextSmall {
+    font-size: 0.85rem;
     color: var(--osce-text);
-    line-height: 1.5;
     font-weight: 500;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    /* Standard property */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 /* Severity Meter */
@@ -503,7 +483,7 @@
     background: var(--osce-card);
     backdrop-filter: blur(10px);
     border-radius: var(--osce-radius);
-    padding: 20px;
+    padding: 16px;
     border: 1px solid var(--osce-border);
     box-shadow: var(--osce-shadow);
 }
@@ -519,18 +499,34 @@
 }
 
 .checklistItems {
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 10px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.checklistItems::-webkit-scrollbar {
+    width: 4px;
+}
+
+.checklistItems::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.checklistItems::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
 }
 
 .checklistItem {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 4px 10px;
     background: rgba(0, 0, 0, 0.02);
-    border-radius: 10px;
+    border-radius: 6px;
     transition: all 0.2s ease;
 }
 
@@ -625,11 +621,11 @@
 /* Clinical Transcript */
 .clinicalTranscript {
     flex: 1;
-    padding: 24px;
+    padding: 16px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
 }
 
 .clinicalTranscript::-webkit-scrollbar {
@@ -788,7 +784,7 @@
    CLINICAL COMMAND BOX
    ============================================================ */
 .clinicalCommandBox {
-    padding: 20px;
+    padding: 12px 16px;
     border-top: 1px solid var(--osce-border);
     background: rgba(248, 250, 252, 0.8);
 }
@@ -806,17 +802,17 @@
 
 .commandInput textarea {
     width: 100%;
-    padding: 16px 20px;
-    padding-right: 140px;
+    padding: 12px 14px;
+    padding-right: 120px;
     border: 2px solid rgba(0, 0, 0, 0.08);
-    border-radius: 16px;
-    font-size: 0.95rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
     font-family: inherit;
     resize: none;
     background: white;
     transition: all 0.2s ease;
-    min-height: 56px;
-    max-height: 150px;
+    min-height: 48px;
+    max-height: 100px;
 }
 
 .commandInput textarea:focus {
@@ -863,18 +859,18 @@
 }
 
 .sendButton {
-    padding: 16px 28px;
+    padding: 12px 20px;
     background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
     color: white;
     border: none;
-    border-radius: 16px;
+    border-radius: 12px;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
 }
 
@@ -1007,10 +1003,24 @@
    SETUP VIEW - Premium Design
    ============================================================ */
 .setupView {
-    max-width: 1400px;
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 40px 24px;
+    padding: 0 20px 40px 20px;
     animation: fadeSlide 0.5s ease;
+    width: 100%;
+}
+
+.setupView::-webkit-scrollbar {
+    width: 6px;
+}
+
+.setupView::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.setupView::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
 }
 
 @keyframes fadeSlide {
@@ -1027,28 +1037,34 @@
 
 .setupHeader {
     text-align: center;
-    margin-bottom: 48px;
+    margin-bottom: 20px;
 }
 
 .setupIcon {
-    width: 80px;
-    height: 80px;
-    margin: 0 auto 20px;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 10px;
     background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
-    border-radius: 24px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.5rem;
+    font-size: 1.5rem;
     box-shadow: 0 8px 32px rgba(79, 70, 229, 0.3);
 }
 
 .setupHeader h1 {
-    font-size: 2.5rem;
+    font-size: 1.5rem;
     font-weight: 800;
     color: var(--osce-text);
     margin: 0;
     letter-spacing: -0.03em;
+}
+
+/* Divider Line */
+/* Divider removed */
+.divider {
+    display: none;
 }
 
 .setupHeader p {
@@ -1057,19 +1073,32 @@
     margin-top: 8px;
 }
 
+/* Station Grid Header */
+.gridHeader {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 /* Station Type Grid */
 .stationTypeGrid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-    margin-bottom: 48px;
+    gap: 12px;
+    margin-bottom: 30px;
 }
 
 .stationTypeCard {
-    background: white;
+    background: var(--osce-card-bg);
     border: 1px solid rgba(0, 0, 0, 0.18);
     /* Ultra-sharp border */
-    border-radius: 20px;
+    border-radius: 16px;
     padding: 0;
     text-align: left;
     cursor: pointer;
@@ -1119,7 +1148,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.8rem;
+    font-size: 1.1rem;
     border-right: 2px solid rgba(0, 0, 0, 0.15);
     /* Sharper separator between icon and content */
     transition: all 0.4s ease;
@@ -1133,7 +1162,7 @@
 }
 
 .cardBody {
-    padding: 24px;
+    padding: 12px;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -1172,11 +1201,10 @@
 
 .stationTypeName {
     display: block;
-    font-size: 1.2rem;
-    /* Slightly larger */
+    font-size: 0.8rem;
     font-weight: 800;
     color: #0F172A;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
     letter-spacing: -0.025em;
 }
 
@@ -1190,13 +1218,11 @@
 
 .stationTypeDesc {
     display: block;
-    font-size: 0.92rem;
-    /* Slightly larger for micro-readability */
+    font-size: 0.75rem;
     color: #475569;
-    line-height: 1.6;
-    font-weight: 600;
-    /* Bolder for clarity */
-    max-width: 95%;
+    line-height: 1.3;
+    font-weight: 500;
+    max-width: 100%;
 }
 
 .cardFooter {
@@ -1205,7 +1231,7 @@
     gap: 16px;
     margin-top: 16px;
     padding-top: 16px;
-    border-top: 1px solid rgba(0, 0, 0, 0.03);
+    /* Border top removed */
 }
 
 .tag {
@@ -1226,28 +1252,25 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 32px;
-    margin-bottom: 40px;
+    margin-bottom: 20px;
 }
 
 /* Specialty and Difficulty Sections */
 .optionSection h3 {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 800;
     color: #64748B;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
+/* Marker point removed */
 .optionSection h3::before {
-    content: '';
-    width: 4px;
-    height: 4px;
-    background: var(--osce-primary);
-    border-radius: 50%;
+    display: none;
 }
 
 /* Specialty Grid - High-End Tiles */
@@ -1258,14 +1281,14 @@
 }
 
 .optionChip {
-    background: white;
+    background: var(--osce-card-bg);
     border: 1px solid rgba(0, 0, 0, 0.12);
-    border-radius: 16px;
-    padding: 14px;
+    border-radius: 12px;
+    padding: 11px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: 6px;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
@@ -1285,14 +1308,14 @@
 }
 
 .optionChip span:first-child {
-    font-size: 1.4rem;
+    font-size: 1rem;
     background: rgba(0, 0, 0, 0.03);
-    width: 40px;
-    height: 40px;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 10px;
+    border-radius: 8px;
     transition: all 0.3s ease;
 }
 
@@ -1303,7 +1326,7 @@
 }
 
 .optionChip span:last-child {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     font-weight: 800;
     color: #1E293B;
 }
@@ -1312,8 +1335,8 @@
 .difficultyTrack {
     display: flex;
     flex-direction: column;
-    background: white;
-    padding: 8px;
+    background: var(--osce-card-bg);
+    padding: 20px;
     border-radius: 18px;
     gap: 8px;
     border: 1px solid rgba(0, 0, 0, 0.12);
@@ -1322,11 +1345,11 @@
 
 .difficultyBtn {
     width: 100%;
-    padding: 16px 20px;
+    padding: 8px 12px;
     border: 1px solid transparent;
     background: rgba(0, 0, 0, 0.02);
-    border-radius: 12px;
-    font-size: 0.9rem;
+    border-radius: 10px;
+    font-size: 0.75rem;
     font-weight: 700;
     color: #64748B;
     cursor: pointer;
@@ -1389,14 +1412,14 @@
 /* Start Button */
 .startSection {
     text-align: center;
-    margin-bottom: 40px;
+    margin-bottom: 24px;
 }
 
 .startButton {
     display: inline-flex;
     align-items: center;
     gap: 12px;
-    padding: 18px 48px;
+    padding: 12px 36px;
     background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
     color: white;
     border: none;
@@ -1773,25 +1796,49 @@
 /* ============================================================
    RESPONSIVE DESIGN
    ============================================================ */
+
 @media (max-width: 1024px) {
     .threeZoneLayout {
         grid-template-columns: 280px 1fr;
     }
+
+    .setupView {
+        padding: 0 16px 16px 16px;
+    }
 }
 
 @media (max-width: 900px) {
+    .osceWrapper {
+        overflow-y: auto !important;
+        height: auto;
+        min-height: 100vh;
+    }
+
+    .mainContent {
+        overflow: visible;
+        height: auto;
+        flex: none;
+    }
+
     .threeZoneLayout {
         grid-template-columns: 1fr;
         height: auto;
+        gap: 24px;
+        overflow: visible !important;
     }
 
     .clinicalContextPanel {
-        max-height: 300px;
+        max-height: 400px;
+        /* Increased from 300px */
         padding-right: 0;
+        overflow-y: auto;
+        /* Ensure panel itself scrolls if content exceeds 400px */
     }
 
     .interactionCanvas {
-        height: 500px;
+        height: 600px;
+        /* Increased to give more chat space */
+        min-height: 500px;
     }
 
     .optionsRow {
@@ -1799,23 +1846,63 @@
         gap: 24px;
     }
 
-    .setupTipsList {
-        grid-template-columns: 1fr;
+    .stationTypeGrid {
+        gap: 10px;
     }
 }
 
-@media (max-width: 600px) {
-    .commandBar {
-        padding: 12px 16px;
-        flex-wrap: wrap;
-    }
-
+@media (max-width: 768px) {
     .stationTypeGrid {
         grid-template-columns: repeat(2, 1fr);
     }
 
+    .optionChips {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
     .setupHeader h1 {
-        font-size: 1.75rem;
+        font-size: 1.5rem;
+    }
+
+    .setupIcon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .stationTypeGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .optionChips {
+        grid-template-columns: 1fr;
+    }
+
+    .commandBar {
+        padding: 12px 16px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .timerContainer {
+        width: 100%;
+        height: 40px;
+        border-radius: 8px;
+        flex-direction: row;
+        gap: 12px;
+    }
+
+    .patientAvatar {
+        width: 48px;
+        height: 48px;
+        font-size: 1.5rem;
+    }
+
+    .setupHeader h1 {
+        font-size: 1.25rem;
     }
 
     .statsGrid {
@@ -1826,8 +1913,7 @@
         flex-direction: column;
     }
 
-    .timerContainer {
-        width: 52px;
-        height: 52px;
+    .feedbackSection {
+        padding: 16px;
     }
 }

@@ -6,7 +6,7 @@ import Sidebar from './Sidebar'
 import { Menu, X, LogOut, ChevronRight, Crown } from 'lucide-react'
 
 interface DashboardLayoutProps {
-  user: AuthUser
+  user: AuthUser | null
   children: ReactNode
 }
 
@@ -20,7 +20,7 @@ const getPageTitle = (pathname: string): string => {
     '/highyield': 'High Yield',
     '/explain': 'Explain',
     '/conceptmap': 'Concept Map',
-    '/clinical-cases': 'Clinical Cases',
+    '/clinical-cases': 'Clinical Reasoning Engine',
     '/osce-simulator': 'OSCE Simulator',
     '/clinical-reasoning': 'Clinical Reasoning',
     '/osce': 'OSCE Station',
@@ -39,7 +39,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
   const [sidebarCollapsed, setSidebarCollapsed] = useState(globalSidebarCollapsed)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
-  const [plan, setPlan] = useState<string>(user.user_metadata?.plan || 'free')
+  const [plan, setPlan] = useState<string>(user?.user_metadata?.plan || 'free')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
@@ -52,6 +52,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
 
   useEffect(() => {
     const fetchUserPlan = async () => {
+      if (!user) return
       try {
         const { data } = await supabase
           .from('users')
@@ -70,7 +71,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
     if (user?.id) {
       fetchUserPlan()
     }
-  }, [user.id])
+  }, [user?.id])
 
   const handleSidebarToggle = (collapsed: boolean) => {
     setSidebarCollapsed(collapsed)
@@ -138,11 +139,11 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
             <div className="drawer-header">
               <div className="drawer-user-info">
                 <div className="avatar-large">
-                  {user.email?.[0].toUpperCase()}
+                  {user ? user.email?.[0].toUpperCase() : '?'}
                 </div>
                 <div className="drawer-user-meta">
-                  <h3 className="drawer-username">{user.user_metadata?.name || user.email?.split('@')[0]}</h3>
-                  <div className="drawer-email">{user.email}</div>
+                  <h3 className="drawer-username">{user ? (user.user_metadata?.name || user.email?.split('@')[0]) : 'Loading...'}</h3>
+                  <div className="drawer-email">{user?.email || '...'}</div>
                   <div className="drawer-badge">
                     {plan === 'free' ? 'User' : 'Premium'}
                   </div>
@@ -220,15 +221,12 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
         {/* Top Bar */}
         <div className="top-bar">
           <div className="breadcrumb-section">
-            <Link href="/dashboard" className="no-underline">
-              {/* Separate elements for desktop and mobile titles */}
-              <h1 className="page-title cursor-pointer hover:opacity-80 transition-opacity desktop-title">
-                {sidebarCollapsed ? "Vaidya AI" : "Personal Learning Assistant"}
-              </h1>
-              <h1 className="page-title cursor-pointer hover:opacity-80 transition-opacity mobile-title">
-                Vaidya AI
-              </h1>
-            </Link>
+            <h1 className="page-title desktop-title">
+              {getPageTitle(router.pathname)}
+            </h1>
+            <h1 className="page-title mobile-title">
+              {getPageTitle(router.pathname)}
+            </h1>
           </div>
 
           <div className="actions-section">
@@ -248,10 +246,10 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
                     className={`profile-trigger ${isDropdownOpen ? 'active' : ''}`}
                   >
                     <div className="avatar-mini">
-                      {user.email?.[0].toUpperCase()}
+                      {user ? user.email?.[0].toUpperCase() : '?'}
                     </div>
                     <div className="user-meta hidden sm:block">
-                      <p className="user-full-name">{user.user_metadata?.name || user.email?.split('@')[0]}</p>
+                      <p className="user-full-name">{user ? (user.user_metadata?.name || user.email?.split('@')[0]) : 'Loading...'}</p>
                       <p className="user-plan-badge">
                         {plan === 'free' ? 'Standard' : plan === 'pro' ? 'Premium' : plan.charAt(0).toUpperCase() + plan.slice(1)}
                       </p>
@@ -264,10 +262,10 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
                   {isDropdownOpen && (
                     <div className="dropdown-menu">
                       <div className="dropdown-header">
-                        <div className="avatar-medium">{user.email?.[0].toUpperCase()}</div>
+                        <div className="avatar-medium">{user ? user.email?.[0].toUpperCase() : '?'}</div>
                         <div className="header-meta">
-                          <p className="header-name">{user.user_metadata?.name || user.email?.split('@')[0]}</p>
-                          <p className="header-email">{user.email}</p>
+                          <p className="header-name">{user ? (user.user_metadata?.name || user.email?.split('@')[0]) : 'Loading...'}</p>
+                          <p className="header-email">{user?.email || '...'}</p>
                         </div>
                       </div>
 
@@ -300,7 +298,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
         </div>
 
         {/* Main Content Area */}
-        <main className={`main-scroll-area ${['/chat', '/mcqs', '/flashcards', '/explain'].includes(router.pathname) ? 'no-padding' : ''}`}>
+        <main className={`main-scroll-area ${['/chat', '/mcqs', '/flashcards', '/explain', '/osce', '/clinical-cases', '/highyield'].includes(router.pathname) ? 'no-padding' : ''}`}>
           {children}
         </main>
       </div>
@@ -339,6 +337,15 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
           font-family: 'Plus Jakarta Sans', sans-serif;
         }
 
+        .layout-root:has([data-station-active="true"]) {
+          height: 100vh;
+          overflow: hidden;
+        }
+
+        .main-scroll-area:has([data-station-active="true"]) {
+          overflow: hidden !important;
+        }
+
         .main-content-wrapper {
           flex: 1;
           transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -352,7 +359,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
           background: linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(253, 253, 255, 0.6) 100%);
           backdrop-filter: blur(20px) saturate(180%);
           -webkit-backdrop-filter: blur(20px) saturate(180%);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+          border-bottom: none;
           box-shadow: 
             0 10px 40px -10px rgba(0, 0, 0, 0.05),
             inset 0 -1px 0 0 rgba(255, 255, 255, 0.5);
@@ -588,6 +595,10 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
 
         .main-scroll-area.no-padding {
           padding: 0;
+        }
+
+        .main-scroll-area.overflow-hidden {
+          overflow: hidden !important;
         }
 
         .modal-backdrop {

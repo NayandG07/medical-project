@@ -7,13 +7,13 @@
     display: flex;
     min-height: calc(100vh - 64px);
     position: relative;
-    background: #F1F5F9;
-    /* Neutral slate background for high contrast */
+    background: #fdfbf7;
+    /* Main Creamy background */
 }
 
 .contentArea {
     flex: 1;
-    padding: 32px 40px;
+    padding: 24px 32px;
     transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-y: auto;
 }
@@ -32,7 +32,7 @@
     right: 0;
     bottom: 0;
     z-index: 10;
-    background-color: #fdfbf7;
+    background-color: #F7F7F6;
 }
 
 /* Main Container */
@@ -43,6 +43,12 @@
     max-width: 1300px;
     margin: 0 auto;
     width: 100%;
+}
+
+@media (max-width: 1100px) {
+    .mainContainer {
+        grid-template-columns: 1fr;
+    }
 }
 
 .mainContainerFull {
@@ -65,27 +71,30 @@
 .emptyState {
     background: transparent;
     border-radius: 28px;
-    padding: 80px 48px;
+    padding: 40px 32px;
     text-align: center;
     box-shadow: none;
     border: none;
-    margin-top: 32px;
+    margin-top: 0;
+    max-width: 750px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .iconWrapper {
-    width: 80px;
-    height: 80px;
+    width: 64px;
+    height: 64px;
     background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
-    border-radius: 24px;
+    border-radius: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto 28px;
+    margin: 0 auto 20px;
     box-shadow: 0 8px 24px rgba(99, 102, 241, 0.15);
 }
 
 .emptyTitle {
-    font-size: 32px;
+    font-size: 24px;
     font-weight: 800;
     color: #0F172A;
     margin-bottom: 12px;
@@ -95,7 +104,7 @@
 .emptySubtitle {
     font-size: 16px;
     color: #64748B;
-    margin-bottom: 36px;
+    margin-bottom: 24px;
     max-width: 400px;
     margin-left: auto;
     margin-right: auto;
@@ -105,7 +114,7 @@
 .searchContainer {
     background: #F8FAFC;
     border: 2px solid #E2E8F0;
-    padding: 8px 8px 8px 24px;
+    padding: 6px 6px 6px 20px;
     border-radius: 20px;
     display: flex;
     align-items: center;
@@ -139,7 +148,7 @@
     background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
     color: white;
     border: none;
-    padding: 14px 28px;
+    padding: 12px 24px;
     border-radius: 14px;
     font-size: 15px;
     font-weight: 700;
@@ -379,6 +388,12 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
     margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+    .optionsGrid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .optionButton {
