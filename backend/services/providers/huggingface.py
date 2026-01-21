@@ -33,6 +33,7 @@ class HuggingFaceProvider:
         # Specialized medical models
         "safety": "m42-health/Llama3-Med42-70B:featherless-ai",
         "image": "microsoft/llava-med-v1.5-mistral-7b",
+        # "image": "Qwen/Qwen3-VL-235B-A22B-Thinking",
         
         # Embeddings - Using BAAI BGE (best free model, MTEB: 62.17)
         # "embedding": "BAAI/bge-small-en-v1.5",

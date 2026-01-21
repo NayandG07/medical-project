@@ -214,9 +214,10 @@ class ChatService:
             
             if completed_docs:
                 # Perform semantic search to find relevant document chunks
-                search_results = await doc_service.semantic_search(
+                search_results = await doc_service.search_documents(
                     user_id=user_id,
                     query=message,
+                    feature="chat",
                     top_k=3  # Get top 3 most relevant chunks
                 )
                 
@@ -226,19 +227,24 @@ class ChatService:
                     citation_list = []
                     
                     for idx, result in enumerate(search_results, 1):
+                        # Handle different response formats
+                        doc_filename = result.get('documents', {}).get('filename') if isinstance(result.get('documents'), dict) else result.get('document_filename', 'Unknown')
+                        chunk_text = result.get('content') or result.get('chunk_text', '')
+                        
                         context_parts.append(
-                            f"[Source {idx}: {result['document_filename']}]\n{result['chunk_text']}"
+                            f"[Source {idx}: {doc_filename}]\n{chunk_text}"
                         )
                         citation_list.append({
                             "source_number": idx,
-                            "document_id": result['document_id'],
-                            "document_filename": result['document_filename'],
-                            "chunk_index": result['chunk_index'],
-                            "similarity_score": result['similarity_score']
+                            "document_id": result.get('document_id'),
+                            "document_filename": doc_filename,
+                            "chunk_index": result.get('chunk_index', 0),
+                            "similarity_score": result.get('similarity_score', result.get('similarity', 0))
                         })
                     
                     # Combine context with user query
                     context_text = "\n\n".join(context_parts)
+                    citations = citation_list
                     final_prompt = f"""Based on the following context from the user's documents, please answer their question. Include citations to the sources when relevant.
 
 Context:
