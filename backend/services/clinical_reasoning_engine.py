@@ -145,6 +145,8 @@ class ClinicalReasoningEngine:
         return self._sanitize_case_for_user(created_case)
     
     def _build_case_generation_prompt(self, specialty: str, difficulty: str) -> str:
+        """Build prompt for clinical case generation based on parameters"""
+        
         complexity_guidelines = {
             "beginner": "straightforward presentation, classic findings, single diagnosis",
             "intermediate": "some atypical features, 3-4 reasonable differentials",
@@ -152,66 +154,156 @@ class ClinicalReasoningEngine:
             "expert": "rare condition or atypical presentation, diagnostic uncertainty"
         }
         
-        return f"""Generate a realistic clinical case for MBBS students in {specialty} at {difficulty} level.
+        # Expanded specialty-specific conditions with more variety
+        specialty_conditions = {
+            "general_medicine": [
+                "community-acquired pneumonia", "hospital-acquired pneumonia", "tuberculosis",
+                "acute exacerbation of COPD", "acute severe asthma", "pulmonary embolism",
+                "acute kidney injury", "chronic kidney disease", "nephrotic syndrome", "glomerulonephritis",
+                "diabetic ketoacidosis", "hyperosmolar hyperglycemic state", "hypoglycemia",
+                "hyperthyroidism", "hypothyroidism", "adrenal insufficiency",
+                "acute gastroenteritis", "inflammatory bowel disease", "peptic ulcer disease", "pancreatitis",
+                "stroke", "meningitis", "encephalitis", "guillain-barre syndrome",
+                "infective endocarditis", "pericarditis", "myocarditis",
+                "anemia", "thrombocytopenia", "leukemia", "lymphoma",
+                "systemic lupus erythematosus", "rheumatoid arthritis", "vasculitis"
+            ],
+            "surgery": [
+                "acute appendicitis", "acute cholecystitis", "acute pancreatitis",
+                "bowel obstruction", "perforated peptic ulcer", "diverticulitis",
+                "inguinal hernia", "femoral hernia", "incarcerated hernia",
+                "testicular torsion", "epididymo-orchitis", "prostate cancer",
+                "breast cancer", "thyroid nodule", "parathyroid adenoma",
+                "abdominal aortic aneurysm", "peripheral arterial disease", "varicose veins",
+                "head injury", "spinal cord injury", "fractures",
+                "burns", "wound infection", "necrotizing fasciitis"
+            ],
+            "pediatrics": [
+                "bronchiolitis", "croup", "epiglottitis", "pneumonia",
+                "febrile seizure", "meningitis", "encephalitis",
+                "gastroenteritis", "intussusception", "pyloric stenosis", "appendicitis",
+                "kawasaki disease", "henoch-schonlein purpura", "nephrotic syndrome",
+                "congenital heart disease", "rheumatic fever", "myocarditis",
+                "diabetes mellitus type 1", "diabetic ketoacidosis",
+                "developmental delay", "autism spectrum disorder", "ADHD",
+                "failure to thrive", "child abuse", "neglect"
+            ],
+            "obs_gynecology": [
+                "ectopic pregnancy", "miscarriage", "molar pregnancy",
+                "hyperemesis gravidarum", "gestational diabetes", "preeclampsia", "eclampsia",
+                "placenta previa", "placental abruption", "vasa previa",
+                "preterm labor", "postpartum hemorrhage", "retained placenta",
+                "mastitis", "postnatal depression", "puerperal psychosis",
+                "ovarian cyst", "ovarian torsion", "ovarian cancer",
+                "endometriosis", "adenomyosis", "uterine fibroids",
+                "pelvic inflammatory disease", "cervical cancer", "endometrial cancer",
+                "menorrhagia", "dysmenorrhea", "polycystic ovary syndrome"
+            ],
+            "psychiatry": [
+                "major depressive disorder", "bipolar disorder type 1", "bipolar disorder type 2",
+                "generalized anxiety disorder", "panic disorder", "social anxiety disorder",
+                "obsessive-compulsive disorder", "post-traumatic stress disorder",
+                "schizophrenia", "schizoaffective disorder", "delusional disorder",
+                "alcohol use disorder", "opioid use disorder", "stimulant use disorder",
+                "anorexia nervosa", "bulimia nervosa", "binge eating disorder",
+                "borderline personality disorder", "antisocial personality disorder",
+                "delirium", "dementia", "mild cognitive impairment"
+            ],
+            "emergency": [
+                "ST-elevation myocardial infarction", "non-ST elevation myocardial infarction", "unstable angina",
+                "aortic dissection", "pulmonary embolism", "cardiac tamponade",
+                "anaphylaxis", "septic shock", "cardiogenic shock", "hypovolemic shock",
+                "status epilepticus", "acute ischemic stroke", "hemorrhagic stroke", "subarachnoid hemorrhage",
+                "major trauma", "traumatic brain injury", "spinal cord injury",
+                "acute abdomen", "ruptured AAA", "mesenteric ischemia",
+                "upper GI bleeding", "lower GI bleeding", "ruptured ectopic pregnancy",
+                "acute limb ischemia", "compartment syndrome", "rhabdomyolysis"
+            ]
+        }
         
-Complexity: {complexity_guidelines.get(difficulty, complexity_guidelines["intermediate"])}
+        conditions = specialty_conditions.get(specialty, specialty_conditions["general_medicine"])
+        
+        # Add explicit randomization
+        import random
+        suggested_condition = random.choice(conditions)
+        
+        return f"""Generate a UNIQUE, realistic clinical case for MBBS students in {specialty} at {difficulty} level.
+
+CRITICAL REQUIREMENTS:
+- Specialty: {specialty}
+- Difficulty: {difficulty}
+- Complexity: {complexity_guidelines.get(difficulty, complexity_guidelines["intermediate"])}
+
+CONDITION SELECTION:
+- You MUST choose ONE condition from this list: {', '.join(conditions)}
+- SUGGESTED condition for THIS case: {suggested_condition}
+- DO NOT default to common conditions like MI or chest pain
+- Use the FULL variety of conditions provided
+- Make each case unique and different
+
+PATIENT VARIATION:
+- Create DIFFERENT patient demographics each time
+- Vary age widely (20s to 80s)
+- Vary gender (male/female)
+- Vary occupation and lifestyle
+- Vary risk factors and comorbidities
+- Make each case feel unique
 
 CRITICAL: Generate COMPLETE JSON with ALL fields filled. Do NOT use placeholders like "...omitted for brevity..." or "..." anywhere.
 
 Generate a JSON response with this EXACT structure (ALL fields must be complete):
 {{
   "demographics": {{
-    "age": 45,
-    "sex": "female",
-    "occupation": "teacher",
-    "risk_factors": ["hypertension", "obesity"]
+    "age": "Appropriate age for condition (vary widely)",
+    "sex": "male/female",
+    "occupation": "Realistic occupation",
+    "risk_factors": ["relevant risk factors"]
   }},
-  "chief_complaint": "chest pain for 2 hours",
+  "chief_complaint": "Main presenting complaint",
   "hpi": {{
-    "onset": "sudden, 2 hours ago",
-    "location": "central chest",
-    "character": "crushing, pressure-like",
-    "radiation": "left arm and jaw",
-    "severity": "9/10",
-    "timing": "constant since onset",
-    "aggravating_factors": ["exertion"],
-    "relieving_factors": ["rest, sublingual GTN"],
-    "associated_symptoms": ["diaphoresis", "nausea"]
+    "onset": "When and how it started",
+    "location": "Where (if applicable)",
+    "character": "Nature of symptoms",
+    "radiation": "If applicable",
+    "severity": "Scale or description",
+    "timing": "Pattern over time",
+    "aggravating_factors": ["what makes it worse"],
+    "relieving_factors": ["what makes it better"],
+    "associated_symptoms": ["other symptoms"]
   }},
   "pmh": {{
-    "conditions": ["hypertension - 10 years", "type 2 diabetes - 5 years"],
-    "medications": ["metformin 500mg BD", "amlodipine 5mg OD"],
-    "allergies": ["penicillin - rash"],
-    "surgical_history": ["appendectomy 2010"]
+    "conditions": ["past medical conditions with duration"],
+    "medications": ["current medications with doses"],
+    "allergies": ["drug allergies with reactions"],
+    "surgical_history": ["past surgeries with years"]
   }},
   "family_history": {{
-    "relevant": ["father - MI at age 55", "mother - diabetes"]
+    "relevant": ["family conditions relevant to case"]
   }},
   "social_history": {{
-    "smoking": "20 pack-years, quit 2 years ago",
-    "alcohol": "occasional",
-    "occupation": "sedentary desk job",
-    "living_situation": "lives with spouse"
+    "smoking": "smoking history",
+    "alcohol": "alcohol use",
+    "occupation": "work details",
+    "living_situation": "home situation"
   }},
   "vitals": {{
-    "bp": "160/95 mmHg",
-    "hr": "98 bpm, regular",
-    "rr": "20/min",
-    "temp": "37.0°C",
-    "spo2": "96% on room air"
+    "bp": "blood pressure",
+    "hr": "heart rate with rhythm",
+    "rr": "respiratory rate",
+    "temp": "temperature",
+    "spo2": "oxygen saturation"
   }},
   "physical_exam": {{
-    "general": "anxious, diaphoretic, clutching chest",
-    "cardiovascular": "S1 S2 present, S4 gallop, no murmurs",
-    "respiratory": "bilateral fine crackles at bases",
-    "abdominal": "soft, non-tender",
-    "neurological": "alert, oriented, no focal deficits"
+    "general": "general appearance",
+    "cardiovascular": "CVS findings",
+    "respiratory": "respiratory findings",
+    "abdominal": "abdominal findings",
+    "neurological": "neuro findings"
   }},
   "initial_investigations": {{
-    "ecg": "ST elevation in V1-V4, reciprocal changes in II, III, aVF",
-    "troponin": "elevated at 2.5 ng/mL (normal <0.04)",
-    "cbc": "Hb 13.5, WBC 12.0, platelets 250",
-    "metabolic": "glucose 180, creatinine 1.2, K 4.2"
+    "relevant_test_1": "result with interpretation",
+    "relevant_test_2": "result with interpretation",
+    "relevant_test_3": "result with interpretation"
   }},
   "stages": [
     {{"stage": 1, "title": "Initial Presentation", "content": "Patient presents with chief complaint", "question": "What additional history would you like to obtain?"}},
@@ -222,30 +314,35 @@ Generate a JSON response with this EXACT structure (ALL fields must be complete)
     {{"stage": 6, "title": "Final Assessment", "content": "Complete case synthesis", "question": "Present your final diagnosis and comprehensive management plan"}}
   ],
   "differentials": [
-    {{"diagnosis": "STEMI - Anterior wall MI", "likelihood": "most likely", "supporting": ["classic symptoms", "ECG changes", "elevated troponin"]}},
-    {{"diagnosis": "Unstable angina", "likelihood": "less likely", "supporting": ["chest pain"], "against": ["ECG changes", "troponin elevation"]}},
-    {{"diagnosis": "Aortic dissection", "likelihood": "unlikely", "supporting": ["chest pain", "hypertension"], "against": ["ECG changes", "no BP differential"]}}
+    {{"diagnosis": "Most likely diagnosis", "likelihood": "most likely", "supporting": ["supporting features"], "against": []}},
+    {{"diagnosis": "Alternative diagnosis", "likelihood": "possible", "supporting": ["some features"], "against": ["features against"]}},
+    {{"diagnosis": "Less likely diagnosis", "likelihood": "unlikely", "supporting": ["minimal features"], "against": ["features against"]}}
   ],
-  "final_diagnosis": "ST-Elevation Myocardial Infarction (STEMI) - Anterior wall",
-  "explanation": "This patient presents with classic features of anterior STEMI including crushing central chest pain with radiation, diaphoresis, ECG showing ST elevation in V1-V4, and significantly elevated troponin. The anterior wall involvement indicates LAD territory.",
+  "final_diagnosis": "Definitive diagnosis with specifics",
+  "explanation": "Clear explanation of why this is the diagnosis, linking clinical features",
   "management": {{
-    "immediate": ["activate cath lab", "dual antiplatelet therapy", "anticoagulation", "pain management"],
-    "definitive": ["primary PCI within 90 minutes door-to-balloon"],
-    "monitoring": ["continuous ECG", "serial troponins", "hemodynamic monitoring"],
-    "secondary_prevention": ["statin", "ACE inhibitor", "cardiac rehabilitation"]
+    "immediate": ["immediate actions"],
+    "definitive": ["definitive treatment"],
+    "monitoring": ["what to monitor"],
+    "secondary_prevention": ["long-term management"]
   }},
-  "red_flags": ["ST elevation indicates ongoing myocardial damage - time critical", "signs of heart failure (crackles)", "high risk patient profile"],
-  "clinical_pearls": ["Time is muscle - every minute of delay increases infarct size", "Anterior STEMI has higher mortality than inferior", "S4 gallop indicates diastolic dysfunction"]
+  "red_flags": ["critical features requiring urgent action"],
+  "clinical_pearls": ["educational points and clinical wisdom"]
 }}
 
 IMPORTANT: 
+- Generate COMPLETELY DIFFERENT cases each time
+- DO NOT repeat the same conditions frequently
+- Use the FULL range of conditions provided
+- Vary patient demographics widely
 - Do NOT use "..." or "[...]" or "omitted for brevity" anywhere
-- ALL arrays must have complete items
-- ALL strings must be complete
+- ALL arrays must have complete items (at least 2-3 items each)
+- ALL strings must be complete sentences
 - Generate COMPLETE, VALID JSON only
 - No markdown formatting
+- Make it specific to {specialty} and appropriate for {difficulty} level
 
-Ensure the case is medically accurate, educational, and appropriate for {difficulty} level students."""
+Ensure the case is medically accurate, educational, and UNIQUE."""
 
     def _get_case_generation_system_prompt(self) -> str:
         return """You are a senior clinical educator and medical education specialist creating clinical cases for MBBS students. 
@@ -622,46 +719,148 @@ Be constructive but rigorous. Score 0-100."""
         return self._sanitize_osce_for_user(response.data[0])
     
     def _build_osce_generation_prompt(self, scenario_type: str, specialty: str, difficulty: str) -> str:
-        return f"""Generate an OSCE scenario for {scenario_type} in {specialty} at {difficulty} level.
+        """Build prompt for OSCE scenario generation based on parameters"""
+        
+        # Define scenario-specific guidance
+        scenario_guidance = {
+            "history_taking": "Focus on systematic history taking with appropriate questioning techniques",
+            "physical_examination": "Include proper examination technique, patient positioning, and systematic approach",
+            "communication_skills": "Emphasize breaking bad news, counseling, or explaining procedures",
+            "clinical_procedure": "Detail procedural steps, safety checks, and patient communication",
+            "data_interpretation": "Present investigation results requiring analysis and management planning",
+            "emergency_management": "Create acute scenario requiring rapid assessment and intervention"
+        }
+        
+        # Expanded specialty-specific conditions with more variety
+        specialty_conditions = {
+            "general_medicine": [
+                "acute asthma exacerbation", "COPD exacerbation", "pneumonia", "pulmonary embolism",
+                "acute kidney injury", "urinary tract infection", "pyelonephritis",
+                "diabetic ketoacidosis", "hypoglycemia", "thyroid storm",
+                "acute gastroenteritis", "inflammatory bowel disease flare", "peptic ulcer disease",
+                "migraine", "seizure", "transient ischemic attack", "vertigo",
+                "cellulitis", "sepsis", "infective endocarditis",
+                "anemia", "deep vein thrombosis", "atrial fibrillation"
+            ],
+            "surgery": [
+                "acute appendicitis", "acute cholecystitis", "bowel obstruction", "perforated peptic ulcer",
+                "inguinal hernia", "incarcerated hernia", "testicular torsion",
+                "acute pancreatitis", "diverticulitis", "rectal bleeding",
+                "trauma assessment", "head injury", "fracture management",
+                "wound infection", "abscess", "post-operative complications"
+            ],
+            "pediatrics": [
+                "bronchiolitis", "croup", "asthma exacerbation", "pneumonia",
+                "febrile seizure", "meningitis", "encephalitis",
+                "gastroenteritis", "intussusception", "pyloric stenosis",
+                "kawasaki disease", "henoch-schonlein purpura", "nephrotic syndrome",
+                "developmental delay", "failure to thrive", "child safeguarding concerns"
+            ],
+            "obs_gynecology": [
+                "ectopic pregnancy", "miscarriage", "hyperemesis gravidarum",
+                "preeclampsia", "gestational diabetes", "placental abruption",
+                "postpartum hemorrhage", "mastitis", "postnatal depression",
+                "ovarian torsion", "pelvic inflammatory disease", "endometriosis",
+                "menorrhagia", "dysmenorrhea", "contraception counseling"
+            ],
+            "psychiatry": [
+                "major depressive disorder", "bipolar disorder", "generalized anxiety disorder",
+                "panic disorder", "obsessive-compulsive disorder", "PTSD",
+                "schizophrenia", "psychosis", "delirium",
+                "alcohol withdrawal", "substance use disorder", "eating disorder",
+                "suicide risk assessment", "capacity assessment", "self-harm"
+            ],
+            "emergency": [
+                "anaphylaxis", "septic shock", "cardiogenic shock", "hypovolemic shock",
+                "status epilepticus", "acute stroke", "subarachnoid hemorrhage",
+                "major trauma", "burns", "drowning",
+                "acute coronary syndrome", "aortic dissection", "cardiac arrest",
+                "acute abdomen", "GI bleeding", "acute limb ischemia"
+            ]
+        }
+        
+        # Define difficulty-specific complexity
+        difficulty_guidance = {
+            "beginner": "Straightforward presentation with clear history. Patient cooperative and forthcoming. Classic textbook presentation.",
+            "intermediate": "Moderate complexity with some ambiguity. Patient may need gentle probing. Some atypical features present.",
+            "advanced": "Complex presentation with multiple factors. Patient may be anxious or have communication barriers. Requires systematic approach."
+        }
+        
+        conditions = specialty_conditions.get(specialty, specialty_conditions["general_medicine"])
+        guidance = scenario_guidance.get(scenario_type, "Create a realistic clinical scenario")
+        complexity = difficulty_guidance.get(difficulty, difficulty_guidance["intermediate"])
+        
+        # Add explicit instruction to pick randomly
+        import random
+        suggested_condition = random.choice(conditions)
+        
+        return f"""Generate a UNIQUE OSCE scenario for {scenario_type} in {specialty} at {difficulty} level.
 
-Create JSON with this structure:
+CRITICAL REQUIREMENTS:
+- Scenario type: {scenario_type}
+- Specialty: {specialty}
+- Difficulty: {difficulty}
+- {guidance}
+- {complexity}
+
+CONDITION SELECTION:
+- You MUST choose ONE condition from this list: {', '.join(conditions)}
+- SUGGESTED condition for THIS scenario: {suggested_condition}
+- DO NOT default to chest pain or common conditions - use the full variety
+- Vary the presentation each time
+
+PATIENT VARIATION:
+- Create DIFFERENT patient demographics each time
+- Vary age (pediatric, young adult, middle-aged, elderly)
+- Vary gender (male, female, non-binary where appropriate)
+- Vary occupation and social circumstances
+- Vary ethnic backgrounds and cultural considerations
+- Make each scenario feel unique and realistic
+
+Generate JSON with this EXACT structure:
 {{
-  "candidate_instructions": "You have 8 minutes. Take a focused history from this 45-year-old woman presenting with chest pain. Summarize your findings to the examiner.",
+  "candidate_instructions": "Clear instructions for the candidate (what to do, time limit)",
   "time_limit": 480,
   "patient_info": {{
-    "name": "Mrs. Sarah Jones",
-    "age": 45,
-    "gender": "female",
-    "presenting_complaint": "chest pain",
-    "appearance": "middle-aged woman, appears anxious"
+    "name": "Generate realistic, culturally diverse name",
+    "age": "Appropriate age for condition (vary widely)",
+    "gender": "male/female/other",
+    "presenting_complaint": "Chief complaint specific to chosen condition",
+    "appearance": "How patient appears",
+    "emotional_state": "anxious/calm/distressed/cooperative/withdrawn",
+    "severity": "mild/moderate/severe"
   }},
   "patient_script": {{
-    "opening": "Doctor, I've been having this terrible pain in my chest",
+    "opening": "Patient's opening statement in their own words",
     "responses": {{
-      "location": "It's right here in the center of my chest",
-      "character": "It feels like a heavy pressure, like something sitting on my chest",
-      "duration": "It started about 2 hours ago",
-      "radiation": "Now that you mention it, my left arm has been aching too"
+      "relevant_question_1": "Natural response to expected question",
+      "relevant_question_2": "Natural response to expected question",
+      "relevant_question_3": "Natural response to expected question",
+      "relevant_question_4": "Natural response to expected question"
     }}
   }},
   "checklist": [
-    {{"item": "Introduces self and confirms patient identity", "points": 1, "category": "communication", "critical": false}},
-    {{"item": "Asks about pain character using SOCRATES", "points": 2, "category": "history", "critical": true}},
-    {{"item": "Asks about associated symptoms", "points": 2, "category": "history", "critical": true}},
-    {{"item": "Asks about cardiac risk factors", "points": 2, "category": "history", "critical": true}},
-    {{"item": "Asks about medications and allergies", "points": 1, "category": "history", "critical": false}},
-    {{"item": "Summarizes findings accurately", "points": 2, "category": "synthesis", "critical": true}}
+    {{"item": "Specific action to assess", "points": 1, "category": "communication/history/examination/management", "critical": false}},
+    {{"item": "Another specific action", "points": 2, "category": "history", "critical": true}},
+    {{"item": "Third specific action", "points": 2, "category": "examination", "critical": true}},
+    {{"item": "Fourth specific action", "points": 1, "category": "management", "critical": false}},
+    {{"item": "Fifth specific action", "points": 2, "category": "communication", "critical": false}}
   ],
-  "expected_actions": [
-    "Professional introduction and consent",
-    "Systematic history using appropriate framework",
-    "Exploration of red flag symptoms",
-    "Clear summarization of findings"
-  ]
+  "expected_actions": ["Action 1", "Action 2", "Action 3", "Action 4"]
 }}
 
-Make the scenario realistic and educationally valuable."""
+IMPORTANT:
+- Generate COMPLETELY NEW patient details each time
+- DO NOT repeat the same conditions frequently
+- Use the FULL range of conditions provided
+- Checklist should have 5-8 items specific to this scenario
+- Mark 2-3 items as critical
+- Make patient responses realistic and contextual
+- Vary complexity based on difficulty level
+- Make it educationally valuable and clinically realistic
 
+Output ONLY valid JSON, no explanations."""
+    
     def _sanitize_osce_for_user(self, scenario: Dict[str, Any]) -> Dict[str, Any]:
         """Remove examiner-only fields from scenario"""
         sanitized = dict(scenario)
