@@ -26,8 +26,9 @@ from services.documents import get_document_service
 # Load environment variables
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure colored logging
+from config.colored_logging import setup_colored_logging, log_startup_banner
+setup_colored_logging(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
@@ -48,11 +49,22 @@ supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
 supabase: Client = create_client(supabase_url, supabase_key)
 
 
+# Startup event
+@app.on_event("startup")
+async def startup_event():
+    """Display startup banner and initialize services"""
+    log_startup_banner()
+    logger.info("Initializing services...")
+    logger.info("Supabase connection established")
+    logger.info("All services ready")
+
+
 # Dependency to get current user from token
 async def get_current_user(request: Request) -> Dict[str, Any]:
     """Extract and verify user from Authorization header"""
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
+        logger.warning("Authentication failed: Missing or invalid authorization header")
         raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
     
     token = auth_header.split(" ")[1]
@@ -61,10 +73,14 @@ async def get_current_user(request: Request) -> Dict[str, Any]:
         # Verify token with Supabase
         user_response = supabase.auth.get_user(token)
         if not user_response or not user_response.user:
+            logger.warning("Authentication failed: Invalid token")
             raise HTTPException(status_code=401, detail="Invalid token")
         
+        user_id = user_response.user.id
+        logger.debug(f"User authenticated: {user_id[:8]}...")
         return {"id": user_response.user.id, "email": user_response.user.email}
     except Exception as e:
+        logger.error(f"Authentication error: {str(e)}")
         raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
 
 
@@ -84,6 +100,7 @@ async def verify_admin(user: Dict[str, Any] = Depends(get_current_user)) -> Dict
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    logger.debug("Health check requested")
     return {"status": "healthy", "service": "Medical AI Platform API"}
 
 
@@ -555,6 +572,7 @@ async def send_chat_message(
             rate_limiter = get_rate_limiter(supabase)
             has_capacity = await rate_limiter.check_rate_limit(user["id"], "chat")
             if not has_capacity:
+                logger.warning(f"Rate limit exceeded - User: {user['id'][:8]}..., Feature: chat")
                 raise HTTPException(status_code=429, detail="Rate limit exceeded. Please upgrade your plan.")
         except Exception as rl_error:
             # If rate limiter fails, we still allow the message for now
@@ -567,6 +585,7 @@ async def send_chat_message(
             role=request.role,
             generate_response=request.generate_response
         )
+        logger.info(f"Chat message sent - User: {user['id'][:8]}..., Session: {session_id[:8]}...")
         return message
     except HTTPException:
         raise
@@ -856,6 +875,8 @@ async def upload_document(
         feature: Feature to enable RAG for (chat, mcq, flashcard, explain, highyield)
     """
     try:
+        logger.info(f"Document upload started - User: {user['id'][:8]}..., Feature: {feature}, File: {file.filename}")
+        
         # Check rate limit for document uploads
         rate_limiter = get_rate_limiter(supabase)
         
@@ -864,6 +885,7 @@ async def upload_document(
         has_capacity = await rate_limiter.check_feature_limit(user["id"], limit_key)
         
         if not has_capacity:
+            logger.warning(f"Upload limit reached - User: {user['id'][:8]}..., Feature: {feature}")
             raise HTTPException(
                 status_code=429,
                 detail=f"Daily upload limit reached for {feature}. Please upgrade your plan or try tomorrow."
@@ -872,11 +894,14 @@ async def upload_document(
         # Validate file type
         allowed_types = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "image/gif", "image/bmp"]
         if file.content_type not in allowed_types:
+            logger.warning(f"Invalid file type: {file.content_type} - User: {user['id'][:8]}...")
             raise HTTPException(status_code=400, detail="Invalid file type. Only PDF and images are supported.")
         
         # Validate file size (10MB max)
         file_content = await file.read()
+        file_size_mb = len(file_content) / (1024 * 1024)
         if len(file_content) > 10 * 1024 * 1024:
+            logger.warning(f"File too large: {file_size_mb:.2f}MB - User: {user['id'][:8]}...")
             raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB.")
         
         # Upload document
@@ -892,6 +917,7 @@ async def upload_document(
         # Increment usage counter
         await rate_limiter.increment_feature_usage(user["id"], limit_key)
         
+        logger.info(f"Document uploaded - User: {user['id'][:8]}..., Size: {file_size_mb:.2f}MB, ID: {document.get('id', 'unknown')[:8]}...")
         return document
         
     except HTTPException:

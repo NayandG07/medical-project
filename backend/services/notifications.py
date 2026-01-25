@@ -88,14 +88,20 @@ class NotificationService:
                 server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
             
-            logger.info(f"Email sent successfully to {to}: {subject}")
+            # Mask email for logging
+            from utils.logging_helpers import mask_email
+            masked_to = mask_email(to)
+            logger.info(f"Email sent successfully to {masked_to}: {subject}")
             return {
                 "success": True,
-                "message": f"Email sent to {to}"
+                "message": f"Email sent to {masked_to}"
             }
             
         except Exception as e:
-            logger.error(f"Failed to send email to {to}: {str(e)}")
+            # Mask email for logging
+            from utils.logging_helpers import mask_email
+            masked_to = mask_email(to)
+            logger.error(f"Failed to send email to {masked_to}: {str(e)}")
             return {
                 "success": False,
                 "message": f"Failed to send email: {str(e)}"
