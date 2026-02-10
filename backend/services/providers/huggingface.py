@@ -25,6 +25,7 @@ class HuggingFaceProvider:
         "explain": "m42-health/Llama3-Med42-70B:featherless-ai",
         "highyield": "m42-health/Llama3-Med42-70B:featherless-ai",
         "mcq": "m42-health/Llama3-Med42-70B:featherless-ai",
+        "teach_back_primary": "m42-health/Llama3-Med42-70B:featherless-ai",
 
         # Content generation - Using Llama-3.1
         "flashcard": "meta-llama/Llama-3.1-8B-Instruct",

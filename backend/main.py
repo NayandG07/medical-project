@@ -23,6 +23,10 @@ from services.commands import get_command_service
 from services.study_tools import get_study_tools_service
 from services.documents import get_document_service
 
+# Import teach_back router
+from teach_back.routes import router as teach_back_router
+from teach_back.admin_routes import router as teach_back_admin_router
+
 # Load environment variables
 load_dotenv()
 
@@ -47,6 +51,11 @@ app.add_middleware(
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
 supabase: Client = create_client(supabase_url, supabase_key)
+
+
+# Include teach_back router
+app.include_router(teach_back_router)
+app.include_router(teach_back_admin_router)
 
 
 # Startup event

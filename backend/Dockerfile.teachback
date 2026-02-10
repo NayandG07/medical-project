@@ -1,0 +1,62 @@
+# Dockerfile for Medical AI Platform with Teach-Back Support
+# Includes audio processing dependencies for voice features
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies for audio processing
+RUN apt-get update && apt-get install -y \
+    # Audio processing
+    ffmpeg \
+    libsndfile1 \
+    libportaudio2 \
+    libasound2-dev \
+    # Build tools
+    gcc \
+    g++ \
+    make \
+    # Utilities
+    curl \
+    wget \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create models directory structure
+RUN mkdir -p /local_models/stt /local_models/tts/voices
+
+# Set environment variables
+ENV LOCAL_MODELS_DIR=/local_models
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Copy requirements file
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install audio processing libraries
+RUN pip install --no-cache-dir \
+    openai-whisper==20231117 \
+    soundfile==0.12.1 \
+    librosa==0.10.1 \
+    pyaudio==0.2.14 \
+    pydub==0.25.1
+
+# Copy application code
+COPY . .
+
+# Set proper permissions on models directory
+RUN chmod -R 755 /local_models
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Run application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

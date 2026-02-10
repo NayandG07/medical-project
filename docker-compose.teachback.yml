@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # Backend service with teach-back support
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.teachback
+    container_name: vaidya-backend-teachback
+    ports:
+      - "8000:8000"
+    environment:
+      # Database
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      
+      # Teach-Back Feature Flags
+      - TEACH_BACK_ENABLED=true
+      - TEACH_BACK_VOICE_ENABLED=false  # Set to true after downloading models
+      
+      # Local Models
+      - LOCAL_MODELS_DIR=/local_models
+      
+      # LLM Configuration
+      - TEACH_BACK_PRIMARY_LLM_PROVIDER=openrouter
+      - TEACH_BACK_PRIMARY_LLM_MODEL=anthropic/claude-3.5-sonnet
+      - TEACH_BACK_PRIMARY_LLM_KEY=${TEACH_BACK_PRIMARY_LLM_KEY}
+      - TEACH_BACK_FALLBACK_LLM_KEY=${TEACH_BACK_FALLBACK_LLM_KEY}
+      
+      # Integration Endpoints
+      - FLASHCARD_SERVICE_URL=http://backend:8000/api/flashcards
+      - WEAK_AREA_SERVICE_URL=http://backend:8000/api/weak-areas
+      - STUDY_PLANNER_SERVICE_URL=http://backend:8000/api/study-planner
+      - MCQ_SERVICE_URL=http://backend:8000/api/mcqs
+    volumes:
+      # Mount models directory (persistent storage)
+      - teach_back_models:/local_models
+      # Mount application code (for development)
+      - ./backend:/app
+    mem_limit: 16g  # Increased for Whisper model (requires ~10GB RAM)
+    mem_reservation: 8g
+    restart: unless-stopped
+    networks:
+      - vaidya-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vaidya-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - vaidya-network
+
+  # Redis for caching and rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: vaidya-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - vaidya-network
+    command: redis-server --appendonly yes
+
+volumes:
+  # Persistent storage for voice models
+  teach_back_models:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  vaidya-network:
+    driver: bridge

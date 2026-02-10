@@ -1,0 +1,28 @@
+{
+  "retention_policies": {
+    "free": {
+      "days": 7,
+      "description": "Free plan users retain session data for 7 days"
+    },
+    "student": {
+      "days": 30,
+      "description": "Student plan users retain session data for 30 days"
+    },
+    "pro": {
+      "days": 90,
+      "description": "Pro plan users retain session data for 90 days"
+    },
+    "admin": {
+      "days": 365,
+      "description": "Admin users retain session data for 1 year"
+    }
+  },
+  "cleanup_schedule": {
+    "enabled": true,
+    "run_time": "02:00",
+    "timezone": "UTC",
+    "description": "Cleanup job runs daily at 2 AM UTC"
+  },
+  "preserve_summaries": true,
+  "log_deletions": true
+}

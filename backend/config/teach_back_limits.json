@@ -1,0 +1,31 @@
+{
+  "rate_limits": {
+    "free": {
+      "text_sessions_per_day": 0,
+      "voice_sessions_per_day": 0,
+      "description": "Free plan has no teach-back access"
+    },
+    "student": {
+      "text_sessions_per_day": 5,
+      "voice_sessions_per_day": 2,
+      "description": "Student plan: 5 text sessions, 2 voice sessions per day"
+    },
+    "pro": {
+      "text_sessions_per_day": 20,
+      "voice_sessions_per_day": 10,
+      "description": "Pro plan: 20 text sessions, 10 voice sessions per day"
+    },
+    "admin": {
+      "text_sessions_per_day": -1,
+      "voice_sessions_per_day": -1,
+      "description": "Admin plan: unlimited sessions (-1 means unlimited)"
+    }
+  },
+  "voice_cost_multiplier": 2,
+  "reset_schedule": {
+    "enabled": true,
+    "reset_time": "00:00",
+    "timezone": "UTC",
+    "description": "Quotas reset daily at midnight UTC"
+  }
+}

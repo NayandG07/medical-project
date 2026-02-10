@@ -8,7 +8,8 @@
     "map": "anthropic/claude-sonnet-4",
     "clinical": "anthropic/claude-sonnet-4",
     "osce": "anthropic/claude-sonnet-4.5",
-    "image": "openai/gpt-5-image"
+    "image": "openai/gpt-5-image",
+    "teach_back_primary": "anthropic/claude-3.5-sonnet"
   },
   "gemini": {
     "chat": "google/gemini-3-flash-preview",
@@ -19,7 +20,8 @@
     "map": "google/gemini-3-flash-preview",
     "clinical": "google/gemini-3-pro-preview",
     "osce": "google/gemini-3-pro-preview",
-    "image": "google/gemini-3-pro-image-preview"
+    "image": "google/gemini-3-pro-image-preview",
+    "teach_back_primary": "google/gemini-2.0-flash-exp"
   },
   "openai": {
     "chat": "openai/gpt-5-chat",
@@ -29,7 +31,8 @@
     "explain": "openai/gpt-5-chat",
     "map": "openai/gpt-5-chat",
     "clinical": "openai/gpt-5-pro",
-    "osce": "openai/gpt-5-pro"
+    "osce": "openai/gpt-5-pro",
+    "teach_back_primary": "openai/gpt-4-turbo"
   },
   "anthropic": {
     "chat": "anthropic/claude-sonnet-4.5",
@@ -39,7 +42,8 @@
     "explain": "anthropic/claude-sonnet-4.5",
     "map": "anthropic/claude-sonnet-4.5",
     "clinical": "anthropic/claude-opus-4.5",
-    "osce": "anthropic/claude-opus-4.5"
+    "osce": "anthropic/claude-opus-4.5",
+    "teach_back_primary": "anthropic/claude-3.5-sonnet"
   },
   "ollama": {
     "chat": "llama3.2",
@@ -49,6 +53,7 @@
     "explain": "llama3.2",
     "map": "llama3.2",
     "clinical": "llama3.2",
-    "osce": "llama3.2"
+    "osce": "llama3.2",
+    "teach_back_primary": "llama3.2"
   }
 }
