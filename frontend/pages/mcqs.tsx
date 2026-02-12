@@ -30,7 +30,7 @@ interface SessionStats {
   correct: number
   incorrect: number
   totalAttempted: number
-  tokensEarned: number
+  pointsEarned: number
   streak: number
 }
 
@@ -82,7 +82,7 @@ export default function MCQs() {
     correct: 0,
     incorrect: 0,
     totalAttempted: 0,
-    tokensEarned: 0,
+    pointsEarned: 0,
     streak: 0
   })
 
@@ -332,7 +332,7 @@ export default function MCQs() {
       correct: 0,
       incorrect: 0,
       totalAttempted: 0,
-      tokensEarned: 0,
+      pointsEarned: 0,
       streak: 0
     })
   }
@@ -477,7 +477,7 @@ export default function MCQs() {
       correct: isCorrect ? prev.correct + 1 : prev.correct,
       incorrect: isCorrect ? prev.incorrect : prev.incorrect + 1,
       totalAttempted: prev.totalAttempted + 1,
-      tokensEarned: isCorrect ? prev.tokensEarned + 15 : prev.tokensEarned,
+      pointsEarned: isCorrect ? prev.pointsEarned + 15 : prev.pointsEarned,
       streak: isCorrect ? prev.streak + 1 : 0
     }))
 
@@ -789,7 +789,7 @@ export default function MCQs() {
                                 {selectedOption === currentQuestion?.correctId && (
                                   <span className={styles.tokenReward}>
                                     <Zap size={14} />
-                                    +15 Tokens Earned
+                                    +15 Points Earned
                                   </span>
                                 )}
                               </div>
@@ -833,8 +833,8 @@ export default function MCQs() {
                         <div className={styles.scoreLabel}>Accuracy</div>
                       </div>
                       <div className={styles.scoreItem}>
-                        <div className={styles.scoreValue}>{sessionStats.tokensEarned}</div>
-                        <div className={styles.scoreLabel}>Tokens Earned</div>
+                        <div className={styles.scoreValue}>{sessionStats.pointsEarned}</div>
+                        <div className={styles.scoreLabel}>Points Earned</div>
                       </div>
                     </div>
 
@@ -890,12 +890,12 @@ export default function MCQs() {
                         <Check size={12} />
                       </div>
                       <span className={styles.accuracyValue}>{accuracy}%</span>
-                      <span className={styles.accuracyLabel}>15 Tokens per Correct</span>
+                      <span className={styles.accuracyLabel}>15 Points per Correct</span>
                     </div>
 
                     <div className={styles.tokenDisplay}>
-                      <span className={styles.tokenLabel}>Tokens Earned</span>
-                      <span className={styles.tokenValue}>{sessionStats.tokensEarned}</span>
+                      <span className={styles.tokenLabel}>Points Earned</span>
+                      <span className={styles.tokenValue}>{sessionStats.pointsEarned}</span>
                     </div>
                   </div>
 
@@ -925,9 +925,9 @@ export default function MCQs() {
                       <div className={`${styles.statsItem} ${styles.statsTotal}`}>
                         <div className={styles.statsItemLabel}>
                           <div className={`${styles.statsDot} ${styles.statsDotYellow}`} />
-                          <span>Total Tokens Today</span>
+                          <span>Total Points Today</span>
                         </div>
-                        <span className={styles.statsItemValue}>{sessionStats.tokensEarned}</span>
+                        <span className={styles.statsItemValue}>{sessionStats.pointsEarned}</span>
                       </div>
                     </div>
                   </div>

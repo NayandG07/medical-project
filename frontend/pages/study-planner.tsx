@@ -515,7 +515,7 @@ export default function StudyPlanner() {
 
             if (!res.ok) {
                 const error = await res.json()
-                alert(error.detail || 'Failed to save entry')
+                showAlert('Error', error.detail || 'Failed to save entry')
                 return
             }
 
@@ -698,7 +698,9 @@ export default function StudyPlanner() {
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
             const spaceBelow = window.innerHeight - rect.bottom
             // Menu height is approx 200px. If less than 250px space below, and more space above, flip it.
-            if (spaceBelow < 250 && rect.top > 250) {
+            if (rect.top < 200) {
+                setMenuPosition('bottom')
+            } else if (spaceBelow < 250) {
                 setMenuPosition('top')
             } else {
                 setMenuPosition('bottom')
@@ -1334,8 +1336,8 @@ export default function StudyPlanner() {
                     .stats-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; margin-bottom: 32px; }
                     .stat-card { 
                         background: white;
-                        border-radius: 24px; padding: 24px 20px; 
-                        display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 24px; 
+                        border-radius: 20px; padding: 16px 20px; 
+                        display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 12px; 
                         border: 1px solid rgba(0,0,0,0.1); 
                         box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.03);
                         transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);

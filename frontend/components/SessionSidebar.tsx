@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Menu, X, ChevronLeft, ChevronRight, MessageSquare, Trash2, Plus } from 'lucide-react'
+import { Menu, X, ChevronLeft, ChevronRight, MessageSquare, Trash2, Plus, Loader2 } from 'lucide-react'
 
 export interface ChatSession {
   id: string
@@ -13,8 +13,8 @@ interface SessionSidebarProps {
   currentSessionId: string | null
   onSelectSession: (sessionId: string) => void
   onNewSession: () => void
-  onDeleteSession: (sessionId: string) => void
-  onDeleteAllSessions?: () => void
+  onDeleteSession: (sessionId: string) => Promise<void>
+  onDeleteAllSessions?: () => Promise<void>
   isNewChatDisabled?: boolean
   loading?: boolean
   error?: string | null
@@ -56,6 +56,8 @@ export default function SessionSidebar({
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null)
   const [deleteConfirmationId, setDeleteConfirmationId] = useState<string | null>(null)
   const [deleteAllConfirmation, setDeleteAllConfirmation] = useState(false)
+  const [isDeletingSession, setIsDeletingSession] = useState(false)
+  const [isDeletingAll, setIsDeletingAll] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -519,10 +521,41 @@ export default function SessionSidebar({
                 Cancel
               </button>
               <button
-                onClick={() => { if (deleteConfirmationId) onDeleteSession(deleteConfirmationId); setDeleteConfirmationId(null); }}
-                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#ef4444', color: 'white', fontWeight: '700', cursor: 'pointer' }}
+                onClick={async () => {
+                  if (deleteConfirmationId) {
+                    setIsDeletingSession(true)
+                    try {
+                      await onDeleteSession(deleteConfirmationId)
+                    } finally {
+                      setIsDeletingSession(false)
+                      setDeleteConfirmationId(null)
+                    }
+                  }
+                }}
+                disabled={isDeletingSession}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: '#ef4444',
+                  color: 'white',
+                  fontWeight: '700',
+                  cursor: isDeletingSession ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
               >
-                Delete
+                {isDeletingSession ? (
+                  <>
+                    <Loader2 className="spin" size={16} />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  'Delete'
+                )}
               </button>
             </div>
           </div>
@@ -577,10 +610,18 @@ export default function SessionSidebar({
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <button
-                onClick={() => {
-                  if (onDeleteAllSessions) onDeleteAllSessions();
-                  setDeleteAllConfirmation(false);
+                onClick={async () => {
+                  if (onDeleteAllSessions) {
+                    setIsDeletingAll(true)
+                    try {
+                      await onDeleteAllSessions()
+                    } finally {
+                      setIsDeletingAll(false)
+                      setDeleteAllConfirmation(false)
+                    }
+                  }
                 }}
+                disabled={isDeletingAll}
                 style={{
                   width: '100%',
                   padding: '16px',
@@ -589,11 +630,22 @@ export default function SessionSidebar({
                   background: '#ef4444',
                   color: 'white',
                   fontWeight: '700',
-                  cursor: 'pointer',
-                  fontSize: '15px'
+                  cursor: isDeletingAll ? 'not-allowed' : 'pointer',
+                  fontSize: '15px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
                 }}
               >
-                Confirm
+                {isDeletingAll ? (
+                  <>
+                    <Loader2 className="spin" size={16} />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  'Confirm'
+                )}
               </button>
               <button
                 onClick={() => setDeleteAllConfirmation(false)}
