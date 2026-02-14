@@ -106,11 +106,7 @@ export default function Chat() {
 
       const data = await response.json()
       setSessions(data)
-
-      // If no current session and sessions exist, select the first one
-      if (!currentSessionId && data.length > 0) {
-        await selectSession(data[0].id, authToken)
-      }
+      // Auto-selection removed
     } catch (err) {
       console.error('Failed to load sessions:', err)
       setSessionsError(err instanceof Error ? err.message : 'Failed to load sessions')

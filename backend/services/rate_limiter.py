@@ -39,12 +39,19 @@ PLAN_LIMITS = {
         "images_per_day": 50,
         "flashcards_per_day": 500,
     },
+    "premium": {
+        "daily_tokens": 200000,
+        "daily_requests": 500,
+        "pdf_uploads": 50,
+        "mcqs_per_day": 200,
+        "images_per_day": 50,
+        "flashcards_per_day": 500,
+    },
     "admin": {
         "daily_tokens": float('inf'),
         "daily_requests": float('inf'),
         "pdf_uploads": float('inf'),
         "mcqs_per_day": float('inf'),
-        "images_per_day": float('inf'),
         "flashcards_per_day": float('inf'),
     }
 }
@@ -118,7 +125,6 @@ class RateLimiter:
             feature_limit_map = {
                 "mcq": ("mcqs_generated", "mcqs_per_day"),
                 "flashcard": ("flashcards_generated", "flashcards_per_day"),
-                "pdf": ("pdf_uploads", "pdf_uploads"),
                 "image": ("images_used", "images_per_day"),
             }
             

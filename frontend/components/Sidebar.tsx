@@ -9,7 +9,7 @@ interface SidebarProps {
   currentPath: string
   collapsed?: boolean
   onToggle?: (collapsed: boolean) => void
-  plan?: string
+  plan?: string | null
 }
 
 // Store collapsed state globally to persist across pages
@@ -26,7 +26,7 @@ const getPlanLabel = (plan: string = 'free') => {
   return plans[plan.toLowerCase()] || 'Standard Plan'
 }
 
-export default function Sidebar({ user, currentPath, collapsed: controlledCollapsed, onToggle, plan = 'free' }: SidebarProps) {
+export default function Sidebar({ user, currentPath, collapsed: controlledCollapsed, onToggle, plan }: SidebarProps) {
   const router = useRouter()
   const [isCollapsed, setIsCollapsed] = useState(globalCollapsed)
 
@@ -62,6 +62,8 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
   const isActive = (path: string) => currentPath === path
   const sidebarWidth = isCollapsed ? '70px' : '240px'
   const nameMaxWidth = '160px'
+
+  const userInitial = user ? (user.user_metadata?.name || user.email)?.[0].toUpperCase() : 'U'
 
   return (
     <div className="sidebar-container" data-lenis-prevent>
@@ -110,13 +112,13 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
       <div className="sidebar-footer">
         {isCollapsed ? (
           <div className="user-avatar-small">
-            {user ? (user.user_metadata?.name || user.email)?.[0].toUpperCase() : '?'}
+            {userInitial}
           </div>
         ) : (
           <div className="user-full-card">
             <div className="user-info-row">
               <div className="user-avatar">
-                {user ? (user.user_metadata?.name || user.email)?.[0].toUpperCase() : '?'}
+                {userInitial}
               </div>
               <div className="user-text">
                 <p
@@ -126,7 +128,7 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
                 >
                   {user ? (user.user_metadata?.name || user.email?.split('@')[0]) : 'Loading...'}
                 </p>
-                <p className="user-subtext">{getPlanLabel(plan)}</p>
+                <p className="user-subtext">{getPlanLabel(plan || 'free')}</p>
               </div>
 
 
@@ -134,8 +136,8 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
 
             {/* Token Meter Removed */}
 
-            {/* Only show upgrade button for free users */}
-            {plan.toLowerCase() === 'free' && (
+            {/* Only show upgrade button for free users, and only when plan is confirmed */}
+            {plan?.toLowerCase() === 'free' && (
               <button onClick={() => router.push('/upgrade')} className="upgrade-button">
                 Upgrade Plan
               </button>

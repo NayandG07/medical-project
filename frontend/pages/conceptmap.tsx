@@ -21,7 +21,7 @@ const styles = {
   deleteBtn: "absolute top-1/2 right-2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all z-10",
   emptyState: "flex flex-col items-center justify-center py-12 px-4 text-slate-400 text-sm font-medium gap-3 h-full",
   sidebarFooter: "p-3 border-t border-slate-200/60 bg-slate-50/30 flex-shrink-0",
-  clearBtn: "flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-red-50 text-red-600 text-[11px] font-bold border border-red-100 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all w-full uppercase tracking-widest shadow-sm",
+  clearBtn: "flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-red-50 text-red-600 text-[11px] font-bold border border-red-100 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all w-full uppercase tracking-widest shadow-sm cursor-pointer",
 
   mainContent: "bg-[#F7F7F6] rounded-xl p-4 shadow-sm border border-slate-200 flex flex-col min-h-0 overflow-hidden max-[1024px]:order-1 max-[1024px]:min-h-[500px]",
   inputSection: "flex gap-3 mb-4 flex-shrink-0 max-[640px]:flex-col items-center",
@@ -36,7 +36,7 @@ const styles = {
 
   rightSidebar: "bg-[#F7F7F6] rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden max-[1024px]:order-3",
   rightSidebarHeader: "p-4 border-b border-slate-100 flex items-center gap-2 flex-shrink-0",
-  rightSidebarContent: "flex-1 overflow-y-auto p-4 custom-scrollbar",
+  rightSidebarContent: "flex-1 overflow-y-auto p-4 custom-scrollbar h-full scrollbar-none",
   summaryCard: "flex flex-col gap-6",
   topicIcon: "flex justify-center mb-2",
   iconCircle: "w-20 h-20 bg-gradient-to-br from-medical-indigo/10 to-medical-indigo/5 rounded-2xl flex items-center justify-center text-[2rem] shadow-sm border border-medical-indigo/10",
@@ -562,6 +562,10 @@ export default function ConceptMap() {
           </div>
         )}
       </DashboardLayout>
+      <style jsx>{`
+        .scrollbar-none::-webkit-scrollbar { display: none; }
+        .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </>
   )
 }
