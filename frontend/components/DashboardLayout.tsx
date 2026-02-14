@@ -31,15 +31,16 @@ const getPageTitle = (pathname: string): string => {
   return titles[pathname] || pathname.slice(1).charAt(0).toUpperCase() + pathname.slice(2)
 }
 
-// Store sidebar state globally
+// Store sidebar and plan state globally to prevent flicker on navigation
 let globalSidebarCollapsed = false
+let sessionPlanCache: string | null = null
 
 export default function DashboardLayout({ user, children }: DashboardLayoutProps) {
   const router = useRouter()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(globalSidebarCollapsed)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
-  const [plan, setPlan] = useState<string>(user?.user_metadata?.plan || 'free')
+  const [plan, setPlan] = useState<string | null>(sessionPlanCache)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
@@ -62,13 +63,24 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
 
         if (data?.plan) {
           setPlan(data.plan)
+          sessionPlanCache = data.plan
+          localStorage.setItem('valdia_user_plan', data.plan)
         }
       } catch (error) {
         console.error('Error fetching user plan:', error)
       }
     }
 
-    if (user?.id) {
+    // Try to load from localStorage first if not in global cache
+    if (!sessionPlanCache) {
+      const savedPlan = localStorage.getItem('valdia_user_plan')
+      if (savedPlan) {
+        sessionPlanCache = savedPlan
+        setPlan(savedPlan)
+      }
+    }
+
+    if (user?.id && !sessionPlanCache) {
       fetchUserPlan()
     }
   }, [user?.id])
@@ -79,6 +91,8 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
   }
 
   const handleSignOut = async () => {
+    sessionPlanCache = null
+    localStorage.removeItem('valdia_user_plan')
     await supabase.auth.signOut()
     router.push('/')
   }
@@ -145,7 +159,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
                   <h3 className="drawer-username">{user ? (user.user_metadata?.name || user.email?.split('@')[0]) : 'Loading...'}</h3>
                   <div className="drawer-email">{user?.email || '...'}</div>
                   <div className="drawer-badge">
-                    {plan === 'free' ? 'User' : 'Premium'}
+                    {(plan || 'free') === 'free' ? 'User' : 'Premium'}
                   </div>
                 </div>
               </div>
@@ -251,7 +265,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
                     <div className="user-meta hidden sm:block">
                       <p className="user-full-name">{user ? (user.user_metadata?.name || user.email?.split('@')[0]) : 'Loading...'}</p>
                       <p className="user-plan-badge">
-                        {plan === 'free' ? 'Standard' : plan === 'pro' ? 'Premium' : plan.charAt(0).toUpperCase() + plan.slice(1)}
+                        {(plan || user?.user_metadata?.plan || 'free') === 'free' ? 'Standard' : (plan || user?.user_metadata?.plan || 'pro') === 'pro' ? 'Premium' : (plan || 'free').charAt(0).toUpperCase() + (plan || 'free').slice(1)}
                       </p>
                     </div>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`arrow-icon ${isDropdownOpen ? 'rotate-180' : ''}`}>
@@ -303,6 +317,8 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
         </main>
       </div>
 
+      <div id="vaidya-portal-root" />
+
       {/* Logout Modal */}
       {isLogoutModalOpen && (
         <div className="modal-backdrop">
@@ -337,15 +353,6 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
           font-family: 'Plus Jakarta Sans', sans-serif;
         }
 
-        .layout-root:has([data-station-active="true"]) {
-          height: 100vh;
-          overflow: hidden;
-        }
-
-        .main-scroll-area:has([data-station-active="true"]) {
-          overflow: hidden !important;
-        }
-
         .main-content-wrapper {
           flex: 1;
           transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -357,8 +364,8 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
         .top-bar {
           height: 64px;
           background: linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(253, 253, 255, 0.6) 100%);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          backdrop-filter: blur(12px) saturate(180%);
+          -webkit-backdrop-filter: blur(12px) saturate(180%);
           border-bottom: none;
           box-shadow: 
             0 10px 40px -10px rgba(0, 0, 0, 0.05),
@@ -604,13 +611,15 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
         .modal-backdrop {
           position: fixed;
           inset: 0;
-          background-color: rgba(26, 26, 26, 0.4);
-          backdrop-filter: blur(8px);
+          background-color: rgba(15, 23, 42, 0.4);
+          backdrop-filter: blur(12px) saturate(160%);
+          -webkit-backdrop-filter: blur(12px) saturate(160%);
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 1000;
+          z-index: 5000;
           padding: 20px;
+          transition: all 0.4s ease;
         }
 
         .modal-content {
