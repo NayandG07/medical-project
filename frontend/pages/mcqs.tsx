@@ -60,6 +60,7 @@ export default function MCQs() {
 
   // Quiz state
   const [topic, setTopic] = useState('')
+  const [mcqCount, setMcqCount] = useState(5)  // Number of MCQs to generate
   const [questions, setQuestions] = useState<MCQuestion[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
@@ -210,8 +211,8 @@ export default function MCQs() {
   const parseMCQs = (content: string): MCQuestion[] => {
     const questions: MCQuestion[] = []
 
-    // Try multiple parsing patterns
-    const sections = content.split(/Question \d+:|Q\d+:|\n\n(?=\d+\.)/).filter(s => s.trim())
+    // Split by "Question N:" pattern
+    const sections = content.split(/Question\s+\d+:/i).filter(s => s.trim())
 
     sections.forEach((section) => {
       const lines = section.trim().split('\n').filter(l => l.trim())
@@ -223,42 +224,60 @@ export default function MCQs() {
       let explanation = ''
       let inExplanation = false
 
-      lines.forEach(line => {
-        // Match options
-        const optionMatch = line.match(/^([A-Da-d])[\)\.]?\s*(.+)$/i)
-        if (optionMatch) {
-          options.push({
-            id: optionMatch[1].toLowerCase(),
-            text: optionMatch[2].trim()
-          })
-        }
-
-        // Match correct answer
-        const correctMatch = line.match(/Correct(?:\s+Answer)?:\s*([A-Da-d])/i)
+      lines.forEach((line, index) => {
+        const trimmedLine = line.trim()
+        
+        // Skip if this is the question line
+        if (index === 0) return
+        
+        // Match correct answer BEFORE matching options (to avoid capturing it as an option)
+        const correctMatch = trimmedLine.match(/^Correct(?:\s+Answer)?:\s*([A-Da-d])/i)
         if (correctMatch) {
           correctId = correctMatch[1].toLowerCase()
+          return // Skip this line, don't process as option
         }
 
         // Match explanation
-        const explanationMatch = line.match(/Explanation:\s*(.+)$/i)
+        const explanationMatch = trimmedLine.match(/^Explanation:\s*(.+)$/i)
         if (explanationMatch) {
           explanation = explanationMatch[1].trim()
           inExplanation = true
-        } else if (inExplanation && !line.match(/^[A-D][\)\.]|Correct|Question/i)) {
-          explanation += ' ' + line.trim()
+          return // Skip this line
+        } else if (inExplanation && !trimmedLine.match(/^[A-D][\)\.]|^Correct|^Question/i)) {
+          explanation += ' ' + trimmedLine
+          return
+        }
+
+        // Match options - must start with letter followed by ) or .
+        const optionMatch = trimmedLine.match(/^([A-Da-d])[\)\.]?\s+(.+)$/i)
+        if (optionMatch && !trimmedLine.match(/^Correct/i)) {
+          const optionId = optionMatch[1].toLowerCase()
+          const optionText = optionMatch[2].trim()
+          
+          // Only add if we don't already have this option ID
+          if (!options.find(o => o.id === optionId)) {
+            options.push({
+              id: optionId,
+              text: optionText
+            })
+          }
         }
       })
 
       if (questionText && options.length >= 2) {
+        // Ensure we have exactly 4 options
+        const finalOptions = options.slice(0, 4)
+        while (finalOptions.length < 4) {
+          const nextId = String.fromCharCode(97 + finalOptions.length)
+          finalOptions.push({
+            id: nextId,
+            text: `Option ${nextId.toUpperCase()}`
+          })
+        }
+
         questions.push({
           question: questionText,
-          options: options.length >= 4 ? options : [
-            ...options,
-            ...Array(4 - options.length).fill(null).map((_, i) => ({
-              id: String.fromCharCode(97 + options.length + i),
-              text: `Option ${String.fromCharCode(65 + options.length + i)}`
-            }))
-          ],
+          options: finalOptions,
           correctId: correctId || 'a',
           explanation: explanation || 'This is the correct answer based on clinical evidence.',
           difficulty: Math.random() > 0.6 ? 'hard' : Math.random() > 0.3 ? 'medium' : 'easy'
@@ -361,7 +380,8 @@ export default function MCQs() {
         },
         body: JSON.stringify({
           topic,
-          session_id: currentSessionId
+          session_id: currentSessionId,
+          count: mcqCount
         })
       })
 
@@ -624,6 +644,26 @@ export default function MCQs() {
                         onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
                         className={styles.searchInput}
                       />
+                      <select
+                        value={mcqCount}
+                        onChange={(e) => setMcqCount(Number(e.target.value))}
+                        className={styles.countSelect}
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: '12px',
+                          border: '2px solid #E5E7EB',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          minWidth: '100px',
+                          background: 'white'
+                        }}
+                      >
+                        <option value={5}>5 MCQs</option>
+                        <option value={10}>10 MCQs</option>
+                        <option value={15}>15 MCQs</option>
+                        <option value={20}>20 MCQs</option>
+                      </select>
                       <button
                         className={styles.generateButton}
                         onClick={handleGenerate}

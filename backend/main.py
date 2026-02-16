@@ -70,18 +70,25 @@ async def get_current_user(request: Request) -> Dict[str, Any]:
     token = auth_header.split(" ")[1]
     
     try:
-        # Verify token with Supabase
+        # Verify token with Supabase using the service role client
+        # The get_user method verifies the JWT token and returns user info
         user_response = supabase.auth.get_user(token)
+        
         if not user_response or not user_response.user:
-            logger.warning("Authentication failed: Invalid token")
-            raise HTTPException(status_code=401, detail="Invalid token")
+            logger.warning("Authentication failed: Invalid or expired token")
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
         
         user_id = user_response.user.id
-        logger.debug(f"User authenticated: {user_id[:8]}...")
-        return {"id": user_response.user.id, "email": user_response.user.email}
+        user_email = user_response.user.email
+        logger.debug(f"User authenticated: {user_id[:8]}... ({user_email})")
+        
+        return {"id": user_id, "email": user_email}
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        logger.error(f"Authentication error: {str(e)}")
-        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+        logger.error(f"Authentication error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 
 # Dependency to verify admin access
@@ -197,6 +204,7 @@ async def update_system_settings(
 class StudyToolRequest(BaseModel):
     topic: str
     session_id: Optional[str] = None
+    count: Optional[int] = 5  # Number of MCQs to generate
     count: Optional[int] = 5  # Number of items to generate per batch
     format: Optional[str] = "interactive"  # interactive or static
 
@@ -233,7 +241,8 @@ async def generate_mcqs(
         result = await study_tools_service.generate_mcq(
             user_id=user["id"],
             topic=request.topic,
-            session_id=request.session_id
+            session_id=request.session_id,
+            count=request.count or 5
         )
         return result
     except Exception as e:
@@ -1301,8 +1310,8 @@ class CompletePlanEntryRequest(BaseModel):
 @app.post("/api/planner/entries/{entry_id}/complete")
 async def complete_plan_entry(
     entry_id: str,
-    request: CompletePlanEntryRequest,
-    user: Dict[str, Any] = Depends(get_current_user)
+    user: Dict[str, Any] = Depends(get_current_user),
+    request: Optional[CompletePlanEntryRequest] = None
 ):
     """Mark a study plan entry as completed"""
     try:
@@ -1310,9 +1319,9 @@ async def complete_plan_entry(
         entry = await planner_service.complete_entry(
             user_id=user["id"],
             entry_id=entry_id,
-            performance_score=request.performance_score,
-            accuracy_percentage=request.accuracy_percentage,
-            notes=request.notes
+            performance_score=request.performance_score if request else None,
+            accuracy_percentage=request.accuracy_percentage if request else None,
+            notes=request.notes if request else None
         )
         return entry
     except Exception as e:

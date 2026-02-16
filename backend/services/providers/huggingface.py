@@ -65,8 +65,8 @@ class HuggingFaceProvider:
         feature: str,
         prompt: str,
         system_prompt: Optional[str] = None,
-        max_tokens: int = 3072,
-        temperature: float = 0.7
+        max_tokens: int = 4096,
+        temperature: float = 0.9
     ) -> Dict[str, Any]:
         """
         Call Hugging Face Router API (OpenAI-compatible format)

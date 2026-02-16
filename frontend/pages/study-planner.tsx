@@ -426,32 +426,46 @@ export default function StudyPlanner() {
         return session?.access_token
     }
 
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
     const fetchEntries = async () => {
         try {
             const token = await getToken()
             const weekStart = weekDates[0]?.date
             if (!weekStart) return
 
-            const res = await fetch(`http://localhost:8000/api/planner/entries/weekly/${weekStart}`, {
+            const res = await fetch(`${API_URL}/api/planner/entries/weekly/${weekStart}`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
+            
+            if (!res.ok) {
+                throw new Error('Failed to fetch entries')
+            }
+            
             const data = await res.json()
             setEntries(data.entries || [])
         } catch (err) {
             console.error('Failed to fetch entries:', err)
+            showAlert('Error', 'Failed to load study plan entries')
         }
     }
 
     const fetchDailyBrief = async () => {
         try {
             const token = await getToken()
-            const res = await fetch('http://localhost:8000/api/planner/daily-brief', {
+            const res = await fetch(`${API_URL}/api/planner/daily-brief`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
+            
+            if (!res.ok) {
+                throw new Error('Failed to fetch daily brief')
+            }
+            
             const data = await res.json()
             setDailyBrief(data)
         } catch (err) {
             console.error('Failed to fetch daily brief:', err)
+            // Don't show error for daily brief as it's not critical
         }
     }
 
@@ -485,12 +499,13 @@ export default function StudyPlanner() {
 
     const performSubmit = async () => {
         const endHour = formData.start_hour + formData.duration
+        setLoading(true)
         try {
             const token = await getToken()
             const method = editingEntry ? 'PUT' : 'POST'
             const url = editingEntry
-                ? `http://localhost:8000/api/planner/entries/${editingEntry.id}`
-                : 'http://localhost:8000/api/planner/entries'
+                ? `${API_URL}/api/planner/entries/${editingEntry.id}`
+                : `${API_URL}/api/planner/entries`
 
             const payload = {
                 subject: formData.subject,
@@ -522,24 +537,42 @@ export default function StudyPlanner() {
             setShowModal(false)
             setEditingEntry(null)
             resetForm()
-            fetchEntries()
+            
+            // Refresh data
+            await Promise.all([fetchEntries(), fetchDailyBrief()])
+            
+            showAlert('Success', editingEntry ? 'Entry updated successfully' : 'Entry created successfully')
         } catch (err) {
             console.error('Failed to save entry:', err)
+            showAlert('Error', 'Failed to save entry. Please try again.')
+        } finally {
+            setLoading(false)
         }
     }
 
     const handleComplete = async (entryId: string) => {
         try {
             const token = await getToken()
-            await fetch(`http://localhost:8000/api/planner/entries/${entryId}/complete`, {
+            const res = await fetch(`${API_URL}/api/planner/entries/${entryId}/complete`, {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
             })
-            fetchEntries()
-            fetchDailyBrief()
+            
+            if (!res.ok) {
+                throw new Error('Failed to complete entry')
+            }
+            
+            // Refresh data
+            await Promise.all([fetchEntries(), fetchDailyBrief()])
             setActiveCellMenu(null)
+            showAlert('Success', 'Session completed!')
         } catch (err) {
             console.error('Failed to complete entry:', err)
+            showAlert('Error', 'Failed to mark session as complete')
         }
     }
 
@@ -548,11 +581,16 @@ export default function StudyPlanner() {
             const token = await getToken()
             // Only start if not already in progress
             if (entry.status !== 'in_progress') {
-                await fetch(`http://localhost:8000/api/planner/entries/${entry.id}/start`, {
+                const res = await fetch(`${API_URL}/api/planner/entries/${entry.id}/start`, {
                     method: 'POST',
                     headers: { Authorization: `Bearer ${token}` }
                 })
-                fetchEntries()
+                
+                if (!res.ok) {
+                    throw new Error('Failed to start entry')
+                }
+                
+                await fetchEntries()
             }
             setActiveCellMenu(null)
 
@@ -564,7 +602,7 @@ export default function StudyPlanner() {
 
             let diffSeconds = Math.floor((target.getTime() - now.getTime()) / 1000)
 
-            // If the time is in the past or way in filter, use planned duration
+            // If the time is in the past or way in future, use planned duration
             if (diffSeconds <= 0 || diffSeconds > 86400) {
                 const [startH, startM] = entry.start_time.split(':').map(Number)
                 const durationMinutes = (endH * 60 + endM) - (startH * 60 + startM)
@@ -576,6 +614,7 @@ export default function StudyPlanner() {
             setTimerRunning(false) // Don't start instantly
         } catch (err) {
             console.error('Failed to start entry:', err)
+            showAlert('Error', 'Failed to start session')
         }
     }
 
@@ -592,14 +631,22 @@ export default function StudyPlanner() {
         showConfirm('Delete Session', 'Are you sure you want to delete this study session?', async () => {
             try {
                 const token = await getToken()
-                await fetch(`http://localhost:8000/api/planner/entries/${entryId}`, {
+                const res = await fetch(`${API_URL}/api/planner/entries/${entryId}`, {
                     method: 'DELETE',
                     headers: { Authorization: `Bearer ${token}` }
                 })
-                fetchEntries()
+                
+                if (!res.ok) {
+                    throw new Error('Failed to delete entry')
+                }
+                
+                // Refresh data
+                await Promise.all([fetchEntries(), fetchDailyBrief()])
                 setActiveCellMenu(null)
+                showAlert('Success', 'Session deleted successfully')
             } catch (err) {
                 console.error('Failed to delete entry:', err)
+                showAlert('Error', 'Failed to delete session')
             }
         })
     }

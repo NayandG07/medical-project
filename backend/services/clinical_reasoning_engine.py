@@ -860,7 +860,7 @@ Generate JSON with this EXACT structure:
     "severity": "mild/moderate/severe"
   }},
   "patient_script": {{
-    "opening": "Patient's opening statement in their own words",
+    "opening": "Brief initial greeting or single chief complaint only (e.g., 'Hello doctor, I've been having chest pain' - DO NOT reveal full history)",
     "responses": {{
       "relevant_question_1": "Natural response to expected question",
       "relevant_question_2": "Natural response to expected question",
@@ -887,6 +887,10 @@ IMPORTANT:
 - Make patient responses realistic and contextual
 - Vary complexity based on difficulty level
 - Make it educationally valuable and clinically realistic
+- CRITICAL: Patient opening statement should be BRIEF (1-2 sentences max) - just a greeting and chief complaint
+- Patient should NOT reveal full history, symptoms, or details in opening - these come out through questioning
+- Example good opening: "Hello doctor, I've been having some chest discomfort"
+- Example BAD opening: "Hello doctor, I've been having chest pain for 3 days that radiates to my left arm, with shortness of breath and nausea"
 
 Output ONLY valid JSON, no explanations."""
     
