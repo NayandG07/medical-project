@@ -281,6 +281,9 @@ class DocumentService:
     async def _store_chunks_with_embeddings(self, document_id: str, chunks: List[str]):
         """Store text chunks with embeddings"""
         try:
+            embeddings_generated = 0
+            embeddings_failed = 0
+            
             for i, chunk in enumerate(chunks):
                 # Generate embedding if HuggingFace provider is available
                 embedding = None
@@ -290,11 +293,17 @@ class DocumentService:
                         result = await self.hf_provider.generate_embedding(chunk, prepend_instruction=False)
                         if result["success"]:
                             embedding = result["embedding"]
-                            logger.info(f"Generated embedding for chunk {i}, dimension: {len(embedding) if embedding else 0}")
+                            embeddings_generated += 1
+                            if i == 0:  # Log first embedding details
+                                logger.info(f"Generated embedding for chunk {i}, dimension: {len(embedding) if embedding else 0}")
                         else:
-                            logger.error(f"Failed to generate embedding for chunk {i}: {result['error']}")
+                            embeddings_failed += 1
+                            logger.error(f"Failed to generate embedding for chunk {i}: {result.get('error')}")
                     except Exception as e:
-                        logger.error(f"Failed to generate embedding for chunk {i}: {str(e)}")
+                        embeddings_failed += 1
+                        logger.error(f"Exception generating embedding for chunk {i}: {str(e)}")
+                else:
+                    logger.warning(f"HuggingFace provider not available for chunk {i}")
                 
                 chunk_data = {
                     "document_id": document_id,
@@ -304,12 +313,22 @@ class DocumentService:
                     "created_at": datetime.now().isoformat()
                 }
                 
-                self.supabase.table("document_chunks").insert(chunk_data).execute()
+                try:
+                    self.supabase.table("document_chunks").insert(chunk_data).execute()
+                except Exception as insert_error:
+                    logger.error(f"Failed to insert chunk {i}: {str(insert_error)}")
+                    raise
             
-            logger.info(f"Stored {len(chunks)} chunks for document {document_id}")
+            logger.info(f"Stored {len(chunks)} chunks for document {document_id}. Embeddings: {embeddings_generated} generated, {embeddings_failed} failed")
+            
+            # Update document with embedding stats
+            self.supabase.table("documents").update({
+                "total_chunks": len(chunks),
+                "chunks_with_embeddings": embeddings_generated
+            }).eq("id", document_id).execute()
             
         except Exception as e:
-            logger.error(f"Failed to store chunks: {str(e)}")
+            logger.error(f"Failed to store chunks: {str(e)}", exc_info=True)
             raise
     
     async def get_user_documents(self, user_id: str, feature: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -330,25 +349,50 @@ class DocumentService:
     async def delete_document(self, user_id: str, document_id: str):
         """Delete a document and its chunks"""
         try:
-            # Get document
+            # Get document with better error handling
             doc_result = self.supabase.table("documents").select("*").eq("id", document_id).eq("user_id", user_id).execute()
             
-            if not doc_result.data:
-                raise Exception("Document not found or access denied")
+            if not doc_result.data or len(doc_result.data) == 0:
+                # Check if document exists but belongs to different user
+                any_doc = self.supabase.table("documents").select("id, user_id").eq("id", document_id).execute()
+                if any_doc.data:
+                    logger.error(f"Document {document_id} exists but belongs to different user")
+                    raise Exception("Document not found or access denied")
+                else:
+                    logger.warning(f"Document {document_id} not found in database, attempting cleanup")
+                    # Try to clean up orphaned chunks and storage
+                    try:
+                        self.supabase.table("document_chunks").delete().eq("document_id", document_id).execute()
+                        logger.info(f"Cleaned up orphaned chunks for {document_id}")
+                    except Exception as cleanup_err:
+                        logger.warning(f"Chunk cleanup failed: {str(cleanup_err)}")
+                    raise Exception("Document not found or already deleted")
             
             document = doc_result.data[0]
             
             # Delete from storage
             try:
-                self.supabase.storage.from_(self.storage_bucket).remove([document["storage_path"]])
+                storage_path = document.get("storage_path")
+                if storage_path:
+                    self.supabase.storage.from_(self.storage_bucket).remove([storage_path])
+                    logger.info(f"Deleted storage file: {storage_path}")
             except Exception as e:
                 logger.warning(f"Failed to delete from storage: {str(e)}")
             
             # Delete chunks
-            self.supabase.table("document_chunks").delete().eq("document_id", document_id).execute()
+            try:
+                chunks_result = self.supabase.table("document_chunks").delete().eq("document_id", document_id).execute()
+                logger.info(f"Deleted chunks for document {document_id}")
+            except Exception as e:
+                logger.warning(f"Failed to delete chunks: {str(e)}")
             
             # Delete document record
-            self.supabase.table("documents").delete().eq("id", document_id).execute()
+            try:
+                self.supabase.table("documents").delete().eq("id", document_id).execute()
+                logger.info(f"Deleted document record {document_id}")
+            except Exception as e:
+                logger.error(f"Failed to delete document record: {str(e)}")
+                raise
             
             logger.info(f"Document {document_id} deleted successfully")
             
@@ -378,11 +422,8 @@ class DocumentService:
             List of relevant chunks with metadata
         """
         try:
-            # Log RAG usage for monitoring
-            await self._log_rag_usage(user_id, feature or "unknown", query, document_id)
-            
             # Get user's documents
-            docs_query = self.supabase.table("documents").select("id").eq("user_id", user_id).eq("processing_status", "completed")
+            docs_query = self.supabase.table("documents").select("id, filename, processing_status").eq("user_id", user_id)
             
             if feature:
                 docs_query = docs_query.eq("feature", feature)
@@ -393,9 +434,25 @@ class DocumentService:
             docs_result = docs_query.execute()
             
             if not docs_result.data:
+                logger.warning(f"No documents found for user {user_id}, feature: {feature}")
                 return []
             
-            doc_ids = [d["id"] for d in docs_result.data]
+            # Check processing status
+            completed_docs = [d for d in docs_result.data if d.get("processing_status") == "completed"]
+            processing_docs = [d for d in docs_result.data if d.get("processing_status") == "processing"]
+            failed_docs = [d for d in docs_result.data if d.get("processing_status") == "failed"]
+            
+            if processing_docs:
+                logger.info(f"{len(processing_docs)} documents still processing")
+            if failed_docs:
+                logger.warning(f"{len(failed_docs)} documents failed processing")
+            
+            if not completed_docs:
+                logger.warning(f"No completed documents available for search")
+                return []
+            
+            doc_ids = [d["id"] for d in completed_docs]
+            logger.info(f"Searching across {len(doc_ids)} completed documents")
             
             # Try vector similarity search if embeddings are available
             if self.hf_provider:
@@ -405,27 +462,37 @@ class DocumentService:
                     
                     if result["success"] and result["embedding"]:
                         query_embedding = result["embedding"]
+                        logger.info(f"Generated query embedding, dimension: {len(query_embedding)}")
                         
                         # Use pgvector similarity search
-                        chunks_result = self.supabase.rpc(
-                            'match_document_chunks',
-                            {
-                                'query_embedding': query_embedding,
-                                'match_count': top_k,
-                                'filter_doc_ids': doc_ids
-                            }
-                        ).execute()
-                        
-                        if chunks_result.data:
-                            logger.info(f"Vector search returned {len(chunks_result.data)} results")
-                            await self._log_rag_usage(user_id, feature or "unknown", query, document_id, len(chunks_result.data))
-                            return chunks_result.data
+                        try:
+                            chunks_result = self.supabase.rpc(
+                                'match_document_chunks',
+                                {
+                                    'query_embedding': query_embedding,
+                                    'match_count': top_k,
+                                    'filter_doc_ids': doc_ids
+                                }
+                            ).execute()
+                            
+                            if chunks_result.data and len(chunks_result.data) > 0:
+                                logger.info(f"Vector search returned {len(chunks_result.data)} results")
+                                await self._log_rag_usage(user_id, feature or "unknown", query, document_id, len(chunks_result.data))
+                                return chunks_result.data
+                            else:
+                                logger.warning("Vector search returned no results, falling back to text search")
+                        except Exception as rpc_error:
+                            logger.error(f"RPC call failed: {str(rpc_error)}")
+                            # Fall through to text search
                     else:
                         logger.warning(f"Embedding generation failed: {result.get('error')}")
                 except Exception as e:
                     logger.warning(f"Vector search failed, falling back to text search: {str(e)}")
+            else:
+                logger.info("HuggingFace provider not available, using text search")
             
             # Fallback to simple text search
+            logger.info(f"Performing text search for query: {query[:50]}...")
             chunks_result = self.supabase.table("document_chunks").select("*, documents(filename)").in_("document_id", doc_ids).ilike("content", f"%{query}%").limit(top_k).execute()
             
             # Log RAG usage for monitoring
@@ -436,7 +503,7 @@ class DocumentService:
             return results
             
         except Exception as e:
-            logger.error(f"Document search failed: {str(e)}")
+            logger.error(f"Document search failed: {str(e)}", exc_info=True)
             return []
     
     async def _log_rag_usage(self, user_id: str, feature: str, query: str, document_id: Optional[str] = None, results_count: int = 0):

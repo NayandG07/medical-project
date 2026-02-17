@@ -162,65 +162,31 @@ export default function Dashboard() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
 
-      // Fetch only the plan first - high priority
+      // Fetch only the plan first - high priority (with caching)
+      const cachedPlan = localStorage.getItem('valdia_user_plan')
+      if (cachedPlan) {
+        setDashboardData(prev => ({ ...prev, userPlan: cachedPlan, loading: false }))
+      }
+
       const { data: planData } = await supabase.from('users').select('plan').eq('id', authUser.id).single()
       if (planData?.plan) {
         setDashboardData(prev => ({ ...prev, userPlan: planData.plan }))
+        localStorage.setItem('valdia_user_plan', planData.plan)
       }
 
-      // Fetch all data in parallel - comprehensive analytics
-      const results = await Promise.allSettled([
-        fetchWithAuth('/api/planner/performance/summary?days=30'),
+      // Fetch critical data first (streak and daily brief)
+      const criticalResults = await Promise.allSettled([
         fetchWithAuth('/api/planner/streak'),
-        fetchWithAuth('/api/planner/performance/subjects?days=30'),
-        fetchWithAuth('/api/planner/goals?status=active'),
-        fetchWithAuth('/api/clinical/performance'),
         fetchWithAuth('/api/planner/daily-brief'),
-        fetchWithAuth('/api/study-tools/sessions?feature=flashcard'),
-        fetchWithAuth('/api/study-tools/sessions?feature=mcq'),
-        fetchWithAuth('/api/study-tools/sessions?feature=map'),
-        fetchWithAuth('/api/clinical/performance/history?days=7'),
-        // Get metrics for the last 7 days using start_date
-        fetchWithAuth(`/api/planner/performance/metrics?start_date=${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`)
       ])
 
-      // Map results
-      const performanceRes = results[0]
-      const streakRes = results[1]
-      const subjectsRes = results[2]
-      const goalsRes = results[3]
-      const clinicalRes = results[4]
-      const dailyBriefRes = results[5]
-      const flashcardSessions = results[6]
-      const mcqSessions = results[7]
-      const mapSessions = results[8]
-      const clinicalHistoryRes = results[9]
-      const performanceMetricsRes = results[10]
+      const streakRes = criticalResults[0]
+      const dailyBriefRes = criticalResults[1]
 
-      // Process results with fallbacks
-      const performance = performanceRes.status === 'fulfilled' ? performanceRes.value : null
       const streak = streakRes.status === 'fulfilled' ? streakRes.value : null
-      const subjects = subjectsRes.status === 'fulfilled' ? subjectsRes.value?.subjects || [] : []
-      const goals = goalsRes.status === 'fulfilled' ? goalsRes.value?.goals || [] : []
-      const clinical = clinicalRes.status === 'fulfilled' ? clinicalRes.value : null
       const dailyBriefData = dailyBriefRes.status === 'fulfilled' ? dailyBriefRes.value : null
 
-      // Count sessions
-      const flashcardCount = flashcardSessions.status === 'fulfilled'
-        ? (flashcardSessions.value?.sessions?.length || 0) : 0
-      const mcqCount = mcqSessions.status === 'fulfilled'
-        ? (mcqSessions.value?.sessions?.length || 0) : 0
-      const mapCount = mapSessions.status === 'fulfilled'
-        ? (mapSessions.value?.sessions?.length || 0) : 0
-
-      // Assign colors to subjects
-      const coloredSubjects = (subjects as SubjectBreakdown[]).map((s, i) => ({
-        ...s,
-        total_minutes: (s as any).total_hours ? (s as any).total_hours * 60 : s.total_minutes || 0,
-        color: SUBJECT_COLORS[i % SUBJECT_COLORS.length]
-      }))
-
-      // Transform daily brief to expected format
+      // Transform daily brief early
       const transformedDailyBrief: DailyBrief | null = dailyBriefData ? {
         greeting: dailyBriefData.greeting || '',
         today_entries: (dailyBriefData.today?.sessions || []).map((e: any) => ({
@@ -237,6 +203,57 @@ export default function Dashboard() {
         streak_status: dailyBriefData.streak?.current > 0 ? 'active' : 'inactive',
         recommendations: dailyBriefData.top_recommendation ? [dailyBriefData.top_recommendation.description] : []
       } : null
+
+      // Update with critical data immediately
+      setDashboardData(prev => ({
+        ...prev,
+        streak,
+        dailyBrief: transformedDailyBrief,
+        loading: false
+      }))
+
+      // Fetch remaining data in background
+      const remainingResults = await Promise.allSettled([
+        fetchWithAuth('/api/planner/performance/summary?days=30'),
+        fetchWithAuth('/api/planner/performance/subjects?days=30'),
+        fetchWithAuth('/api/planner/goals?status=active'),
+        fetchWithAuth('/api/clinical/performance'),
+        fetchWithAuth('/api/study-tools/sessions?feature=flashcard'),
+        fetchWithAuth('/api/study-tools/sessions?feature=mcq'),
+        fetchWithAuth('/api/study-tools/sessions?feature=map'),
+        fetchWithAuth(`/api/planner/performance/metrics?start_date=${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`)
+      ])
+
+      // Map results
+      const performanceRes = remainingResults[0]
+      const subjectsRes = remainingResults[1]
+      const goalsRes = remainingResults[2]
+      const clinicalRes = remainingResults[3]
+      const flashcardSessions = remainingResults[4]
+      const mcqSessions = remainingResults[5]
+      const mapSessions = remainingResults[6]
+      const performanceMetricsRes = remainingResults[7]
+
+      // Process results with fallbacks
+      const performance = performanceRes.status === 'fulfilled' ? performanceRes.value : null
+      const subjects = subjectsRes.status === 'fulfilled' ? subjectsRes.value?.subjects || [] : []
+      const goals = goalsRes.status === 'fulfilled' ? goalsRes.value?.goals || [] : []
+      const clinical = clinicalRes.status === 'fulfilled' ? clinicalRes.value : null
+
+      // Count sessions
+      const flashcardCount = flashcardSessions.status === 'fulfilled'
+        ? (flashcardSessions.value?.sessions?.length || 0) : 0
+      const mcqCount = mcqSessions.status === 'fulfilled'
+        ? (mcqSessions.value?.sessions?.length || 0) : 0
+      const mapCount = mapSessions.status === 'fulfilled'
+        ? (mapSessions.value?.sessions?.length || 0) : 0
+
+      // Assign colors to subjects
+      const coloredSubjects = (subjects as SubjectBreakdown[]).map((s, i) => ({
+        ...s,
+        total_minutes: (s as any).total_hours ? (s as any).total_hours * 60 : s.total_minutes || 0,
+        color: SUBJECT_COLORS[i % SUBJECT_COLORS.length]
+      }))
 
       // Transform performance summary to dashboard format
       const transformedPerformance: PerformanceSummary | null = performance ? {
@@ -257,7 +274,6 @@ export default function Dashboard() {
       const metricsData = performanceMetricsRes.status === 'fulfilled' ? performanceMetricsRes.value?.metrics || [] : []
       const weeklyActivity = calculateWeeklyActivity(metricsData)
 
-      // Use the plan we fetched (it was already set by checkAuth or the independent fetch)
       const userPlan = planData?.plan || dashboardData.userPlan || 'free'
 
       const usageStats = {
@@ -267,25 +283,22 @@ export default function Dashboard() {
         flashcardsGenerated: flashcardCount
       }
 
-      setDashboardData({
+      setDashboardData(prev => ({
+        ...prev,
         performanceSummary: transformedPerformance,
-        streak: streak,
         subjectBreakdown: coloredSubjects,
         goals: goals,
         clinicalPerformance: clinical,
-        dailyBrief: transformedDailyBrief,
         studyToolStats: {
           flashcards: flashcardCount,
           mcqs: mcqCount,
           conceptmaps: mapCount,
           highyield: (transformedDailyBrief?.today_entries?.length || 0)
         },
-        loading: false,
-        error: null,
         weeklyActivity: weeklyActivity,
         usageStats: usageStats,
         userPlan: userPlan
-      })
+      }))
     } catch (err) {
       console.error('Dashboard fetch error:', err)
       setDashboardData(prev => ({

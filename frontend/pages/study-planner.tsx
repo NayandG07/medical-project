@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { supabase, AuthUser } from '@/lib/supabase'
 import DashboardLayout from '@/components/DashboardLayout'
+import FloatingTimer from '@/components/FloatingTimer'
 import { Calendar, Clock, Plus, ChevronLeft, ChevronRight, Check, X, Play, Pause, Target, Flame, Zap, Brain, Edit3, Trash2, Download, TrendingUp, Award, Settings } from 'lucide-react'
 import html2canvas from 'html2canvas'
 
@@ -538,7 +539,7 @@ export default function StudyPlanner() {
             setEditingEntry(null)
             resetForm()
             
-            // Refresh data
+            // Refresh data without resetting the week view
             await Promise.all([fetchEntries(), fetchDailyBrief()])
             
             showAlert('Success', editingEntry ? 'Entry updated successfully' : 'Entry created successfully')
@@ -1065,112 +1066,19 @@ export default function StudyPlanner() {
                     )}
                 </div>
 
-                {/* Timer Modal */}
+                {/* Floating Timer */}
                 {timerEntry && (
-                    <div className="timer-overlay">
-                        <div className="timer-modal redesigned">
-                            <button className="timer-close-btn" onClick={() => { setTimerEntry(null); setTimerRunning(false); }} title="Close">
-                                <X size={20} />
-                            </button>
-                            <div className="timer-header">
-                                <div className="timer-badge">
-                                    <span className="timer-type-icon">{getStudyTypeInfo(timerEntry.study_type).icon}</span>
-                                    <span className="timer-type-label">{getStudyTypeInfo(timerEntry.study_type).label}</span>
-                                </div>
-                                <h3>{timerEntry.subject}</h3>
-                                {timerEntry.topic && <p className="timer-topic">{timerEntry.topic}</p>}
-                            </div>
-
-                            <div className="timer-main">
-                                {!timerRunning ? (
-                                    <div className="timer-edit-zone">
-                                        <div className="time-input-group">
-                                            <div className="time-unit">
-                                                <input
-                                                    type="number"
-                                                    value={Math.floor(timerSeconds / 3600)}
-                                                    onChange={(e) => {
-                                                        const h = Math.max(0, parseInt(e.target.value) || 0)
-                                                        const m = Math.floor((timerSeconds % 3600) / 60)
-                                                        const s = timerSeconds % 60
-                                                        setTimerSeconds(h * 3600 + m * 60 + s)
-                                                    }}
-                                                />
-                                                <span>HRS</span>
-                                            </div>
-                                            <span className="time-separator">:</span>
-                                            <div className="time-unit">
-                                                <input
-                                                    type="number"
-                                                    value={Math.floor((timerSeconds % 3600) / 60)}
-                                                    onChange={(e) => {
-                                                        const h = Math.floor(timerSeconds / 3600)
-                                                        const m = Math.min(59, Math.max(0, parseInt(e.target.value) || 0))
-                                                        const s = timerSeconds % 60
-                                                        setTimerSeconds(h * 3600 + m * 60 + s)
-                                                    }}
-                                                />
-                                                <span>MIN</span>
-                                            </div>
-                                            <span className="time-separator">:</span>
-                                            <div className="time-unit">
-                                                <input
-                                                    type="number"
-                                                    value={timerSeconds % 60}
-                                                    onChange={(e) => {
-                                                        const h = Math.floor(timerSeconds / 3600)
-                                                        const m = Math.floor((timerSeconds % 3600) / 60)
-                                                        const s = Math.min(59, Math.max(0, parseInt(e.target.value) || 0))
-                                                        setTimerSeconds(h * 3600 + m * 60 + s)
-                                                    }}
-                                                />
-                                                <span>SEC</span>
-                                            </div>
-                                        </div>
-                                        <p className="timer-hint">Adjust the time if needed before starting</p>
-                                    </div>
-                                ) : (
-                                    <div className="timer-active-zone">
-                                        <div className="timer-display-modern">
-                                            {formatTimer(timerSeconds)}
-                                        </div>
-                                        <div className="timer-progress-container">
-                                            <div
-                                                className="timer-progress-bar"
-                                                style={{ width: `${Math.min(100, (timerSeconds / (60 * 60)) * 100)}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="timer-actions-redesigned">
-                                {!timerRunning ? (
-                                    <button className="timer-btn-primary" onClick={() => setTimerRunning(true)}>
-                                        <Play size={24} fill="currentColor" />
-                                        <span>Start Timer</span>
-                                    </button>
-                                ) : (
-                                    <button className="timer-btn-secondary pause" onClick={() => setTimerRunning(false)}>
-                                        <Pause size={20} />
-                                        <span>Pause</span>
-                                    </button>
-                                )}
-
-                                {timerRunning && (
-                                    <button className="timer-btn-primary complete" onClick={handleTimerComplete}>
-                                        <Check size={20} />
-                                        <span>Complete Session</span>
-                                    </button>
-                                )}
-
-                                <button className="timer-btn-discard" onClick={() => { setTimerEntry(null); setTimerRunning(false); }}>
-                                    <X size={20} />
-                                    <span>Discard</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <FloatingTimer
+                        entry={timerEntry}
+                        initialSeconds={timerSeconds}
+                        isRunning={timerRunning}
+                        onToggleRunning={() => setTimerRunning(!timerRunning)}
+                        onComplete={handleTimerComplete}
+                        onDiscard={() => {
+                            setTimerEntry(null)
+                            setTimerRunning(false)
+                        }}
+                    />
                 )}
 
                 {/* Add/Edit Modal */}
@@ -1869,6 +1777,178 @@ export default function StudyPlanner() {
                     @keyframes pulse-border {
                         0%, 100% { box-shadow: 0 0 0 3px #10B981, 0 8px 24px rgba(16, 185, 129, 0.25); }
                         50% { box-shadow: 0 0 0 5px #10B981, 0 8px 32px rgba(16, 185, 129, 0.4); }
+                    }
+
+                    /* =========================================================================
+                        FLOATING TIMER - Global Styles
+                        ========================================================================= */
+                    .floating-timer {
+                        position: fixed;
+                        bottom: 24px;
+                        right: 24px;
+                        background: white;
+                        border-radius: 20px;
+                        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+                        padding: 20px;
+                        width: 320px;
+                        z-index: 999;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                        border-top: 4px solid #5C67F2;
+                    }
+                    .floating-timer.minimized {
+                        width: 200px;
+                        padding: 12px 16px;
+                    }
+                    .floating-timer-header {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        margin-bottom: 16px;
+                    }
+                    .floating-timer.minimized .floating-timer-header {
+                        margin-bottom: 0;
+                    }
+                    .timer-info {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        flex: 1;
+                    }
+                    .timer-icon {
+                        font-size: 20px;
+                        flex-shrink: 0;
+                    }
+                    .timer-text {
+                        flex: 1;
+                        min-width: 0;
+                    }
+                    .timer-subject {
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: var(--cream-text-main);
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .timer-topic-small {
+                        font-size: 11px;
+                        color: var(--cream-text-muted);
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .timer-minimize-btn {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 8px;
+                        background: #F1F5F9;
+                        border: none;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        flex-shrink: 0;
+                    }
+                    .timer-minimize-btn:hover {
+                        background: #E2E8F0;
+                        transform: scale(1.05);
+                    }
+                    .floating-timer-display {
+                        font-size: 36px;
+                        font-weight: 900;
+                        text-align: center;
+                        color: var(--cream-text-main);
+                        font-variant-numeric: tabular-nums;
+                        margin-bottom: 12px;
+                        letter-spacing: -1px;
+                    }
+                    .floating-timer-progress {
+                        width: 100%;
+                        height: 6px;
+                        background: #F1F5F9;
+                        border-radius: 100px;
+                        overflow: hidden;
+                        margin-bottom: 16px;
+                    }
+                    .progress-bar {
+                        height: 100%;
+                        background: linear-gradient(90deg, #5C67F2, #7C3AED);
+                        transition: width 1s linear;
+                        border-radius: 100px;
+                    }
+                    .floating-timer-actions {
+                        display: flex;
+                        gap: 8px;
+                        justify-content: center;
+                    }
+                    .timer-action-btn {
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 12px;
+                        border: none;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    }
+                    .timer-action-btn.play-pause {
+                        background: var(--cream-text-main);
+                        color: white;
+                    }
+                    .timer-action-btn.play-pause:hover {
+                        background: #5C67F2;
+                        transform: translateY(-2px);
+                    }
+                    .timer-action-btn.complete {
+                        background: #10B981;
+                        color: white;
+                    }
+                    .timer-action-btn.complete:hover {
+                        background: #059669;
+                        transform: translateY(-2px);
+                    }
+                    .timer-action-btn.discard {
+                        background: #FEE2E2;
+                        color: #991B1B;
+                    }
+                    .timer-action-btn.discard:hover {
+                        background: #FECACA;
+                        transform: translateY(-2px);
+                    }
+                    .minimized-content {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 12px;
+                    }
+                    .minimized-time {
+                        font-size: 18px;
+                        font-weight: 800;
+                        color: var(--cream-text-main);
+                        font-variant-numeric: tabular-nums;
+                    }
+                    .minimized-actions {
+                        display: flex;
+                        gap: 6px;
+                    }
+                    .mini-btn {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 8px;
+                        border: none;
+                        background: var(--cream-text-main);
+                        color: white;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    }
+                    .mini-btn:hover {
+                        background: #5C67F2;
+                        transform: scale(1.05);
                     }
                 `}</style>
             </DashboardLayout >

@@ -988,6 +988,51 @@ async def search_documents(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/documents/{document_id}/diagnostics")
+async def get_document_diagnostics(
+    document_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get diagnostic information about a document"""
+    try:
+        # Get document info
+        doc_result = supabase.table("documents").select("*").eq("id", document_id).eq("user_id", user["id"]).execute()
+        
+        if not doc_result.data:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        document = doc_result.data[0]
+        
+        # Get chunks info
+        chunks_result = supabase.table("document_chunks").select("id, chunk_index, embedding").eq("document_id", document_id).execute()
+        
+        chunks_info = {
+            "total_chunks": len(chunks_result.data or []),
+            "chunks_with_embeddings": sum(1 for c in (chunks_result.data or []) if c.get("embedding") is not None),
+            "chunks_without_embeddings": sum(1 for c in (chunks_result.data or []) if c.get("embedding") is None)
+        }
+        
+        return {
+            "document": {
+                "id": document["id"],
+                "filename": document["filename"],
+                "processing_status": document.get("processing_status"),
+                "created_at": document.get("created_at"),
+                "processed_at": document.get("processed_at"),
+                "error_message": document.get("error_message"),
+                "file_size": document.get("file_size"),
+                "feature": document.get("feature")
+            },
+            "chunks": chunks_info,
+            "rag_ready": chunks_info["chunks_with_embeddings"] > 0
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get document diagnostics: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================================
 # ADMIN ENDPOINTS - Rate Limits & Quotas
 # ============================================================================
