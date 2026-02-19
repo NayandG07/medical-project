@@ -45,13 +45,17 @@ export default function DocumentsPage() {
 
   const fetchDocuments = async () => {
     try {
-      const { data, error } = await supabase
-        .from('documents')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
 
-      if (error) throw error
-      setDocuments(data || [])
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      })
+
+      if (!response.ok) throw new Error('Failed to fetch documents')
+      
+      const result = await response.json()
+      setDocuments(result.documents || [])
     } catch (err) {
       console.error('Error fetching documents:', err)
     }

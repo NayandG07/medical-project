@@ -305,11 +305,17 @@ class DocumentService:
                 else:
                     logger.warning(f"HuggingFace provider not available for chunk {i}")
                 
+                # Format embedding as PostgreSQL vector string
+                embedding_str = None
+                if embedding:
+                    # Convert list to PostgreSQL vector format: [1,2,3]
+                    embedding_str = '[' + ','.join(str(x) for x in embedding) + ']'
+                
                 chunk_data = {
                     "document_id": document_id,
                     "chunk_index": i,
                     "content": chunk,
-                    "embedding": embedding,
+                    "embedding": embedding_str,
                     "created_at": datetime.now().isoformat()
                 }
                 
@@ -349,26 +355,35 @@ class DocumentService:
     async def delete_document(self, user_id: str, document_id: str):
         """Delete a document and its chunks"""
         try:
+            logger.info(f"Attempting to delete document {document_id} for user {user_id}")
+            
             # Get document with better error handling
             doc_result = self.supabase.table("documents").select("*").eq("id", document_id).eq("user_id", user_id).execute()
+            
+            logger.info(f"Query result: {len(doc_result.data) if doc_result.data else 0} documents found")
             
             if not doc_result.data or len(doc_result.data) == 0:
                 # Check if document exists but belongs to different user
                 any_doc = self.supabase.table("documents").select("id, user_id").eq("id", document_id).execute()
-                if any_doc.data:
-                    logger.error(f"Document {document_id} exists but belongs to different user")
+                if any_doc.data and len(any_doc.data) > 0:
+                    actual_user_id = any_doc.data[0].get("user_id")
+                    logger.error(f"Access denied: Document {document_id} belongs to user {actual_user_id}, requested by user {user_id}")
                     raise Exception("Document not found or access denied")
                 else:
-                    logger.warning(f"Document {document_id} not found in database, attempting cleanup")
-                    # Try to clean up orphaned chunks and storage
+                    logger.info(f"Document {document_id} not found in database (already deleted or never existed)")
+                    # Try to clean up orphaned chunks silently
                     try:
-                        self.supabase.table("document_chunks").delete().eq("document_id", document_id).execute()
-                        logger.info(f"Cleaned up orphaned chunks for {document_id}")
+                        chunks_deleted = self.supabase.table("document_chunks").delete().eq("document_id", document_id).execute()
+                        if chunks_deleted.data:
+                            logger.info(f"Cleaned up {len(chunks_deleted.data)} orphaned chunks for {document_id}")
                     except Exception as cleanup_err:
-                        logger.warning(f"Chunk cleanup failed: {str(cleanup_err)}")
-                    raise Exception("Document not found or already deleted")
+                        logger.debug(f"Chunk cleanup skipped: {str(cleanup_err)}")
+                    # Return success since the document is already gone
+                    logger.info(f"Document {document_id} already deleted - returning success")
+                    return
             
             document = doc_result.data[0]
+            logger.info(f"Found document: {document.get('filename')} owned by {document.get('user_id')}")
             
             # Delete from storage
             try:
@@ -464,12 +479,15 @@ class DocumentService:
                         query_embedding = result["embedding"]
                         logger.info(f"Generated query embedding, dimension: {len(query_embedding)}")
                         
+                        # Format as PostgreSQL vector string
+                        query_embedding_str = '[' + ','.join(str(x) for x in query_embedding) + ']'
+                        
                         # Use pgvector similarity search
                         try:
                             chunks_result = self.supabase.rpc(
                                 'match_document_chunks',
                                 {
-                                    'query_embedding': query_embedding,
+                                    'query_embedding': query_embedding_str,
                                     'match_count': top_k,
                                     'filter_doc_ids': doc_ids
                                 }

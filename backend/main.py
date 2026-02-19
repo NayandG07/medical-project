@@ -954,11 +954,35 @@ async def get_documents(
 @app.delete("/api/documents/{document_id}")
 async def delete_document(
     document_id: str,
-    user: Dict[str, Any] = Depends(get_current_user)
+    user: Dict[str, Any] = Depends(get_current_user),
+    force: bool = False
 ):
     """Delete a document"""
     try:
         document_service = get_document_service(supabase)
+        
+        # If force=true, bypass user check (for admin cleanup)
+        if force:
+            logger.warning(f"Force deleting document {document_id}")
+            # Get document without user filter
+            doc_result = supabase.table("documents").select("*").eq("id", document_id).execute()
+            if doc_result.data and len(doc_result.data) > 0:
+                document = doc_result.data[0]
+                # Delete storage
+                try:
+                    if document.get("storage_path"):
+                        supabase.storage.from_("documents").remove([document["storage_path"]])
+                except Exception as e:
+                    logger.warning(f"Storage deletion failed: {str(e)}")
+                # Delete chunks
+                supabase.table("document_chunks").delete().eq("document_id", document_id).execute()
+                # Delete document
+                supabase.table("documents").delete().eq("id", document_id).execute()
+                return {"message": "Document force deleted successfully"}
+            else:
+                raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Normal deletion with user check
         await document_service.delete_document(user["id"], document_id)
         return {"message": "Document deleted successfully"}
     except Exception as e:

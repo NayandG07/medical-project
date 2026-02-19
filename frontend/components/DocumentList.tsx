@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  FileText, Trash2, Clock, CheckCircle2, AlertCircle,
+  FileText, Trash2, Clock, CheckCircle2, AlertCircle, AlertTriangle,
   Loader2, MoreVertical, ExternalLink, MessageSquare,
   FileQuestion, BookOpen, Lightbulb, Sparkles, Zap,
   Search, Eye, HardDrive, Download, ChevronRight, Share
@@ -16,6 +16,7 @@ export interface Document {
   file_size: number
   storage_path: string
   processing_status: 'pending' | 'processing' | 'completed' | 'failed'
+  error_message?: string
   feature: 'chat' | 'mcq' | 'flashcard' | 'explain' | 'highyield'
   created_at: string
 }

@@ -21,6 +21,8 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
   const [selectedFeature, setSelectedFeature] = useState<Feature>('chat')
   const [isDragging, setIsDragging] = useState(false)
   const [showFeatureSelect, setShowFeatureSelect] = useState(false)
+  const [processingStatus, setProcessingStatus] = useState<'uploading' | 'processing' | 'completed' | null>(null)
+  const [documentId, setDocumentId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const features = [
@@ -59,6 +61,7 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
     if (!selectedFile) return
     setUploading(true)
     setProgress(0)
+    setProcessingStatus('uploading')
 
     try {
       const { createClient } = await import('@supabase/supabase-js')
@@ -76,33 +79,14 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
         if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100))
       })
 
-      xhr.addEventListener('load', () => {
+      xhr.addEventListener('load', async () => {
         if (xhr.status === 201) {
           const response = JSON.parse(xhr.responseText)
-          sessionStorage.setItem('activeDocument', JSON.stringify({
-            id: response.id,
-            filename: selectedFile.name,
-            feature: selectedFeature,
-            timestamp: Date.now()
-          }))
-
-          const getRedirectPath = (feat: Feature) => {
-            if (feat === 'chat') return '/chat'
-            if (feat === 'explain') return '/explain'
-            if (feat === 'highyield') return '/highyield'
-            return `/${feat}s`
-          }
-
-          if (onClose) {
-            onUploadSuccess()
-            onClose()
-            // Optional: delay redirect to show success state
-            setTimeout(() => {
-              window.location.href = `${getRedirectPath(selectedFeature)}?document=${response.id}`
-            }, 500)
-          } else {
-            window.location.href = `${getRedirectPath(selectedFeature)}?document=${response.id}`
-          }
+          setDocumentId(response.id)
+          setProcessingStatus('processing')
+          
+          // Poll for document processing completion
+          await pollDocumentStatus(response.id, token, selectedFeature)
         } else {
           let errorMessage = 'Vault synchronization failed'
           try {
@@ -114,8 +98,9 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
             // Use default error message if parsing fails
           }
           onUploadError(errorMessage)
+          setUploading(false)
+          setProcessingStatus(null)
         }
-        setUploading(false)
       })
 
       xhr.open('POST', `${process.env.NEXT_PUBLIC_API_URL}/api/documents`)
@@ -124,7 +109,83 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
     } catch (error: any) {
       onUploadError(error.message)
       setUploading(false)
+      setProcessingStatus(null)
     }
+  }
+
+  const pollDocumentStatus = async (docId: string, token: string, feature: Feature) => {
+    const maxAttempts = 60 // 60 attempts = 1 minute max
+    let attempts = 0
+
+    const checkStatus = async (): Promise<void> => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents/${docId}/diagnostics`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          
+          if (data.document.processing_status === 'completed' && data.rag_ready) {
+            setProcessingStatus('completed')
+            
+            // Store document info
+            sessionStorage.setItem('activeDocument', JSON.stringify({
+              id: docId,
+              filename: selectedFile?.name,
+              feature: feature,
+              timestamp: Date.now()
+            }))
+
+            // Redirect to appropriate feature
+            const getRedirectPath = (feat: Feature) => {
+              if (feat === 'chat') return '/chat'
+              if (feat === 'explain') return '/explain'
+              if (feat === 'highyield') return '/highyield'
+              return `/${feat}s`
+            }
+
+            if (onClose) {
+              onUploadSuccess()
+              onClose()
+              setTimeout(() => {
+                window.location.href = `${getRedirectPath(feature)}?document=${docId}`
+              }, 500)
+            } else {
+              window.location.href = `${getRedirectPath(feature)}?document=${docId}`
+            }
+            return
+          } else if (data.document.processing_status === 'failed') {
+            onUploadError('Document processing failed. Please try again.')
+            setUploading(false)
+            setProcessingStatus(null)
+            return
+          }
+        }
+
+        // Continue polling if not completed
+        attempts++
+        if (attempts < maxAttempts) {
+          setTimeout(checkStatus, 1000) // Check every second
+        } else {
+          onUploadError('Document processing timeout. Please check the documents page.')
+          setUploading(false)
+          setProcessingStatus(null)
+        }
+      } catch (error) {
+        console.error('Error checking document status:', error)
+        attempts++
+        if (attempts < maxAttempts) {
+          setTimeout(checkStatus, 1000)
+        } else {
+          onUploadError('Failed to check document status')
+          setUploading(false)
+          setProcessingStatus(null)
+        }
+      }
+    }
+
+    await checkStatus()
   }
 
   return (
@@ -177,8 +238,8 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
                 {features.map(f => (
                   <button
                     key={f.id}
-                    className={`feature-row ${selectedFeature === f.id ? 'active' : ''}`}
-                    onClick={() => setSelectedFeature(f.id)}
+                    className={`feature-row ${selectedFeature === f.id ? 'active' : ''} ${uploading ? 'disabled' : ''}`}
+                    onClick={() => !uploading && setSelectedFeature(f.id)}
                     disabled={uploading}
                   >
                     <div className="f-icon" style={{ background: `${f.color}15`, color: f.color }}>
@@ -192,6 +253,12 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
                   </button>
                 ))}
               </div>
+              {processingStatus === 'processing' && (
+                <div className="processing-notice">
+                  <Loader2 className="spin" size={14} />
+                  <span>Generating embeddings and indexing document...</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -205,10 +272,22 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
           onClick={handleUpload}
         >
           {uploading ? (
-            <>
-              <Loader2 className="spin" size={18} />
-              <span>Processing... {progress}%</span>
-            </>
+            processingStatus === 'uploading' ? (
+              <>
+                <Loader2 className="spin" size={18} />
+                <span>Uploading... {progress}%</span>
+              </>
+            ) : processingStatus === 'processing' ? (
+              <>
+                <Loader2 className="spin" size={18} />
+                <span>Processing & Indexing...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle size={18} />
+                <span>Redirecting...</span>
+              </>
+            )
           ) : (
             <>
               <Zap size={18} />
@@ -302,8 +381,15 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
                 background: white; border-radius: 16px; cursor: pointer; transition: all 0.2s; text-align: left;
                 position: relative;
             }
-            .feature-row:hover:not(:disabled) { border-color: #4F46E5; background: #F8FAFF; }
+            .feature-row:hover:not(:disabled):not(.disabled) { border-color: #4F46E5; background: #F8FAFF; }
             .feature-row.active { border-color: #4F46E5; background: #EEF2FF; }
+            .feature-row.disabled { 
+                opacity: 0.4; 
+                cursor: not-allowed; 
+                pointer-events: none;
+                background: #F8FAFC !important;
+                border-color: #E2E8F0 !important;
+            }
 
             .f-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
             .f-text { display: flex; flex-direction: column; flex: 1; }
@@ -315,6 +401,23 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
                 transition: all 0.2s;
             }
             .feature-row.active .active-dot { background: #4F46E5; border-color: #4F46E5; transform: scale(1.2); }
+
+            .processing-notice {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 12px;
+                background: #FFF7ED;
+                border: 1px solid #FED7AA;
+                border-radius: 12px;
+                margin-top: 12px;
+                font-size: 12px;
+                color: #C2410C;
+                font-weight: 600;
+            }
+            .processing-notice .spin {
+                animation: spin 1s linear infinite;
+            }
 
             .modal-footer {
                 padding: 24px 32px; background: #F8FAFC; border-top: 1px solid #F1F5F9;

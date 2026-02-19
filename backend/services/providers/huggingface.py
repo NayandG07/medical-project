@@ -35,9 +35,8 @@ class HuggingFaceProvider:
         "image": "microsoft/llava-med-v1.5-mistral-7b", # Image-text-to-text medical vision
         # "image": "Qwen/Qwen3-VL-235B-A22B-Thinking", # Image-to-text vision
         
-        # Embeddings - Using BAAI BGE (best free model, MTEB: 62.17)
-        # "embedding": "BAAI/bge-small-en-v1.5",
-        "embedding": "Qwen/Qwen3-Embedding-8B",
+        # Embeddings - Using BAAI BGE (384 dimensions, MTEB: 62.17)
+        "embedding": "BAAI/bge-small-en-v1.5",
     }
     
     def __init__(self):
@@ -206,10 +205,14 @@ class HuggingFaceProvider:
             # Convert to list if it's a numpy array or tensor
             if hasattr(embedding, 'tolist'):
                 embedding = embedding.tolist()
-            elif isinstance(embedding, list) and len(embedding) > 0:
-                # If it's a list of lists (batch), take first element
-                if isinstance(embedding[0], list):
-                    embedding = embedding[0]
+            
+            # Handle nested lists - feature_extraction often returns [[...]]
+            while isinstance(embedding, list) and len(embedding) > 0 and isinstance(embedding[0], list):
+                embedding = embedding[0]
+            
+            # Ensure it's a flat list of numbers
+            if not isinstance(embedding, list) or not all(isinstance(x, (int, float)) for x in embedding):
+                raise ValueError(f"Invalid embedding format: {type(embedding)}")
             
             logger.info(f"Embedding generated successfully, dimension: {len(embedding) if embedding else 0}")
             
