@@ -42,6 +42,8 @@ export default function DocumentList({ documents, onDelete, loading }: DocumentL
     { id: 'chat', name: 'Clinical Analysis', icon: MessageSquare, color: '#4F46E5' },
     { id: 'mcq', name: 'Practice MCQ', icon: FileQuestion, color: '#10B981' },
     { id: 'flashcard', name: 'Recall Study', icon: BookOpen, color: '#F59E0B' },
+    { id: 'explain', name: 'Expert Explain', icon: Lightbulb, color: '#EF4444' },
+    { id: 'highyield', name: 'High Yield', icon: Sparkles, color: '#8B5CF6' },
   ]
 
   const formatFileSize = (bytes: number): string => {
@@ -177,6 +179,18 @@ export default function DocumentList({ documents, onDelete, loading }: DocumentL
                       className="hub-option-card"
                       onClick={() => {
                         setNavigatingFeature(f.id)
+                        
+                        // Store document info for RAG activation
+                        const doc = documents.find(d => d.id === showFeatureMenu)
+                        if (doc) {
+                          sessionStorage.setItem('activeDocument', JSON.stringify({
+                            id: doc.id,
+                            filename: doc.filename,
+                            feature: f.id,
+                            timestamp: Date.now()
+                          }))
+                        }
+                        
                         const path = f.id === 'chat' ? '/chat' :
                           f.id === 'explain' ? '/explain' :
                             f.id === 'highyield' ? '/highyield' :

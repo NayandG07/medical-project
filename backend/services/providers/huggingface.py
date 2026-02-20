@@ -35,8 +35,8 @@ class HuggingFaceProvider:
         "image": "microsoft/llava-med-v1.5-mistral-7b", # Image-text-to-text medical vision
         # "image": "Qwen/Qwen3-VL-235B-A22B-Thinking", # Image-to-text vision
         
-        # Embeddings - Using BAAI BGE (384 dimensions, MTEB: 62.17)
-        "embedding": "BAAI/bge-small-en-v1.5",
+        # Embeddings - Using Qwen3 Embedding (4096 dimensions, superior semantic understanding)
+        "embedding": "Qwen/Qwen3-Embedding-8B",
     }
     
     def __init__(self):
@@ -187,12 +187,14 @@ class HuggingFaceProvider:
         model = self.MEDICAL_MODELS["embedding"]
         
         try:
+            # For Qwen models, no special instruction needed
             # For BGE models, prepend instruction to queries for better retrieval
-            # Documents/passages don't need instructions
-            if prepend_instruction and "bge" in model.lower():
-                text_to_embed = f"Represent this sentence for searching relevant passages: {text}"
-            else:
-                text_to_embed = text
+            text_to_embed = text
+            
+            if prepend_instruction:
+                if "bge" in model.lower():
+                    text_to_embed = f"Represent this sentence for searching relevant passages: {text}"
+                # Qwen models don't need special instructions
             
             logger.info(f"Generating embedding with model: {model}")
             

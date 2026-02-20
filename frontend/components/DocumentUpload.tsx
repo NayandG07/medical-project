@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react'
 import {
   Upload, X, FileText, CheckCircle, AlertCircle,
-  Loader2, MessageSquare, FileQuestion, BookOpen,
-  Lightbulb, Sparkles, ShieldCheck, Zap
+  Loader2, ShieldCheck, Zap
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -12,26 +11,14 @@ interface DocumentUploadProps {
   onClose?: () => void
 }
 
-type Feature = 'chat' | 'mcq' | 'flashcard' | 'explain' | 'highyield'
-
 export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose }: DocumentUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [selectedFeature, setSelectedFeature] = useState<Feature>('chat')
   const [isDragging, setIsDragging] = useState(false)
-  const [showFeatureSelect, setShowFeatureSelect] = useState(false)
   const [processingStatus, setProcessingStatus] = useState<'uploading' | 'processing' | 'completed' | null>(null)
   const [documentId, setDocumentId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const features = [
-    { id: 'chat' as Feature, name: 'Clinical Chat (RAG)', icon: MessageSquare, color: '#4F46E5', desc: 'Interact with medical records using AI' },
-    { id: 'mcq' as Feature, name: 'Medical MCQs', icon: FileQuestion, color: '#10B981', desc: 'Generate board-style questions' },
-    { id: 'flashcard' as Feature, name: 'Active Recall', icon: BookOpen, color: '#F59E0B', desc: 'Auto-generate study flashcards' },
-    { id: 'explain' as Feature, name: 'Expert Explain', icon: Lightbulb, color: '#EF4444', desc: 'Simplify complex clinical concepts' },
-    { id: 'highyield' as Feature, name: 'High Yield', icon: Sparkles, color: '#8B5CF6', desc: 'Extract high-yield medical facts' },
-  ]
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -53,7 +40,6 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
       }
 
       setSelectedFile(file)
-      setShowFeatureSelect(true)
     }
   }
 
@@ -72,7 +58,7 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
 
       const formData = new FormData()
       formData.append('file', selectedFile)
-      formData.append('feature', selectedFeature)
+      formData.append('feature', 'chat') // Default to chat feature
 
       const xhr = new XMLHttpRequest()
       xhr.upload.addEventListener('progress', (e) => {
@@ -86,7 +72,7 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
           setProcessingStatus('processing')
           
           // Poll for document processing completion
-          await pollDocumentStatus(response.id, token, selectedFeature)
+          await pollDocumentStatus(response.id, token)
         } else {
           let errorMessage = 'Vault synchronization failed'
           try {
@@ -113,8 +99,8 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
     }
   }
 
-  const pollDocumentStatus = async (docId: string, token: string, feature: Feature) => {
-    const maxAttempts = 60 // 60 attempts = 1 minute max
+  const pollDocumentStatus = async (docId: string, token: string) => {
+    const maxAttempts = 120 // 120 attempts = 2 minutes max
     let attempts = 0
 
     const checkStatus = async (): Promise<void> => {
@@ -126,33 +112,20 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
         if (response.ok) {
           const data = await response.json()
           
+          // Update progress display if available
+          if (data.document.processing_progress) {
+            setProgress(data.document.processing_progress)
+          }
+          
           if (data.document.processing_status === 'completed' && data.rag_ready) {
             setProcessingStatus('completed')
             
-            // Store document info
-            sessionStorage.setItem('activeDocument', JSON.stringify({
-              id: docId,
-              filename: selectedFile?.name,
-              feature: feature,
-              timestamp: Date.now()
-            }))
-
-            // Redirect to appropriate feature
-            const getRedirectPath = (feat: Feature) => {
-              if (feat === 'chat') return '/chat'
-              if (feat === 'explain') return '/explain'
-              if (feat === 'highyield') return '/highyield'
-              return `/${feat}s`
-            }
-
+            // Just notify success, don't redirect
             if (onClose) {
               onUploadSuccess()
               onClose()
-              setTimeout(() => {
-                window.location.href = `${getRedirectPath(feature)}?document=${docId}`
-              }, 500)
             } else {
-              window.location.href = `${getRedirectPath(feature)}?document=${docId}`
+              onUploadSuccess()
             }
             return
           } else if (data.document.processing_status === 'failed') {
@@ -232,34 +205,12 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
               )}
             </div>
 
-            <div className="feature-selection">
-              <label>Intelligence Selection</label>
-              <div className="feature-list-vertical">
-                {features.map(f => (
-                  <button
-                    key={f.id}
-                    className={`feature-row ${selectedFeature === f.id ? 'active' : ''} ${uploading ? 'disabled' : ''}`}
-                    onClick={() => !uploading && setSelectedFeature(f.id)}
-                    disabled={uploading}
-                  >
-                    <div className="f-icon" style={{ background: `${f.color}15`, color: f.color }}>
-                      <f.icon size={18} />
-                    </div>
-                    <div className="f-text">
-                      <span className="f-name">{f.name}</span>
-                      <span className="f-desc">{f.desc}</span>
-                    </div>
-                    <div className="active-dot" />
-                  </button>
-                ))}
+            {processingStatus === 'processing' && (
+              <div className="processing-notice">
+                <Loader2 className="spin" size={14} />
+                <span>Processing document... {progress}%</span>
               </div>
-              {processingStatus === 'processing' && (
-                <div className="processing-notice">
-                  <Loader2 className="spin" size={14} />
-                  <span>Generating embeddings and indexing document...</span>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         )}
       </div>
@@ -371,36 +322,6 @@ export default function DocumentUpload({ onUploadSuccess, onUploadError, onClose
                 background: white; border: 1px solid #E2E8F0; width: 28px; height: 28px; border-radius: 50%;
                 display: flex; align-items: center; justify-content: center; color: #94A3B8; cursor: pointer;
             }
-
-            .feature-selection label { font-size: 11px; font-weight: 850; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 12px; }
-
-            .feature-list-vertical { display: flex; flex-direction: column; gap: 10px; }
-
-            .feature-row {
-                width: 100%; display: flex; align-items: center; gap: 16px; padding: 14px; border: 1px solid #F1F5F9;
-                background: white; border-radius: 16px; cursor: pointer; transition: all 0.2s; text-align: left;
-                position: relative;
-            }
-            .feature-row:hover:not(:disabled):not(.disabled) { border-color: #4F46E5; background: #F8FAFF; }
-            .feature-row.active { border-color: #4F46E5; background: #EEF2FF; }
-            .feature-row.disabled { 
-                opacity: 0.4; 
-                cursor: not-allowed; 
-                pointer-events: none;
-                background: #F8FAFC !important;
-                border-color: #E2E8F0 !important;
-            }
-
-            .f-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-            .f-text { display: flex; flex-direction: column; flex: 1; }
-            .f-name { font-size: 14px; font-weight: 800; color: #0F172A; }
-            .f-desc { font-size: 11px; font-weight: 600; color: #64748B; margin-top: 2px; }
-
-            .active-dot {
-                width: 10px; height: 10px; border: 2px solid #E2E8F0; border-radius: 50%; margin-left: auto;
-                transition: all 0.2s;
-            }
-            .feature-row.active .active-dot { background: #4F46E5; border-color: #4F46E5; transform: scale(1.2); }
 
             .processing-notice {
                 display: flex;

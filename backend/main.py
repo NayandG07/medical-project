@@ -2066,3 +2066,127 @@ if __name__ == "__main__":
     import uvicorn
     # Use string reference for app to enable reload
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+
+# ============================================================================
+# MEDICAL IMAGES ENDPOINTS
+# ============================================================================
+
+from services.medical_images import get_medical_image_service
+
+
+@app.post("/api/medical-images", status_code=201)
+async def upload_medical_image(
+    file: UploadFile = File(...),
+    category: Optional[str] = Form(None),
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Upload a medical image for AI analysis
+    
+    Args:
+        file: Image file (JPEG, PNG, etc.)
+        category: Optional category (xray, ct, mri, ultrasound, pathology, etc.)
+    """
+    try:
+        logger.info(f"Medical image upload started - User: {user['id'][:8]}..., Category: {category}, File: {file.filename}")
+        
+        # Validate file type
+        allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/bmp", "image/tiff", "image/webp"]
+        if file.content_type not in allowed_types:
+            logger.warning(f"Invalid file type: {file.content_type} - User: {user['id'][:8]}...")
+            raise HTTPException(status_code=400, detail="Invalid file type. Only images are supported.")
+        
+        # Validate file size (50MB max for medical images)
+        file_content = await file.read()
+        file_size_mb = len(file_content) / (1024 * 1024)
+        if len(file_content) > 50 * 1024 * 1024:
+            logger.warning(f"File too large: {file_size_mb:.2f}MB - User: {user['id'][:8]}...")
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 50MB.")
+        
+        # Upload medical image
+        medical_image_service = get_medical_image_service(supabase)
+        medical_image = await medical_image_service.upload_medical_image(
+            user_id=user["id"],
+            file_content=file_content,
+            filename=file.filename or "unnamed.jpg",
+            file_type=file.content_type or "image/jpeg",
+            category=category
+        )
+        
+        logger.info(f"Medical image uploaded - User: {user['id'][:8]}..., Size: {file_size_mb:.2f}MB, ID: {medical_image.get('id', 'unknown')[:8]}...")
+        return medical_image
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Medical image upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/medical-images")
+async def get_medical_images(
+    category: Optional[str] = None,
+    limit: int = 50,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get user's medical images, optionally filtered by category"""
+    try:
+        medical_image_service = get_medical_image_service(supabase)
+        images = await medical_image_service.get_user_medical_images(user["id"], category, limit)
+        return {"images": images, "count": len(images)}
+    except Exception as e:
+        logger.error(f"Failed to get medical images: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/medical-images/{image_id}")
+async def get_medical_image(
+    image_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get a specific medical image with analysis"""
+    try:
+        medical_image_service = get_medical_image_service(supabase)
+        image = await medical_image_service.get_medical_image(user["id"], image_id)
+        
+        if not image:
+            raise HTTPException(status_code=404, detail="Medical image not found")
+        
+        return image
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get medical image: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/medical-images/{image_id}")
+async def delete_medical_image(
+    image_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete a medical image"""
+    try:
+        medical_image_service = get_medical_image_service(supabase)
+        await medical_image_service.delete_medical_image(user["id"], image_id)
+        return {"message": "Medical image deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete medical image: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/medical-images/search")
+async def search_medical_images(
+    query: str,
+    top_k: int = 10,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Search medical images by text query"""
+    try:
+        medical_image_service = get_medical_image_service(supabase)
+        results = await medical_image_service.query_medical_images(user["id"], query, top_k)
+        return {"results": results, "count": len(results)}
+    except Exception as e:
+        logger.error(f"Medical image search failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
