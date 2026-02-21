@@ -95,6 +95,8 @@ export default function ClinicalCases() {
   const [showCaseSetup, setShowCaseSetup] = useState(true)
   const [selectedSpecialty, setSelectedSpecialty] = useState('general_medicine')
   const [selectedDifficulty, setSelectedDifficulty] = useState('intermediate')
+  const [useCustomCondition, setUseCustomCondition] = useState(false)
+  const [customCondition, setCustomCondition] = useState('')
 
   // Active case state
   const [activeCase, setActiveCase] = useState<CaseData | null>(null)
@@ -152,6 +154,11 @@ export default function ClinicalCases() {
   }
 
   const startCase = async () => {
+    if (useCustomCondition && !customCondition.trim()) {
+      alert('Please enter a condition or select random case')
+      return
+    }
+    
     setGenerating(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -166,7 +173,9 @@ export default function ClinicalCases() {
         body: JSON.stringify({
           specialty: selectedSpecialty,
           difficulty: selectedDifficulty,
-          case_type: 'clinical_reasoning'
+          case_type: 'clinical_reasoning',
+          use_custom_condition: useCustomCondition,
+          custom_condition: useCustomCondition ? customCondition : null
         })
       })
 
@@ -395,6 +404,62 @@ export default function ClinicalCases() {
                         <span className="diff-arrow">→</span>
                       </button>
                     ))}
+                  </div>
+
+                  <div className="setup-section" style={{ marginTop: '2rem' }}>
+                    <h3>CASE SELECTION</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', background: 'white', borderRadius: '12px', border: '2px solid #e2e8f0' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="case-type"
+                          checked={!useCustomCondition}
+                          onChange={() => {
+                            setUseCustomCondition(false)
+                            setCustomCondition('')
+                          }}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#667eea' }}
+                        />
+                        <span style={{ fontSize: '0.95rem', fontWeight: '600', color: '#334155' }}>
+                          Random Case (AI selects condition)
+                        </span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="case-type"
+                          checked={useCustomCondition}
+                          onChange={() => setUseCustomCondition(true)}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#667eea' }}
+                        />
+                        <span style={{ fontSize: '0.95rem', fontWeight: '600', color: '#334155' }}>
+                          Custom Condition
+                        </span>
+                      </label>
+                      {useCustomCondition && (
+                        <div style={{ marginLeft: '2rem', marginTop: '0.5rem' }}>
+                          <input
+                            type="text"
+                            placeholder="Enter condition (e.g., acute myocardial infarction)"
+                            value={customCondition}
+                            onChange={(e) => setCustomCondition(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '0.75rem 1rem',
+                              border: '2px solid #cbd5e1',
+                              borderRadius: '8px',
+                              fontSize: '0.95rem',
+                              transition: 'border-color 0.2s'
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                            onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                          />
+                          <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.5rem' }}>
+                            Enter the specific medical condition you want to practice
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="start-section-inline">

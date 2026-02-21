@@ -16,6 +16,8 @@ export default function Clinical() {
   const [userInput, setUserInput] = useState('')
   const [conversation, setConversation] = useState<any[]>([])
   const [generating, setGenerating] = useState(false)
+  const [useCustomCondition, setUseCustomCondition] = useState(false)
+  const [customCondition, setCustomCondition] = useState('')
 
   useEffect(() => {
     checkAuth()
@@ -39,6 +41,11 @@ export default function Clinical() {
   }
 
   const startSession = async () => {
+    if (useCustomCondition && !customCondition.trim()) {
+      alert('Please enter a condition or select random case')
+      return
+    }
+    
     setGenerating(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -122,6 +129,8 @@ export default function Clinical() {
     setCaseData(null)
     setConversation([])
     setUserInput('')
+    setUseCustomCondition(false)
+    setCustomCondition('')
   }
 
   if (loading || !user) {
@@ -163,6 +172,55 @@ export default function Clinical() {
                 <span className={`font-bold text-xl ${mode === 'osce' ? 'text-white' : 'text-slate-800'}`}>OSCE Simulator</span>
                 <span className={`text-[0.95rem] leading-normal ${mode === 'osce' ? 'text-white opacity-90' : 'text-slate-600'}`}>Simulate structured clinical examinations</span>
               </button>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-md border border-slate-300 mb-6">
+              <h3 className="text-slate-800 font-bold mb-4 text-xl">Case Selection</h3>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    id="random-case"
+                    name="case-type"
+                    checked={!useCustomCondition}
+                    onChange={() => {
+                      setUseCustomCondition(false)
+                      setCustomCondition('')
+                    }}
+                    className="w-5 h-5 cursor-pointer accent-medical-indigo"
+                  />
+                  <label htmlFor="random-case" className="text-slate-700 cursor-pointer font-medium">
+                    Random Case (AI selects condition based on specialty)
+                  </label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    id="custom-case"
+                    name="case-type"
+                    checked={useCustomCondition}
+                    onChange={() => setUseCustomCondition(true)}
+                    className="w-5 h-5 cursor-pointer accent-medical-indigo"
+                  />
+                  <label htmlFor="custom-case" className="text-slate-700 cursor-pointer font-medium">
+                    Custom Condition (Practice specific condition)
+                  </label>
+                </div>
+                {useCustomCondition && (
+                  <div className="ml-8 mt-2">
+                    <input
+                      type="text"
+                      placeholder="Enter condition (e.g., acute myocardial infarction, pneumonia)"
+                      value={customCondition}
+                      onChange={(e) => setCustomCondition(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg text-base text-slate-800 transition-colors focus:outline-none focus:border-medical-indigo"
+                    />
+                    <p className="text-sm text-slate-600 mt-2">
+                      Enter the specific medical condition you want to practice
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="text-center mb-8">

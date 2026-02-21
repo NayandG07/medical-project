@@ -96,6 +96,8 @@ export default function OSCESimulator() {
   const [selectedType, setSelectedType] = useState('history_taking')
   const [selectedSpecialty, setSelectedSpecialty] = useState('general_medicine')
   const [selectedDifficulty, setSelectedDifficulty] = useState('intermediate')
+  const [useCustomCondition, setUseCustomCondition] = useState(false)
+  const [customCondition, setCustomCondition] = useState('')
 
   // Active scenario state
   const [activeScenario, setActiveScenario] = useState<OSCEScenario | null>(null)
@@ -240,6 +242,11 @@ export default function OSCESimulator() {
   }
 
   const startScenario = async () => {
+    if (useCustomCondition && !customCondition.trim()) {
+      showAlert('Input Required', 'Please enter a condition or select random case')
+      return
+    }
+    
     setGenerating(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -254,7 +261,9 @@ export default function OSCESimulator() {
         body: JSON.stringify({
           scenario_type: selectedType,
           specialty: selectedSpecialty,
-          difficulty: selectedDifficulty
+          difficulty: selectedDifficulty,
+          use_custom_condition: useCustomCondition,
+          custom_condition: useCustomCondition ? customCondition : null
         })
       })
 
@@ -568,6 +577,64 @@ export default function OSCESimulator() {
                           {diff.name}
                         </button>
                       ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.optionsRow}>
+                  <div className={styles.optionSection}>
+                    <h3>Case Selection</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', background: 'white', borderRadius: '12px', border: '2px solid #e2e8f0' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="case-type"
+                          checked={!useCustomCondition}
+                          onChange={() => {
+                            setUseCustomCondition(false)
+                            setCustomCondition('')
+                          }}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#667eea' }}
+                        />
+                        <span style={{ fontSize: '0.95rem', fontWeight: '600', color: '#334155' }}>
+                          Random Case (AI selects condition)
+                        </span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="case-type"
+                          checked={useCustomCondition}
+                          onChange={() => setUseCustomCondition(true)}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#667eea' }}
+                        />
+                        <span style={{ fontSize: '0.95rem', fontWeight: '600', color: '#334155' }}>
+                          Custom Condition
+                        </span>
+                      </label>
+                      {useCustomCondition && (
+                        <div style={{ marginLeft: '2rem', marginTop: '0.5rem' }}>
+                          <input
+                            type="text"
+                            placeholder="Enter condition (e.g., acute asthma exacerbation)"
+                            value={customCondition}
+                            onChange={(e) => setCustomCondition(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '0.75rem 1rem',
+                              border: '2px solid #cbd5e1',
+                              borderRadius: '8px',
+                              fontSize: '0.95rem',
+                              transition: 'border-color 0.2s'
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                            onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                          />
+                          <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.5rem' }}>
+                            Enter the specific medical condition you want to practice
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

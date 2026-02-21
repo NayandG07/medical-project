@@ -1600,6 +1600,8 @@ class CreateClinicalCaseRequest(BaseModel):
     specialty: str = "general_medicine"
     difficulty: str = "intermediate"
     case_type: str = "clinical_reasoning"
+    use_custom_condition: bool = False
+    custom_condition: Optional[str] = None
 
 
 class SubmitReasoningStepRequest(BaseModel):
@@ -1612,6 +1614,8 @@ class CreateOSCERequest(BaseModel):
     scenario_type: str = "history_taking"
     specialty: str = "general_medicine"
     difficulty: str = "intermediate"
+    use_custom_condition: bool = False
+    custom_condition: Optional[str] = None
 
 
 class OSCEInteractionRequest(BaseModel):
@@ -1635,7 +1639,9 @@ async def create_clinical_case(
             user_id=user["id"],
             specialty=request.specialty,
             difficulty=request.difficulty,
-            case_type=request.case_type
+            case_type=request.case_type,
+            use_custom_condition=request.use_custom_condition,
+            custom_condition=request.custom_condition
         )
         return case
     except Exception as e:
@@ -1785,7 +1791,9 @@ async def create_osce_scenario(
             user_id=user["id"],
             scenario_type=request.scenario_type,
             specialty=request.specialty,
-            difficulty=request.difficulty
+            difficulty=request.difficulty,
+            use_custom_condition=request.use_custom_condition,
+            custom_condition=request.custom_condition
         )
         return scenario
     except Exception as e:

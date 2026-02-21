@@ -83,14 +83,16 @@ class ClinicalReasoningEngine:
         user_id: str,
         specialty: str = "general_medicine",
         difficulty: str = "intermediate",
-        case_type: str = "clinical_reasoning"
+        case_type: str = "clinical_reasoning",
+        use_custom_condition: bool = False,
+        custom_condition: Optional[str] = None
     ) -> Dict[str, Any]:
         """Generate a structured clinical case with progressive disclosure"""
         from services.model_router import get_model_router_service
         
         router = get_model_router_service(self.supabase)
         
-        prompt = self._build_case_generation_prompt(specialty, difficulty)
+        prompt = self._build_case_generation_prompt(specialty, difficulty, use_custom_condition, custom_condition)
         
         provider = await router.select_provider("clinical")
         result = await router.execute_with_fallback(
@@ -144,7 +146,7 @@ class ClinicalReasoningEngine:
         # Return case without revealing answers
         return self._sanitize_case_for_user(created_case)
     
-    def _build_case_generation_prompt(self, specialty: str, difficulty: str) -> str:
+    def _build_case_generation_prompt(self, specialty: str, difficulty: str, use_custom_condition: bool = False, custom_condition: Optional[str] = None) -> str:
         """Build prompt for clinical case generation based on parameters"""
         
         complexity_guidelines = {
@@ -223,9 +225,18 @@ class ClinicalReasoningEngine:
         
         conditions = specialty_conditions.get(specialty, specialty_conditions["general_medicine"])
         
-        # Add explicit randomization
-        import random
-        suggested_condition = random.choice(conditions)
+        # Handle custom condition or random selection
+        if use_custom_condition and custom_condition:
+            suggested_condition = custom_condition
+            condition_instruction = f"- You MUST create a case for this SPECIFIC condition: {custom_condition}"
+        else:
+            # Add explicit randomization
+            import random
+            suggested_condition = random.choice(conditions)
+            condition_instruction = f"""- You MUST choose ONE condition from this list: {', '.join(conditions)}
+- SUGGESTED condition for THIS case: {suggested_condition}
+- DO NOT default to common conditions like MI or chest pain
+- Use the FULL variety of conditions provided"""
         
         return f"""Generate a UNIQUE, realistic clinical case for MBBS students in {specialty} at {difficulty} level.
 
@@ -235,10 +246,7 @@ CRITICAL REQUIREMENTS:
 - Complexity: {complexity_guidelines.get(difficulty, complexity_guidelines["intermediate"])}
 
 CONDITION SELECTION:
-- You MUST choose ONE condition from this list: {', '.join(conditions)}
-- SUGGESTED condition for THIS case: {suggested_condition}
-- DO NOT default to common conditions like MI or chest pain
-- Use the FULL variety of conditions provided
+{condition_instruction}
 - Make each case unique and different
 
 PATIENT VARIATION:
@@ -342,6 +350,14 @@ IMPORTANT:
 - No markdown formatting
 - Make it specific to {specialty} and appropriate for {difficulty} level
 
+CRITICAL JSON RULES:
+- Use only valid escape sequences: \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t
+- DO NOT use invalid escapes like \\1, \\2, etc.
+- If you need to include a backslash, use \\\\
+- All strings must be properly quoted
+- No trailing commas
+- No comments
+
 Ensure the case is medically accurate, educational, and UNIQUE."""
 
     def _get_case_generation_system_prompt(self) -> str:
@@ -418,6 +434,29 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
         
         # Remove any trailing commas before closing braces/brackets (common JSON error)
         content = re.sub(r',(\s*[}\]])', r'\1', content)
+        
+        # Fix invalid escape sequences - this is critical for AI-generated JSON
+        # Step 1: Protect valid escape sequences by temporarily replacing them
+        protected_escapes = {}
+        escape_counter = 0
+        
+        def protect_valid_escape(match):
+            nonlocal escape_counter
+            placeholder = f"__ESCAPE_{escape_counter}__"
+            protected_escapes[placeholder] = match.group(0)
+            escape_counter += 1
+            return placeholder
+        
+        # Protect valid JSON escape sequences
+        content = re.sub(r'\\["\\/bfnrt]', protect_valid_escape, content)
+        content = re.sub(r'\\u[0-9a-fA-F]{4}', protect_valid_escape, content)
+        
+        # Step 2: Remove all remaining backslashes (they're invalid)
+        content = content.replace('\\', '')
+        
+        # Step 3: Restore protected valid escapes
+        for placeholder, original in protected_escapes.items():
+            content = content.replace(placeholder, original)
         
         # Fix common AI mistakes - remove placeholder text like "...omitted for brevity..."
         content = re.sub(r'\[\.\.\.omitted for brevity\.\.\.\]', '[]', content)
@@ -701,14 +740,16 @@ Be constructive but rigorous. Score 0-100."""
         user_id: str,
         scenario_type: str = "history_taking",
         specialty: str = "general_medicine",
-        difficulty: str = "intermediate"
+        difficulty: str = "intermediate",
+        use_custom_condition: bool = False,
+        custom_condition: Optional[str] = None
     ) -> Dict[str, Any]:
         """Create an OSCE examination scenario"""
         from services.model_router import get_model_router_service
         
         router = get_model_router_service(self.supabase)
         
-        prompt = self._build_osce_generation_prompt(scenario_type, specialty, difficulty)
+        prompt = self._build_osce_generation_prompt(scenario_type, specialty, difficulty, use_custom_condition, custom_condition)
         
         provider = await router.select_provider("osce")
         result = await router.execute_with_fallback(
@@ -747,7 +788,7 @@ Be constructive but rigorous. Score 0-100."""
         
         return self._sanitize_osce_for_user(response.data[0])
     
-    def _build_osce_generation_prompt(self, scenario_type: str, specialty: str, difficulty: str) -> str:
+    def _build_osce_generation_prompt(self, scenario_type: str, specialty: str, difficulty: str, use_custom_condition: bool = False, custom_condition: Optional[str] = None) -> str:
         """Build prompt for OSCE scenario generation based on parameters"""
         
         # Define scenario-specific guidance
@@ -819,9 +860,18 @@ Be constructive but rigorous. Score 0-100."""
         guidance = scenario_guidance.get(scenario_type, "Create a realistic clinical scenario")
         complexity = difficulty_guidance.get(difficulty, difficulty_guidance["intermediate"])
         
-        # Add explicit instruction to pick randomly
-        import random
-        suggested_condition = random.choice(conditions)
+        # Handle custom condition or random selection
+        if use_custom_condition and custom_condition:
+            suggested_condition = custom_condition
+            condition_instruction = f"- You MUST create a scenario for this SPECIFIC condition: {custom_condition}"
+        else:
+            # Add explicit instruction to pick randomly
+            import random
+            suggested_condition = random.choice(conditions)
+            condition_instruction = f"""- You MUST choose ONE condition from this list: {', '.join(conditions)}
+- SUGGESTED condition for THIS scenario: {suggested_condition}
+- DO NOT default to chest pain or common conditions - use the full variety
+- Vary the presentation each time"""
         
         return f"""Generate a UNIQUE OSCE scenario for {scenario_type} in {specialty} at {difficulty} level.
 
@@ -833,10 +883,7 @@ CRITICAL REQUIREMENTS:
 - {complexity}
 
 CONDITION SELECTION:
-- You MUST choose ONE condition from this list: {', '.join(conditions)}
-- SUGGESTED condition for THIS scenario: {suggested_condition}
-- DO NOT default to chest pain or common conditions - use the full variety
-- Vary the presentation each time
+{condition_instruction}
 
 PATIENT VARIATION:
 - Create DIFFERENT patient demographics each time
@@ -892,7 +939,15 @@ IMPORTANT:
 - Example good opening: "Hello doctor, I've been having some chest discomfort"
 - Example BAD opening: "Hello doctor, I've been having chest pain for 3 days that radiates to my left arm, with shortness of breath and nausea"
 
-Output ONLY valid JSON, no explanations."""
+Output ONLY valid JSON, no explanations.
+
+CRITICAL JSON RULES:
+- Use only valid escape sequences: \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t
+- DO NOT use invalid escapes like \\1, \\2, etc.
+- If you need to include a backslash, use \\\\
+- All strings must be properly quoted
+- No trailing commas
+- No comments"""
     
     def _sanitize_osce_for_user(self, scenario: Dict[str, Any]) -> Dict[str, Any]:
         """Remove examiner-only fields from scenario"""
