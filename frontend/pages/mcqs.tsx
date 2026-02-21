@@ -89,6 +89,7 @@ export default function MCQs() {
 
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null)
   const [topicHistory, setTopicHistory] = useState<{ topic: string, count: number, color: string }[]>([])
+  const [activeDocument, setActiveDocument] = useState<any>(null)
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -107,6 +108,24 @@ export default function MCQs() {
     }
     checkAuth()
   }, [router])
+
+  // Check for document context
+  useEffect(() => {
+    const documentId = router.query.document as string
+    if (documentId) {
+      const stored = sessionStorage.getItem('activeDocument')
+      if (stored) {
+        try {
+          const docData = JSON.parse(stored)
+          if (docData.id === documentId) {
+            setActiveDocument(docData)
+          }
+        } catch (e) {
+          console.error('Failed to parse document data:', e)
+        }
+      }
+    }
+  }, [router.query.document])
 
   const getAuthToken = async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -372,6 +391,27 @@ export default function MCQs() {
       const authToken = await getAuthToken()
       if (!authToken) throw new Error('Not authenticated')
 
+      // If document is active, search for relevant context
+      let documentContext = ''
+      if (activeDocument) {
+        try {
+          const searchResponse = await fetch(
+            `${API_URL}/api/documents/search?query=${encodeURIComponent(topic)}&feature=mcq&top_k=5`,
+            {
+              headers: { 'Authorization': `Bearer ${authToken}` }
+            }
+          )
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json()
+            if (searchData.results && searchData.results.length > 0) {
+              documentContext = searchData.results.map((r: any) => r.content).join('\n\n')
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch document context:', err)
+        }
+      }
+
       const response = await fetch(`${API_URL}/api/study-tools/mcqs`, {
         method: 'POST',
         headers: {
@@ -381,7 +421,8 @@ export default function MCQs() {
         body: JSON.stringify({
           topic,
           session_id: currentSessionId,
-          count: mcqCount
+          count: mcqCount,
+          document_context: documentContext || undefined
         })
       })
 
@@ -601,7 +642,66 @@ export default function MCQs() {
       </Head>
 
       <DashboardLayout user={user}>
-        <div className={styles.pageLayout}>
+        <div className={styles.pageLayout} style={{ position: 'relative' }}>
+          {/* Floating Document Badge */}
+          {activeDocument && (
+            <div
+              style={{
+                position: 'fixed',
+                top: '80px',
+                right: '24px',
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'white',
+                padding: '8px 16px',
+                borderRadius: '12px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                border: '2px solid #10B981',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(16,185,129,0.2)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'
+              }}
+              title={`Using context from: ${activeDocument.filename}`}
+            >
+              <BookOpen size={16} color="#10B981" />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#10B981' }}>
+                {activeDocument.filename.length > 20 
+                  ? activeDocument.filename.substring(0, 20) + '...' 
+                  : activeDocument.filename}
+              </span>
+              <button
+                onClick={() => {
+                  setActiveDocument(null)
+                  sessionStorage.removeItem('activeDocument')
+                  router.push('/mcqs')
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  fontSize: '18px',
+                  lineHeight: 1
+                }}
+                title="Clear document context"
+              >
+                ×
+              </button>
+            </div>
+          )}
+          
           <div className={`${styles.contentArea} ${isSidebarCollapsed ? styles.contentAreaCollapsed : styles.contentAreaExpanded}`}>
             <div className={(questions.length > 0 || generating || quizComplete) ? styles.mainContainer : styles.mainContainerFull}>
               {/* Main Content Area */}

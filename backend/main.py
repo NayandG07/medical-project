@@ -204,6 +204,9 @@ async def update_system_settings(
 class StudyToolRequest(BaseModel):
     topic: str
     session_id: Optional[str] = None
+    document_context: Optional[str] = None
+    format: Optional[str] = None
+    count: Optional[int] = None
     count: Optional[int] = 5  # Number of MCQs to generate
     count: Optional[int] = 5  # Number of items to generate per batch
     format: Optional[str] = "interactive"  # interactive or static
@@ -222,7 +225,8 @@ async def generate_flashcards(
             topic=request.topic,
             session_id=request.session_id,
             count=request.count or 5,
-            format=request.format or "interactive"
+            format=request.format or "interactive",
+            document_context=request.document_context
         )
         return result
     except Exception as e:
@@ -242,7 +246,8 @@ async def generate_mcqs(
             user_id=user["id"],
             topic=request.topic,
             session_id=request.session_id,
-            count=request.count or 5
+            count=request.count or 5,
+            document_context=request.document_context
         )
         return result
     except Exception as e:
@@ -280,7 +285,8 @@ async def generate_explanation(
         result = await study_tools_service.generate_explanation(
             user_id=user["id"],
             topic=request.topic,
-            session_id=request.session_id
+            session_id=request.session_id,
+            document_context=request.document_context
         )
         return result
     except Exception as e:

@@ -231,7 +231,8 @@ class StudyToolsService:
         topic: str,
         session_id: Optional[str] = None,
         count: int = 5,
-        format: str = "interactive"
+        format: str = "interactive",
+        document_context: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate flashcards for a topic
@@ -242,6 +243,7 @@ class StudyToolsService:
             session_id: Optional existing session ID
             count: Number of flashcards to generate (default: 5, max: 20)
             format: Output format (interactive or static)
+            document_context: Optional RAG context from documents
             
         Returns:
             Generated flashcards data
@@ -283,7 +285,16 @@ Example structure for {count} flashcards:
 
 COUNT CHECK: Your response must have EXACTLY {count} objects in the flashcards array."""
             
-            prompt = f"Create EXACTLY {count} medical flashcards about: {topic}. Remember: {count} flashcards, no more, no less."
+            if document_context:
+                prompt = f"""Using the following document context as reference:
+
+{document_context}
+
+Now create EXACTLY {count} medical flashcards about: {topic}
+
+Base your flashcards on the provided context where relevant. Remember: {count} flashcards, no more, no less."""
+            else:
+                prompt = f"Create EXACTLY {count} medical flashcards about: {topic}. Remember: {count} flashcards, no more, no less."
             
             # Get provider and generate content
             provider = await self.model_router.select_provider("flashcard")
@@ -478,7 +489,8 @@ COUNT CHECK: Your response must have EXACTLY {count} objects in the flashcards a
         topic: str,
         session_id: Optional[str] = None,
         format: str = "interactive",
-        count: int = 5
+        count: int = 5,
+        document_context: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate multiple choice questions for a topic
@@ -489,6 +501,7 @@ COUNT CHECK: Your response must have EXACTLY {count} objects in the flashcards a
             session_id: Optional existing session ID
             format: Output format
             count: Number of MCQs to generate (default: 5, max: 20)
+            document_context: Optional RAG context from documents
             
         Returns:
             Generated MCQ data
@@ -532,7 +545,16 @@ CRITICAL RULES:
 - Questions should test understanding, not just memorization
 - Make questions clinically relevant and evidence-based"""
             
-            prompt = f"Generate {count} multiple choice questions about: {topic}"
+            if document_context:
+                prompt = f"""Using the following document context as reference:
+
+{document_context}
+
+Now generate {count} multiple choice questions about: {topic}
+
+Base your questions on the provided context where relevant, but also include general medical knowledge."""
+            else:
+                prompt = f"Generate {count} multiple choice questions about: {topic}"
             
             provider = await self.model_router.select_provider("mcq")
             result = await self.model_router.execute_with_fallback(
@@ -772,7 +794,8 @@ Format with clear headers and bullet points."""
         self,
         user_id: str,
         topic: str,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        document_context: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate detailed explanation for a topic
@@ -781,6 +804,7 @@ Format with clear headers and bullet points."""
             user_id: User's unique identifier
             topic: Topic to explain
             session_id: Optional existing session ID
+            document_context: Optional RAG context from documents
             
         Returns:
             Generated explanation data
@@ -802,7 +826,16 @@ Format with clear headers and bullet points."""
 
 Make it comprehensive but accessible."""
             
-            prompt = f"Explain in detail: {topic}"
+            if document_context:
+                prompt = f"""Using the following document context as reference:
+
+{document_context}
+
+Now explain in detail: {topic}
+
+Base your explanation on the provided context where relevant, but also include general medical knowledge."""
+            else:
+                prompt = f"Explain in detail: {topic}"
             
             provider = await self.model_router.select_provider("chat")
             result = await self.model_router.execute_with_fallback(

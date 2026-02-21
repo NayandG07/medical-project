@@ -39,11 +39,11 @@ export default function DocumentList({ documents, onDelete, loading }: DocumentL
   const router = useRouter()
 
   const features = [
-    { id: 'chat', name: 'Clinical Analysis', icon: MessageSquare, color: '#4F46E5' },
-    { id: 'mcq', name: 'Practice MCQ', icon: FileQuestion, color: '#10B981' },
-    { id: 'flashcard', name: 'Recall Study', icon: BookOpen, color: '#F59E0B' },
-    { id: 'explain', name: 'Expert Explain', icon: Lightbulb, color: '#EF4444' },
-    { id: 'highyield', name: 'High Yield', icon: Sparkles, color: '#8B5CF6' },
+    { id: 'chat', name: 'Clinical Analysis', icon: MessageSquare, color: '#4F46E5', desc: 'AI-powered clinical discussion' },
+    { id: 'mcq', name: 'Practice MCQ', icon: FileQuestion, color: '#10B981', desc: 'Generate practice questions' },
+    { id: 'flashcard', name: 'Recall Study', icon: BookOpen, color: '#F59E0B', desc: 'Create study flashcards' },
+    { id: 'explain', name: 'Expert Explain', icon: Lightbulb, color: '#EF4444', desc: 'Detailed concept explanations' },
+    { id: 'highyield', name: 'High Yield', icon: Sparkles, color: '#8B5CF6', desc: 'Extract key clinical points' },
   ]
 
   const formatFileSize = (bytes: number): string => {
@@ -207,7 +207,7 @@ export default function DocumentList({ documents, onDelete, loading }: DocumentL
                         <span className="option-name">
                           {navigatingFeature === f.id ? <span className="processing-text">Processing...</span> : f.name}
                         </span>
-                        <span className="option-desc">Launch specialized indexing</span>
+                        <span className="option-desc">{f.desc}</span>
                       </div>
                       <ChevronRight size={14} className="option-arrow" />
                     </button>
