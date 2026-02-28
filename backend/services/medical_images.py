@@ -321,6 +321,142 @@ Provide a structured medical analysis."""
         except Exception as e:
             logger.error(f"Medical image search failed: {str(e)}")
             return []
+    
+    async def analyze_image(
+        self,
+        user_id: str,
+        image_content: bytes,
+        filename: str,
+        context: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Analyze a medical image directly without storing it
+        
+        Args:
+            user_id: User's unique identifier
+            image_content: Image file content
+            filename: Original filename
+            context: Optional clinical context
+            
+        Returns:
+            Analysis results with findings, impression, and recommendations
+        """
+        try:
+            from services.model_router import get_model_router_service
+            import base64
+            
+            # Encode image to base64
+            image_base64 = base64.b64encode(image_content).decode('utf-8')
+            
+            logger.info(f"Image encoded to base64, length: {len(image_base64)} chars, filename: {filename}")
+            logger.info(f"Context provided: {bool(context)}")
+            
+            # Build prompt with context if provided
+            if context:
+                prompt = f"""IMPORTANT: An image has been provided to you. You MUST analyze the medical image that is attached to this message.
+
+Clinical context: {context}
+
+Provide a comprehensive medical image analysis with the following structure:
+
+**Key Findings:**
+- Identify the imaging modality and body region
+- Describe all visible anatomical structures in detail
+- Note any abnormalities, lesions, fractures, or pathological findings with specific locations
+- Assess alignment, positioning, and any displacement
+- Evaluate bone/tissue density, soft tissue changes, or fluid collections
+- Comment on image quality and technical adequacy
+
+**Interpretation:**
+Provide your clinical interpretation based on the findings. What does this suggest? Include differential diagnoses if applicable.
+
+**Common Causes:**
+If abnormalities are present, list potential causes or mechanisms of injury.
+
+**Recommendations:**
+- Suggest any follow-up imaging or studies needed
+- Indicate if specialist consultation is recommended
+- Note any urgent or time-sensitive findings
+
+Use bullet points, bold text for emphasis, and clear section headers. Be thorough and specific."""
+            else:
+                prompt = """IMPORTANT: An image has been provided to you. You MUST analyze the medical image that is attached to this message.
+
+Provide a comprehensive medical image analysis with the following structure:
+
+**Key Findings:**
+- Identify the imaging modality and body region
+- Describe all visible anatomical structures in detail
+- Note any abnormalities, lesions, fractures, or pathological findings with specific locations
+- Assess alignment, positioning, and any displacement
+- Evaluate bone/tissue density, soft tissue changes, or fluid collections
+- Comment on image quality and technical adequacy
+
+**Interpretation:**
+Provide your clinical interpretation based on the findings. What does this suggest? Include differential diagnoses if applicable.
+
+**Common Causes:**
+If abnormalities are present, list potential causes or mechanisms of injury.
+
+**Recommendations:**
+- Suggest any follow-up imaging or studies needed
+- Indicate if specialist consultation is recommended
+- Note any urgent or time-sensitive findings
+
+Use bullet points, bold text for emphasis, and clear section headers. Be thorough and specific."""
+            
+            system_prompt = """You are an expert radiologist analyzing medical images. An image will be provided to you in this conversation. Provide detailed, clinically accurate interpretations with proper medical terminology. Use markdown formatting (bold, bullets, headers) to make the analysis clear and professional. DO NOT say "no image provided" - an image IS attached to the user's message."""
+            
+            # Use model router to get image analysis
+            router = get_model_router_service(self.supabase)
+            provider = await router.select_provider("image")
+            
+            logger.info(f"Calling model router with provider: {provider}, feature: image, image_data length: {len(image_base64)}")
+            
+            result = await router.execute_with_fallback(
+                provider=provider,
+                feature="image",
+                prompt=prompt,
+                system_prompt=system_prompt,
+                image_data=image_base64,
+                user_id=user_id
+            )
+            
+            logger.info(f"Model router result success: {result.get('success')}, content length: {len(result.get('content', ''))}")
+            
+            # Check if the result indicates a failure or fallback to non-vision model
+            if not result.get('success'):
+                error_msg = result.get('error', 'Unknown error')
+                if 'credit' in error_msg.lower() or '402' in error_msg:
+                    raise Exception("OpenRouter API key has insufficient credits. Please add credits at https://openrouter.ai/settings/credits")
+                raise Exception(f"Image analysis failed: {error_msg}")
+            
+            # Check if we fell back to a non-vision model (HuggingFace)
+            if result.get('used_fallback_model'):
+                raise Exception("Vision model unavailable. OpenRouter API key needs credits. Please add credits at https://openrouter.ai/settings/credits or contact support.")
+            
+            # Extract content - keep markdown formatting
+            content = result.get("content", "") if isinstance(result, dict) else str(result)
+            
+            # Check if the response indicates no image was detected
+            if "no image" in content.lower() and "provided" in content.lower():
+                raise Exception("Vision model did not receive the image properly. This may indicate the API key has insufficient credits or the model doesn't support vision. Please check your OpenRouter credits at https://openrouter.ai/settings/credits")
+            
+            # Return the full formatted content
+            # The frontend will render the markdown properly
+            analysis_id = str(uuid.uuid4())
+            
+            return {
+                "id": analysis_id,
+                "findings": content.strip(),
+                "impression": "",  # Included in findings
+                "recommendations": "",  # Included in findings
+                "created_at": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Image analysis failed: {str(e)}")
+            raise
 
 
 def get_medical_image_service(supabase: Client) -> MedicalImageService:

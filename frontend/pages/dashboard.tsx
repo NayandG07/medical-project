@@ -7,7 +7,7 @@ import {
   Check, Calendar, Clock, BookOpen, Brain, Activity, Heart,
   Zap, ChevronRight, Trophy, Target, TrendingUp, Flame,
   FileText, Stethoscope, Award, BarChart3, PieChart, ArrowUpRight,
-  ArrowDownRight, Sparkles, GraduationCap
+  ArrowDownRight, Sparkles, GraduationCap, Microscope
 } from 'lucide-react'
 
 // Types for API responses
@@ -589,6 +589,14 @@ export default function Dashboard() {
                   color="#EA4335"
                   bgColor="#FEF2F2"
                   href="/clinical-cases"
+                />
+                <ToolCard
+                  icon={<Microscope size={20} />}
+                  title="Image Analysis"
+                  sessions={0}
+                  color="#06B6D4"
+                  bgColor="#ECFEFF"
+                  href="/image-analysis"
                 />
                 <ToolCard
                   icon={<Brain size={20} />}

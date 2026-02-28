@@ -2204,3 +2204,51 @@ async def search_medical_images(
     except Exception as e:
         logger.error(f"Medical image search failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/image/analyze")
+async def analyze_medical_image(
+    image: UploadFile = File(...),
+    context: Optional[str] = Form(None),
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Analyze a medical image with AI
+    
+    Args:
+        image: Medical image file
+        context: Optional clinical context (patient age, symptoms, etc.)
+    """
+    try:
+        logger.info(f"Image analysis started - User: {user['id'][:8]}..., File: {image.filename}")
+        
+        # Validate file type
+        allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+        if image.content_type not in allowed_types:
+            raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG, PNG, and WebP are supported.")
+        
+        # Validate file size (10MB max)
+        file_content = await image.read()
+        if len(file_content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB.")
+        
+        # Get medical image service
+        medical_image_service = get_medical_image_service(supabase)
+        
+        # Analyze the image
+        analysis = await medical_image_service.analyze_image(
+            user_id=user["id"],
+            image_content=file_content,
+            filename=image.filename or "image.jpg",
+            context=context
+        )
+        
+        logger.info(f"Image analysis completed - User: {user['id'][:8]}...")
+        return analysis
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Image analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+

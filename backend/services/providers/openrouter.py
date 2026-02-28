@@ -90,7 +90,8 @@ class OpenRouterProvider:
         self,
         model: str,
         prompt: str,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        image_data: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Format a request for the OpenRouter API
@@ -99,6 +100,7 @@ class OpenRouterProvider:
             model: OpenRouter model ID
             prompt: User prompt/message
             system_prompt: Optional system prompt for context
+            image_data: Optional base64-encoded image data for vision models
             
         Returns:
             Dict containing formatted request payload
@@ -112,17 +114,38 @@ class OpenRouterProvider:
                 "content": system_prompt
             })
         
-        # Add user prompt
-        messages.append({
-            "role": "user",
-            "content": prompt
-        })
+        # Add user prompt with optional image
+        if image_data:
+            # Vision model format with image
+            logger.info(f"Formatting request with image data (length: {len(image_data)} chars)")
+            messages.append({
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_data}"
+                        }
+                    }
+                ]
+            })
+        else:
+            # Text-only format
+            logger.info("Formatting request without image data")
+            messages.append({
+                "role": "user",
+                "content": prompt
+            })
         
         request_payload = {
             "model": model,
             "messages": messages,
             "temperature": 0.7,
-            "max_tokens": 1024,  # Reduced from 2048 to use fewer credits
+            "max_tokens": 2048 if image_data else 1024,  # More tokens for image analysis
         }
         
         return request_payload
@@ -134,7 +157,8 @@ class OpenRouterProvider:
         feature: str,
         prompt: str,
         system_prompt: Optional[str] = None,
-        stream: bool = False
+        stream: bool = False,
+        image_data: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Call the OpenRouter API with a prompt
@@ -146,6 +170,7 @@ class OpenRouterProvider:
             prompt: User prompt/message
             system_prompt: Optional system prompt for context
             stream: Whether to stream the response (not implemented yet)
+            image_data: Optional base64-encoded image data for vision models
             
         Returns:
             Dict containing:
@@ -159,7 +184,7 @@ class OpenRouterProvider:
             model = self.get_model_id(provider, feature)
             
             # Format the request
-            request_payload = self.format_request(model, prompt, system_prompt)
+            request_payload = self.format_request(model, prompt, system_prompt, image_data)
             
             # Prepare headers
             headers = {

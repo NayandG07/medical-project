@@ -27,6 +27,7 @@ const getPageTitle = (pathname: string): string => {
     '/study-planner': 'Study Planner',
     '/documents': 'Documents',
     '/profile': 'Profile',
+    '/image-analysis': 'Image Analysis',
   }
   return titles[pathname] || pathname.slice(1).charAt(0).toUpperCase() + pathname.slice(2)
 }
@@ -126,6 +127,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
     { name: 'Concept Map', path: '/conceptmap', icon: '🗺️' },
     { name: 'Clinical Cases', path: '/clinical-cases', icon: '🏥' },
     { name: 'OSCE Simulator', path: '/osce', icon: '👨‍⚕️' },
+    { name: 'Image Analysis', path: '/image-analysis', icon: '🔬' },
     { name: 'Study Planner', path: '/study-planner', icon: '📅' },
     { name: 'Documents', path: '/documents', icon: '📄' },
     { name: 'Profile', path: '/profile', icon: '👤' },
@@ -312,7 +314,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
         </div>
 
         {/* Main Content Area */}
-        <main className={`main-scroll-area ${['/chat', '/mcqs', '/flashcards', '/explain', '/osce', '/clinical-cases', '/highyield'].includes(router.pathname) ? 'no-padding' : ''}`}>
+        <main className={`main-scroll-area ${['/chat', '/mcqs', '/flashcards', '/explain', '/osce', '/clinical-cases', '/highyield', '/image-analysis'].includes(router.pathname) ? 'no-padding' : ''}`}>
           {children}
         </main>
       </div>

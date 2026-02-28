@@ -3,7 +3,7 @@
    Thematic Design: Clinical, Minimal, High Contrast
    ============================================================ */
 
-:root {
+.container {
     --lib-primary: #4F46E5;
     --lib-primary-glow: rgba(79, 70, 229, 0.15);
     --lib-bg: #F8FAFC;

@@ -4,7 +4,7 @@
    ============================================================ */
 
 /* CSS Variables */
-:root {
+.osceWrapper {
     --osce-primary: #4F46E5;
     --osce-primary-soft: #EEF2FF;
     --osce-accent: #14B8A6;
@@ -44,18 +44,14 @@
 }
 
 /* Ensure the background is consistent even if parents vary */
-:global(.main-content-wrapper:has(.osceWrapper)) {
-    background-color: var(--osce-bg) !important;
-}
+/* Moved to global styles - CSS modules don't support complex :global selectors */
 
 .osceWrapper * {
     box-sizing: border-box;
 }
 
 /* Apply background to the global page when in OSCE mode */
-:global(body:has(.clinicalContextPanel)) {
-    background-color: #fdfbf7 !important;
-}
+/* Moved to global styles - CSS modules don't support complex :global selectors */
 
 /* Subtle Pulse Wave Background Animation */
 .pulseBackground {

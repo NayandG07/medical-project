@@ -323,7 +323,8 @@ class ModelRouterService:
         prompt: str,
         system_prompt: Optional[str] = None,
         max_retries: int = 3,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        image_data: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Execute a request with automatic fallback to next available key on failure
@@ -340,6 +341,7 @@ class ModelRouterService:
             system_prompt: Optional system prompt for context
             max_retries: Maximum number of retry attempts (default: 3)
             user_id: Optional user ID to check for personal API key
+            image_data: Optional base64-encoded image data for vision models
             
         Returns:
             Dict containing:
@@ -387,7 +389,8 @@ class ModelRouterService:
                     provider=provider,
                     feature=feature,
                     prompt=prompt,
-                    system_prompt=system_prompt
+                    system_prompt=system_prompt,
+                    image_data=image_data
                 )
                 
                 response_time = int((time.time() - start_time) * 1000)
@@ -493,18 +496,35 @@ class ModelRouterService:
             start_time = time.time()
             
             try:
-                # Use OpenRouter for all providers
-                from services.providers.openrouter import get_openrouter_provider
-                provider_instance = get_openrouter_provider()
-                
-                # Call OpenRouter
-                result = await provider_instance.call_openrouter(
-                    api_key=api_key,
-                    provider=provider,
-                    feature=feature,
-                    prompt=prompt,
-                    system_prompt=system_prompt
-                )
+                # Route to appropriate provider
+                if provider == "huggingface":
+                    # Use HuggingFace provider directly
+                    from services.providers.huggingface import get_huggingface_provider
+                    provider_instance = get_huggingface_provider()
+                    
+                    # Call HuggingFace
+                    result = await provider_instance.call_huggingface(
+                        feature=feature,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        max_tokens=4096,
+                        temperature=0.9,
+                        image_data=image_data
+                    )
+                else:
+                    # Use OpenRouter for all other providers
+                    from services.providers.openrouter import get_openrouter_provider
+                    provider_instance = get_openrouter_provider()
+                    
+                    # Call OpenRouter
+                    result = await provider_instance.call_openrouter(
+                        api_key=api_key,
+                        provider=provider,
+                        feature=feature,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        image_data=image_data
+                    )
                 
                 response_time = int((time.time() - start_time) * 1000)
                 

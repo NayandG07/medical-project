@@ -54,6 +54,7 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
     { name: 'Concept Map', path: '/conceptmap', icon: '🗺️' },
     { name: 'Clinical Cases', path: '/clinical-cases', icon: '🏥' },
     { name: 'OSCE Simulator', path: '/osce', icon: '👨‍⚕️' },
+    { name: 'Image Analysis', path: '/image-analysis', icon: '🔬' },
     { name: 'Study Planner', path: '/study-planner', icon: '📅' },
     { name: 'Documents', path: '/documents', icon: '📄' },
     { name: 'Profile', path: '/profile', icon: '👤' },

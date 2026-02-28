@@ -3,7 +3,7 @@
    Inspired by: Notion, Linear, Apple Health
    ============================================================ */
 
-:root {
+.hyWrapper {
     --hy-primary: #8B5CF6;
     --hy-primary-soft: #EDE9FE;
     --hy-accent: #F59E0B;
@@ -14,9 +14,6 @@
     --hy-text-muted: #64748B;
     --hy-radius: 20px;
     --hy-radius-sm: 12px;
-}
-
-.hyWrapper {
     height: 100%;
     max-height: 100%;
     background: var(--hy-bg);
