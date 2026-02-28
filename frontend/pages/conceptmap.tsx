@@ -1,29 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
-import { Search, History as HistoryIcon, Trash2, Map as MapIcon, Info, Sparkles, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Search, Map as MapIcon, Info, Sparkles, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { supabase, AuthUser } from '@/lib/supabase'
 import DashboardLayout from '@/components/DashboardLayout'
 import ClinicalMapViewer, { parseClinicalMapData, MapNode, MapConnection } from '@/components/ClinicalMapViewer'
+import SessionSidebar, { ChatSession } from '@/components/SessionSidebar'
 
 // Tailwind class mappings
 const styles = {
   container: "w-full h-[calc(100vh-150px)] flex flex-col overflow-hidden",
-  mainLayout: "grid grid-cols-[240px_1fr_280px] gap-4 flex-1 min-h-0 max-[1024px]:grid-cols-1 max-[1024px]:grid-rows-[auto_1fr_auto] overflow-hidden",
-  sidebar: "bg-[#F7F7F6] rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden max-[1024px]:order-2",
-  sidebarHeader: "p-4 border-b border-slate-200/60 flex items-center gap-2 flex-shrink-0",
-  sidebarTitle: "text-[11px] font-bold text-slate-500 uppercase tracking-widest m-0",
-  sessionList: "flex flex-col gap-1.5 flex-1 overflow-y-auto p-3 min-h-0",
-  sessionItem: "group p-3 bg-white/60 rounded-xl cursor-pointer transition-all relative border border-transparent hover:bg-white hover:border-slate-200 flex flex-col gap-1",
-  active: "!bg-medical-indigo/5 !border-medical-indigo/20 shadow-sm",
-  sessionTitle: "font-semibold text-[13px] text-slate-800 line-clamp-1 pr-8 group-hover:text-medical-indigo transition-colors",
-  sessionDate: "text-[11px] text-slate-400 font-medium",
-  deleteBtn: "absolute top-1/2 right-2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all z-10",
-  emptyState: "flex flex-col items-center justify-center py-12 px-4 text-slate-400 text-sm font-medium gap-3 h-full",
-  sidebarFooter: "p-3 border-t border-slate-200/60 bg-slate-50/30 flex-shrink-0",
-  clearBtn: "flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-red-50 text-red-600 text-[11px] font-bold border border-red-100 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all w-full uppercase tracking-widest shadow-sm cursor-pointer",
+  mainLayout: "flex gap-4 flex-1 min-h-0 max-[1024px]:flex-col overflow-hidden",
 
-  mainContent: "bg-[#F7F7F6] rounded-xl p-4 shadow-sm border border-slate-200 flex flex-col min-h-0 overflow-hidden max-[1024px]:order-1 max-[1024px]:min-h-[500px]",
+  mainContent: "bg-[#F7F7F6] rounded-xl p-4 shadow-sm border border-slate-200 flex flex-col min-h-0 overflow-hidden flex-1 max-[1024px]:order-1 max-[1024px]:min-h-[500px]",
   inputSection: "flex gap-3 mb-4 flex-shrink-0 max-[640px]:flex-col items-center",
   searchBox: "flex-1 flex items-center bg-white/50 border border-slate-200 rounded-xl px-4 transition-all focus-within:border-medical-indigo focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(102,126,234,0.1)] h-12",
   searchIcon: "text-slate-400",
@@ -34,7 +23,7 @@ const styles = {
   placeholder: "flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-50/50 rounded-xl border-2 border-dashed border-slate-200",
   placeholderIcon: "w-20 h-20 bg-white rounded-2xl shadow-sm flex items-center justify-center text-[2.5rem] mb-6 border border-slate-100",
 
-  rightSidebar: "bg-[#F7F7F6] rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden max-[1024px]:order-3",
+  rightSidebar: "bg-[#F7F7F6] rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden w-[280px] flex-shrink-0 max-[1024px]:order-3 max-[1024px]:w-full",
   rightSidebarHeader: "p-4 border-b border-slate-100 flex items-center gap-2 flex-shrink-0",
   rightSidebarContent: "flex-1 overflow-y-auto p-4 custom-scrollbar h-full scrollbar-none",
   summaryCard: "flex flex-col gap-6",
@@ -54,7 +43,9 @@ const styles = {
   legendItem: "flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors",
   legendColor: "w-4 h-4 rounded-md shadow-sm",
   legendLabel: "text-xs font-semibold text-slate-600 flex-1",
-  legendCount: "bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[10px] font-bold min-w-[20px] text-center"
+  legendCount: "bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[10px] font-bold min-w-[20px] text-center",
+  sidebarTitle: "text-[11px] font-bold text-slate-500 uppercase tracking-widest m-0",
+  emptyState: "flex flex-col items-center justify-center py-12 px-4 text-slate-400 text-sm font-medium gap-3 h-full",
 }
 
 // Helper to get emoji icon based on topic
@@ -100,8 +91,7 @@ export default function ConceptMap() {
   const [currentSession, setCurrentSession] = useState<ConceptMapSession | null>(null)
   const [materials, setMaterials] = useState<ConceptMapMaterial[]>([])
   const [currentMaterial, setCurrentMaterial] = useState<ConceptMapMaterial | null>(null)
-  const [deleteConfirmationId, setDeleteConfirmationId] = useState<string | null>(null)
-  const [deleteAllConfirmation, setDeleteAllConfirmation] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     checkAuth()
@@ -254,9 +244,7 @@ export default function ConceptMap() {
     }
   }
 
-  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-
+  const handleDeleteSession = async (sessionId: string) => {
     try {
       const { error } = await supabase
         .from('study_tool_sessions')
@@ -278,6 +266,13 @@ export default function ConceptMap() {
       console.error('Failed to delete session:', err)
       setError('Failed to delete session')
     }
+  }
+
+  const handleNewSession = () => {
+    setCurrentSession(null)
+    setMaterials([])
+    setCurrentMaterial(null)
+    setTopic('')
   }
 
   if (loading || !user) {
@@ -314,54 +309,24 @@ export default function ConceptMap() {
       <DashboardLayout user={user}>
         <div className={styles.container}>
           <div className={styles.mainLayout}>
-            {/* Left Sidebar - History */}
-            <div className={styles.sidebar}>
-              <div className={styles.sidebarHeader}>
-                <HistoryIcon size={16} className="text-slate-500" />
-                <h3 className={styles.sidebarTitle}>History</h3>
-              </div>
-              <div className={styles.sessionList} data-lenis-prevent>
-                {sessions.length === 0 ? (
-                  <div className={styles.emptyState}>
-                    <HistoryIcon size={32} className="opacity-20" />
-                    <span>No previous maps</span>
-                  </div>
-                ) : (
-                  sessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className={`${styles.sessionItem} ${currentSession?.id === session.id ? styles.active : ''}`}
-                      onClick={() => setCurrentSession(session)}
-                    >
-                      <div className={styles.sessionTitle}>{session.title}</div>
-                      <div className={styles.sessionDate}>
-                        {new Date(session.created_at).toLocaleDateString()}
-                      </div>
-                      <button
-                        className={styles.deleteBtn}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteConfirmationId(session.id);
-                        }}
-                        title="Delete session"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className={styles.sidebarFooter}>
-                <button
-                  onClick={() => setDeleteAllConfirmation(true)}
-                  disabled={sessions.length === 0}
-                  className={styles.clearBtn}
-                >
-                  <Trash2 size={14} />
-                  Clear All History
-                </button>
-              </div>
-            </div>
+            {/* Left Sidebar - History using SessionSidebar */}
+            <SessionSidebar
+              sessions={sessions as ChatSession[]}
+              currentSessionId={currentSession?.id || null}
+              onSelectSession={(id) => {
+                const session = sessions.find(s => s.id === id)
+                if (session) setCurrentSession(session)
+              }}
+              onNewSession={handleNewSession}
+              onDeleteSession={handleDeleteSession}
+              onDeleteAllSessions={handleDeleteAllSessions}
+              loading={loading}
+              error={error}
+              newSessionLabel="New Map"
+              untitledLabel="Untitled Map"
+              isCollapsed={sidebarCollapsed}
+              onToggleCollapsed={setSidebarCollapsed}
+            />
 
             {/* Main Content */}
             <div className={styles.mainContent}>
@@ -492,75 +457,6 @@ export default function ConceptMap() {
             </div>
           </div>
         </div>
-
-        {/* Delete Single Confirmation Modal */}
-        {deleteConfirmationId && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] backdrop-blur-sm p-4 animate-in fade-in duration-200"
-            onClick={() => setDeleteConfirmationId(null)}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-[24px] p-6 w-full max-w-[340px] shadow-2xl animate-in zoom-in-95 duration-200"
-            >
-              <h3 className="text-lg font-bold text-slate-800 mb-2">Delete Session?</h3>
-              <p className="text-sm text-slate-500 mb-6">Permanently remove this session and all its clinical maps?</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setDeleteConfirmationId(null)}
-                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 bg-white text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    handleDeleteSession(deleteConfirmationId, { stopPropagation: () => { } } as any);
-                    setDeleteConfirmationId(null);
-                  }}
-                  className="flex-1 py-3 px-4 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-colors shadow-lg shadow-red-200"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Delete ALL Confirmation Modal */}
-        {deleteAllConfirmation && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] backdrop-blur-sm p-4 animate-in fade-in duration-200"
-            onClick={() => setDeleteAllConfirmation(false)}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-[32px] p-8 w-full max-w-[380px] shadow-2xl text-center animate-in zoom-in-95 duration-200"
-            >
-              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-red-500 shadow-sm border border-red-100">
-                <Trash2 size={32} />
-              </div>
-              <h3 className="text-xl font-extrabold text-slate-800 mb-2 tracking-tight">Clear All History?</h3>
-              <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium">
-                This action cannot be undone. All your collected clinical maps and sessions will be permanently deleted.
-              </p>
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => {
-                    handleDeleteAllSessions();
-                    setDeleteAllConfirmation(false);
-                  }}
-                  className="w-full py-4 rounded-2xl bg-red-500 text-white font-bold text-[15px] hover:bg-red-600 transition-all shadow-lg shadow-red-200 active:scale-[0.98]"
-                >
-                  Confirm Delete
-                </button>
-                <button
-                  onClick={() => setDeleteAllConfirmation(false)}
-                  className="w-full py-4 rounded-2xl border border-slate-200 bg-white text-slate-600 font-bold text-[15px] hover:bg-slate-50 transition-all active:scale-[0.98]"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </DashboardLayout>
       <style jsx>{`
         .scrollbar-none::-webkit-scrollbar { display: none; }
