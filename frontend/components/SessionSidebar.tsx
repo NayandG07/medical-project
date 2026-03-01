@@ -23,6 +23,7 @@ interface SessionSidebarProps {
   untitledLabel?: string
   isCollapsed?: boolean
   onToggleCollapsed?: (collapsed: boolean) => void
+  disableMobileHamburger?: boolean
 }
 
 export default function SessionSidebar({
@@ -39,7 +40,8 @@ export default function SessionSidebar({
   newSessionLabel = 'New Chat',
   untitledLabel = 'Untitled Chat',
   isCollapsed: propIsCollapsed,
-  onToggleCollapsed
+  onToggleCollapsed,
+  disableMobileHamburger = false
 }: SessionSidebarProps) {
   const [internalIsCollapsed, setInternalIsCollapsed] = useState(false)
   const isCollapsed = propIsCollapsed ?? internalIsCollapsed
@@ -107,7 +109,7 @@ export default function SessionSidebar({
   }
 
   // Mobile Hamburger Trigger (Attached to Left as requested)
-  if (isMobile) {
+  if (isMobile && !disableMobileHamburger) {
     return (
       <>
         <button
@@ -234,15 +236,17 @@ export default function SessionSidebar({
       <div style={{
         width: '70px',
         backgroundColor: '#F7F7F6',
-        borderLeft: position === 'right' ? '1px solid rgba(0,0,0,0.06)' : 'none',
-        borderRight: position === 'left' ? '1px solid rgba(0,0,0,0.06)' : 'none',
+        borderRadius: '12px',
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         padding: '24px 0',
-        transition: 'all 0.3s ease',
+        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         height: '100%',
-        zIndex: 20
+        zIndex: 20,
+        overflow: 'hidden'
       }}>
         <button
           onClick={() => setIsCollapsed(false)}
@@ -366,16 +370,18 @@ export default function SessionSidebar({
   // Desktop Expanded State
   return (
     <div style={{
-      width: '320px',
+      width: isMobile ? '100%' : '320px',
       backgroundColor: '#F7F7F6', // Creamy Silver Whitish for Sidebars
-      borderLeft: position === 'right' ? '1px solid rgba(0,0,0,0.06)' : 'none',
-      borderRight: position === 'left' ? '1px solid rgba(0,0,0,0.06)' : 'none',
+      borderRadius: '12px',
+      border: '1px solid #e2e8f0',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       position: 'relative',
-      zIndex: 20
+      zIndex: 20,
+      overflow: 'hidden'
     }}>
       {/* Header */}
       <div style={{
