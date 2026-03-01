@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Menu, X, ChevronLeft, ChevronRight, MessageSquare, Trash2, Plus, Loader2 } from 'lucide-react'
 
 export interface ChatSession {
@@ -23,6 +23,7 @@ interface SessionSidebarProps {
   untitledLabel?: string
   isCollapsed?: boolean
   onToggleCollapsed?: (collapsed: boolean) => void
+  disableMobileHamburger?: boolean
 }
 
 export default function SessionSidebar({
@@ -39,7 +40,8 @@ export default function SessionSidebar({
   newSessionLabel = 'New Chat',
   untitledLabel = 'Untitled Chat',
   isCollapsed: propIsCollapsed,
-  onToggleCollapsed
+  onToggleCollapsed,
+  disableMobileHamburger = false
 }: SessionSidebarProps) {
   const [internalIsCollapsed, setInternalIsCollapsed] = useState(false)
   const isCollapsed = propIsCollapsed ?? internalIsCollapsed
@@ -59,6 +61,25 @@ export default function SessionSidebar({
   const [isDeletingSession, setIsDeletingSession] = useState(false)
   const [isDeletingAll, setIsDeletingAll] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+
+  // Track numbers so they don't immediately rearrange on deletion
+  const [sessionNumMap, setSessionNumMap] = useState<Record<string, number>>({})
+  const prevSessionsLengthRef = useRef(0)
+
+  useEffect(() => {
+    // Only re-index if we fetched new sessions, added a session, or full reload
+    // If length *decreased*, it means a deletion occurred, so we preserve existing numbers
+    if (sessions && (sessions.length >= prevSessionsLengthRef.current || loading)) {
+      const newMap: Record<string, number> = {}
+      sessions.forEach((session, index) => {
+        newMap[session.id] = index + 1
+      })
+      setSessionNumMap(newMap)
+    }
+    if (sessions) {
+      prevSessionsLengthRef.current = sessions.length
+    }
+  }, [sessions, loading])
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024)
@@ -88,7 +109,7 @@ export default function SessionSidebar({
   }
 
   // Mobile Hamburger Trigger (Attached to Left as requested)
-  if (isMobile) {
+  if (isMobile && !disableMobileHamburger) {
     return (
       <>
         <button
@@ -215,15 +236,17 @@ export default function SessionSidebar({
       <div style={{
         width: '70px',
         backgroundColor: '#F7F7F6',
-        borderLeft: position === 'right' ? '1px solid rgba(0,0,0,0.06)' : 'none',
-        borderRight: position === 'left' ? '1px solid rgba(0,0,0,0.06)' : 'none',
+        borderRadius: '12px',
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         padding: '24px 0',
-        transition: 'all 0.3s ease',
+        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         height: '100%',
-        zIndex: 20
+        zIndex: 20,
+        overflow: 'hidden'
       }}>
         <button
           onClick={() => setIsCollapsed(false)}
@@ -239,8 +262,9 @@ export default function SessionSidebar({
             justifyContent: 'center',
             color: '#64748b',
             boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
-            marginBottom: '24px',
-            transition: 'all 0.2s'
+            marginBottom: '16px',
+            transition: 'all 0.2s',
+            flexShrink: 0
           }}
         >
           {position === 'right' ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
@@ -259,12 +283,86 @@ export default function SessionSidebar({
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
-            boxShadow: isNewChatDisabled ? 'none' : '0 8px 20px -4px rgba(59, 130, 246, 0.4)'
+            boxShadow: isNewChatDisabled ? 'none' : '0 8px 20px -4px rgba(59, 130, 246, 0.4)',
+            flexShrink: 0
           }}
           title="New Chat"
         >
           <Plus size={24} />
         </button>
+
+        {/* Collapsed Session Quick-Nav Boxes */}
+        {Array.isArray(sessions) && sessions.length > 0 && (
+          <div
+            className="collapsed-session-nav"
+            data-lenis-prevent="true"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '8px',
+              marginTop: '16px',
+              flex: 1,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              paddingBottom: '24px',
+              width: '100%',
+              minHeight: 0, /* Crucial for flex child to be scrollable */
+              pointerEvents: 'auto',
+              scrollbarWidth: 'none',    /* Firefox */
+              msOverflowStyle: 'none',   /* IE/Edge */
+            }}
+          >
+            {sessions.map((session, index) => {
+              const isActive = currentSessionId === session.id
+              const displayNum = sessionNumMap[session.id] || (index + 1)
+              return (
+                <button
+                  key={session.id}
+                  onClick={() => onSelectSession(session.id)}
+                  title={session.title || untitledLabel}
+                  className="collapsed-session-box"
+                  style={{
+                    width: '42px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    border: isActive ? '2px solid #3b82f6' : '1px solid rgba(0,0,0,0.08)',
+                    background: 'white',
+                    color: isActive ? '#3b82f6' : '#475569',
+                    fontSize: '12px',
+                    fontWeight: 500, // Reduced from 700
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s ease',
+                    boxShadow: isActive
+                      ? '0 2px 8px rgba(59, 130, 246, 0.15)'
+                      : '0 2px 6px rgba(0,0,0,0.04)',
+                    flexShrink: 0,
+                    position: 'relative',
+                    letterSpacing: '-0.02em'
+                  }}
+                >
+                  <span style={{ opacity: 0.65, fontSize: '10px', marginRight: '1px' }}>#</span>
+                  {displayNum}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        <style jsx>{`
+          .collapsed-session-nav::-webkit-scrollbar {
+            display: none;
+            width: 0px;
+            background: transparent;
+          }
+          .collapsed-session-box:hover {
+            transform: scale(1.08);
+            box-shadow: 0 4px 14px -2px rgba(0,0,0,0.12) !important;
+          }
+        `}</style>
       </div>
     )
   }
@@ -272,16 +370,18 @@ export default function SessionSidebar({
   // Desktop Expanded State
   return (
     <div style={{
-      width: '320px',
+      width: isMobile ? '100%' : '320px',
       backgroundColor: '#F7F7F6', // Creamy Silver Whitish for Sidebars
-      borderLeft: position === 'right' ? '1px solid rgba(0,0,0,0.06)' : 'none',
-      borderRight: position === 'left' ? '1px solid rgba(0,0,0,0.06)' : 'none',
+      borderRadius: '12px',
+      border: '1px solid #e2e8f0',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       position: 'relative',
-      zIndex: 20
+      zIndex: 20,
+      overflow: 'hidden'
     }}>
       {/* Header */}
       <div style={{
