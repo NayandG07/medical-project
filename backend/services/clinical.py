@@ -125,6 +125,10 @@ Make the case realistic, educational, and clinically relevant for medical studen
                 # Try to extract JSON from the response
                 content = result["content"]
                 
+                # Log the raw content for debugging
+                logger.info(f"Raw AI response length: {len(content)} chars")
+                logger.debug(f"Raw AI response: {content[:500]}...")
+                
                 # Find JSON in the response (it might be wrapped in markdown code blocks)
                 if "```json" in content:
                     json_start = content.find("```json") + 7
@@ -135,11 +139,19 @@ Make the case realistic, educational, and clinically relevant for medical studen
                     json_end = content.find("```", json_start)
                     content = content[json_start:json_end].strip()
                 
-                case_data = json.loads(content)
+                # Try to parse JSON
+                try:
+                    case_data = json.loads(content)
+                except json.JSONDecodeError as json_err:
+                    # Log the problematic content
+                    logger.error(f"JSON parsing failed. Content: {content[:1000]}")
+                    logger.error(f"JSON error: {str(json_err)}")
+                    raise Exception(f"Failed to parse AI response as JSON. The AI returned invalid JSON format. Error: {str(json_err)}")
                 
                 # Validate required fields
                 if "chief_complaint" not in case_data or "stages" not in case_data:
-                    raise ValueError("Generated case missing required fields")
+                    logger.error(f"Missing required fields. Keys present: {list(case_data.keys())}")
+                    raise ValueError("Generated case missing required fields (chief_complaint or stages)")
                 
                 # Create case record
                 case_record = {
@@ -595,6 +607,10 @@ Make it realistic, clinically relevant, and appropriate for MBBS students."""
             try:
                 content = result["content"]
                 
+                # Log the raw content for debugging
+                logger.info(f"Raw OSCE AI response length: {len(content)} chars")
+                logger.debug(f"Raw OSCE AI response: {content[:500]}...")
+                
                 # Extract JSON
                 if "```json" in content:
                     json_start = content.find("```json") + 7
@@ -605,11 +621,19 @@ Make it realistic, clinically relevant, and appropriate for MBBS students."""
                     json_end = content.find("```", json_start)
                     content = content[json_start:json_end].strip()
                 
-                scenario_data = json.loads(content)
+                # Try to parse JSON
+                try:
+                    scenario_data = json.loads(content)
+                except json.JSONDecodeError as json_err:
+                    # Log the problematic content
+                    logger.error(f"OSCE JSON parsing failed. Content: {content[:1000]}")
+                    logger.error(f"JSON error: {str(json_err)}")
+                    raise Exception(f"Failed to parse OSCE AI response as JSON. The AI returned invalid JSON format. Error: {str(json_err)}")
                 
                 # Validate required fields
                 if "scenario_type" not in scenario_data or "patient_info" not in scenario_data:
-                    raise ValueError("Generated scenario missing required fields")
+                    logger.error(f"Missing required fields. Keys present: {list(scenario_data.keys())}")
+                    raise ValueError("Generated scenario missing required fields (scenario_type or patient_info)")
                 
                 # Create scenario record
                 scenario_record = {

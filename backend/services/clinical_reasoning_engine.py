@@ -481,6 +481,26 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
         # Pattern: 123"key" should be 123,"key"
         content = re.sub(r'(\d)\s*"([a-zA-Z_])', r'\1,"\2', content)
         
+        # Fix missing commas between closing quote and opening quote (array elements)
+        # Pattern: "value" "value" should be "value", "value"
+        # This needs to be more aggressive to catch all cases
+        content = re.sub(r'"\s+(?=")', r'", ', content)
+        
+        # Fix missing commas between ] and "
+        # Pattern: ] "text" should be ], "text"
+        content = re.sub(r'\]\s*"', r'], "', content)
+        
+        # Fix missing commas between } and "
+        # Pattern: } "text" should be }, "text"
+        content = re.sub(r'\}\s*"', r'}, "', content)
+        
+        # Fix missing commas at end of strings before closing brackets
+        # Pattern: "text"] should be "text"]  (this is actually valid, but check for "text" ] with space)
+        # More importantly: "text1" "text2"] should be "text1", "text2"]
+        # The above pattern should catch this, but let's be more explicit
+        content = re.sub(r'"\s+\]', r'"]', content)  # Remove spaces before ]
+        content = re.sub(r'"\s+\}', r'"}', content)  # Remove spaces before }
+        
         try:
             return json.loads(content)
         except json.JSONDecodeError as e:
@@ -497,6 +517,15 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
             
             # Try more aggressive cleanup
             try:
+                # Save the problematic content to a file for debugging
+                import os
+                debug_dir = "debug_json_errors"
+                os.makedirs(debug_dir, exist_ok=True)
+                debug_file = os.path.join(debug_dir, f"error_{error_pos}_{int(time.time())}.json")
+                with open(debug_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                logger.error(f"Saved problematic JSON to {debug_file}")
+                
                 # Try json5 parser which is more lenient
                 try:
                     import json5
