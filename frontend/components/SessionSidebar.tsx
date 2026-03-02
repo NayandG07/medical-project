@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Menu, X, ChevronLeft, ChevronRight, MessageSquare, Trash2, Plus, Loader2 } from 'lucide-react'
+import { Menu, X, ChevronLeft, ChevronRight, MessageSquare, Trash2, Plus, Loader2, Eye, EyeOff } from 'lucide-react'
 
 export interface ChatSession {
   id: string
@@ -60,6 +60,7 @@ export default function SessionSidebar({
   const [deleteAllConfirmation, setDeleteAllConfirmation] = useState(false)
   const [isDeletingSession, setIsDeletingSession] = useState(false)
   const [isDeletingAll, setIsDeletingAll] = useState(false)
+  const [showNumbering, setShowNumbering] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
   // Track numbers so they don't immediately rearrange on deletion
@@ -242,7 +243,7 @@ export default function SessionSidebar({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '24px 0',
+        padding: '24px 0 0 0', // Removed bottom padding
         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         height: '100%',
         zIndex: 20,
@@ -305,6 +306,7 @@ export default function SessionSidebar({
               flex: 1,
               overflowY: 'auto',
               overflowX: 'hidden',
+              paddingTop: '8px', // Added to prevent clipping of topmost box on hover/scale
               paddingBottom: '24px',
               width: '100%',
               minHeight: 0, /* Crucial for flex child to be scrollable */
@@ -316,6 +318,9 @@ export default function SessionSidebar({
             {sessions.map((session, index) => {
               const isActive = currentSessionId === session.id
               const displayNum = sessionNumMap[session.id] || (index + 1)
+
+              if (!showNumbering) return null
+
               return (
                 <button
                   key={session.id}
@@ -344,13 +349,51 @@ export default function SessionSidebar({
                     letterSpacing: '-0.02em'
                   }}
                 >
-                  <span style={{ opacity: 0.65, fontSize: '10px', marginRight: '1px' }}>#</span>
-                  {displayNum}
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <MessageSquare size={18} style={{ opacity: isActive ? 0.8 : 0.4 }} />
+                    <span style={{
+                      position: 'absolute',
+                      fontSize: '8px',
+                      fontWeight: '900',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      color: isActive ? '#3b82f6' : '#64748b',
+                      paddingTop: '0.2px'
+                    }}>
+                      {displayNum}
+                    </span>
+                  </div>
                 </button>
               )
             })}
           </div>
         )}
+
+        <div style={{ marginTop: 'auto', padding: '12px 0 12px 0', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', borderTop: '1.5px solid rgba(0,0,0,0.08)' }}>
+          <button
+            onClick={() => setShowNumbering(!showNumbering)}
+            title={showNumbering ? "Hide numbering" : "Show numbering"}
+            className="view-toggle-btn"
+            style={{
+              background: 'white',
+              border: '1px solid rgba(0,0,0,0.08)',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              width: '38px', // Reduced height "just a bit"
+              height: '38px', // Reduced height "just a bit"
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: showNumbering ? '#3b82f6' : '#64748b',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              flexShrink: 0
+            }}
+          >
+            {showNumbering ? <Eye size={18} /> : <EyeOff size={18} />}
+          </button>
+        </div>
 
         <style jsx>{`
           .collapsed-session-nav::-webkit-scrollbar {
@@ -361,6 +404,11 @@ export default function SessionSidebar({
           .collapsed-session-box:hover {
             transform: scale(1.08);
             box-shadow: 0 4px 14px -2px rgba(0,0,0,0.12) !important;
+          }
+          .view-toggle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.08) !important;
+            color: #3b82f6;
           }
         `}</style>
       </div>
