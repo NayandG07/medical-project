@@ -459,6 +459,89 @@ class NotificationService:
             )
         
         return results
+    
+    async def notify_model_timeout(
+        self,
+        feature: str,
+        model: str,
+        timeout_seconds: int,
+        provider: str = "huggingface"
+    ) -> Dict[str, Any]:
+        """
+        Notify admins when a model times out
+        
+        Args:
+            feature: Feature name (clinical, chat, etc.)
+            model: Model name that timed out
+            timeout_seconds: Timeout duration in seconds
+            provider: Provider name
+            
+        Returns:
+            Dict with notification results
+        """
+        subject = f"[Medical AI Platform] Model Timeout: {feature}"
+        
+        body = f"""
+        <html>
+        <body>
+        <h2>Model Timeout Alert</h2>
+        <p>A model request has timed out, indicating potential cold start or performance issues.</p>
+        
+        <h3>Details:</h3>
+        <ul>
+            <li><strong>Feature:</strong> {feature}</li>
+            <li><strong>Model:</strong> {model}</li>
+            <li><strong>Provider:</strong> {provider}</li>
+            <li><strong>Timeout Duration:</strong> {timeout_seconds} seconds</li>
+            <li><strong>Time:</strong> {datetime.utcnow().isoformat()}</li>
+        </ul>
+        
+        <h3>Possible Causes:</h3>
+        <ul>
+            <li>Model cold start (first request after inactivity)</li>
+            <li>Model server overload</li>
+            <li>Network connectivity issues</li>
+            <li>Model unavailability</li>
+        </ul>
+        
+        <p><strong>User Impact:</strong> Users are seeing "Please try again later" messages.</p>
+        <p>Consider monitoring the model's availability or switching to alternative models if this persists.</p>
+        </body>
+        </html>
+        """
+        
+        # Prepare webhook payload
+        webhook_payload = {
+            "event": "model_timeout",
+            "feature": feature,
+            "model": model,
+            "provider": provider,
+            "timeout_seconds": timeout_seconds,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        results = {
+            "email_results": [],
+            "webhook_result": None
+        }
+        
+        # Send emails to all admins
+        if self.email_enabled:
+            for admin_email in self.admin_emails:
+                result = await self.send_email(admin_email, subject, body)
+                results["email_results"].append({
+                    "to": admin_email,
+                    "success": result["success"]
+                })
+        
+        # Send webhook
+        if self.webhook_enabled:
+            results["webhook_result"] = await self.send_webhook(
+                self.webhook_url,
+                webhook_payload
+            )
+        
+        return results
 
 
 # Singleton instance

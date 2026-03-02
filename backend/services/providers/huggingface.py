@@ -67,11 +67,10 @@ class HuggingFaceProvider:
         system_prompt: Optional[str] = None,
         max_tokens: int = 4096,
         temperature: float = 0.9,
-        use_free_api: bool = False,
         image_data: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Call Hugging Face Router API (OpenAI-compatible format) or free Inference API
+        Call Hugging Face Router API (OpenAI-compatible format)
         
         Args:
             feature: Feature name (chat, flashcard, etc.)
@@ -79,7 +78,6 @@ class HuggingFaceProvider:
             system_prompt: Optional system prompt
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature
-            use_free_api: If True, use free Inference API instead of Router
             image_data: Optional base64-encoded image data for vision models
             
         Returns:
@@ -94,166 +92,151 @@ class HuggingFaceProvider:
             }
         
         model = self.MEDICAL_MODELS.get(feature, self.MEDICAL_MODELS["chat"])
-        logger.info(f"Calling Hugging Face model: {model} for feature: {feature} (free_api={use_free_api}, has_image={image_data is not None})")
+        logger.info(f"Calling Hugging Face model: {model} for feature: {feature} (has_image={image_data is not None})")
         
         try:
             import httpx
             
-            # Try Router API first (paid, faster)
-            if not use_free_api:
-                messages = []
-                if system_prompt:
-                    messages.append({"role": "system", "content": system_prompt})
-                
-                # Build user message with optional image
-                if image_data and feature == "image":
-                    # Vision model - include image in message
-                    messages.append({
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{image_data}"
-                                }
-                            },
-                            {
-                                "type": "text",
-                                "text": prompt
-                            }
-                        ]
-                    })
-                else:
-                    # Text-only message
-                    messages.append({"role": "user", "content": prompt})
-                
-                url = f"{self.router_url}/chat/completions"
-                headers = {
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                }
-                
-                payload = {
-                    "model": model,
-                    "messages": messages,
-                    "max_tokens": max_tokens,
-                    "temperature": temperature,
-                    "stream": False
-                }
-                
-                # Use longer timeout for image models (they're larger and slower)
-                timeout_seconds = 120.0 if feature == "image" else 60.0
-                async with httpx.AsyncClient(timeout=timeout_seconds) as client:
-                    response = await client.post(url, headers=headers, json=payload)
-                    
-                    # If 402 (payment required), fall back to free API
-                    if response.status_code == 402:
-                        logger.warning("Router API credits depleted, falling back to free Inference API")
-                        return await self.call_huggingface(
-                            feature=feature,
-                            prompt=prompt,
-                            system_prompt=system_prompt,
-                            max_tokens=max_tokens,
-                            temperature=temperature,
-                            use_free_api=True
-                        )
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        
-                        if "choices" in result and len(result["choices"]) > 0:
-                            generated_text = result["choices"][0]["message"]["content"]
-                            tokens_used = result.get("usage", {}).get("total_tokens", 0)
-                            if tokens_used == 0:
-                                tokens_used = len(prompt + generated_text) // 4
-                        else:
-                            generated_text = str(result)
-                            tokens_used = len(prompt + generated_text) // 4
-                        
-                        if feature == "clinical":
-                            logger.info(f"Full HF response length: {len(generated_text)} chars")
-                            logger.debug(f"Full HF response: {generated_text}")
-                        
-                        logger.info(f"Hugging Face Router call succeeded. Model: {model}, Tokens: ~{tokens_used}")
-                        
-                        return {
-                            "success": True,
-                            "content": generated_text.strip(),
-                            "error": None,
-                            "tokens_used": tokens_used,
-                            "model": model,
-                            "provider": "huggingface"
-                        }
-                    else:
-                        error_msg = f"Hugging Face Router API error: {response.status_code} - {response.text}"
-                        logger.error(error_msg)
-                        
-                        return {
-                            "success": False,
-                            "error": error_msg,
-                            "content": "",
-                            "tokens_used": 0,
-                            "model": model,
-                            "provider": "huggingface"
-                        }
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
             
-            # Use free Inference API (slower, rate-limited, but free)
+            # Build user message with optional image
+            if image_data and feature == "image":
+                # Vision model - include image in message
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_data}"
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": prompt
+                        }
+                    ]
+                })
             else:
-                if not self.inference_client:
+                # Text-only message
+                messages.append({"role": "user", "content": prompt})
+            
+            url = f"{self.router_url}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": False
+            }
+            
+            # Use longer timeout for image models and Med42 models (they're larger and slower)
+            # Med42-70B needs more time due to cold starts and model size
+            if feature == "image":
+                timeout_seconds = 120.0
+            elif model == "m42-health/Llama3-Med42-70B:featherless-ai":
+                timeout_seconds = 180.0  # 3 minutes for Med42 cold starts
+            else:
+                timeout_seconds = 90.0  # Default 90s for other models
+            
+            logger.info(f"Using timeout: {timeout_seconds}s for model: {model}")
+            async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+                response = await client.post(url, headers=headers, json=payload)
+                
+                # If 402 (payment required), return error
+                if response.status_code == 402:
+                    error_msg = "HuggingFace Router API credits depleted"
+                    logger.error(error_msg)
                     return {
                         "success": False,
-                        "error": "Inference client not initialized",
+                        "error": error_msg,
                         "content": "",
-                        "tokens_used": 0
+                        "tokens_used": 0,
+                        "model": model,
+                        "provider": "huggingface"
                     }
                 
-                # For free API, use smaller/free models that support chat
-                free_models = {
-                    "chat": "microsoft/Phi-3-mini-4k-instruct",
-                    "clinical": "microsoft/Phi-3-mini-4k-instruct",
-                    "flashcard": "microsoft/Phi-3-mini-4k-instruct",
-                    "mcq": "microsoft/Phi-3-mini-4k-instruct",
-                    "explain": "microsoft/Phi-3-mini-4k-instruct",
-                    "highyield": "microsoft/Phi-3-mini-4k-instruct",
-                    "osce": "microsoft/Phi-3-mini-4k-instruct",
-                }
-                free_model = free_models.get(feature, "microsoft/Phi-3-mini-4k-instruct")
-                
-                logger.info(f"Using free Inference API with model: {free_model}")
-                
-                # Build messages for chat completion
-                messages = []
-                if system_prompt:
-                    messages.append({"role": "system", "content": system_prompt})
-                messages.append({"role": "user", "content": prompt})
-                
-                # Call chat completion
-                response = self.inference_client.chat_completion(
-                    messages=messages,
-                    model=free_model,
-                    max_tokens=max_tokens,
-                    temperature=temperature
-                )
-                
-                # Extract generated text
-                if hasattr(response, 'choices') and len(response.choices) > 0:
-                    generated_text = response.choices[0].message.content
-                else:
-                    generated_text = str(response)
-                
-                tokens_used = len(prompt + generated_text) // 4
-                
-                logger.info(f"Free Inference API call succeeded. Model: {free_model}, Tokens: ~{tokens_used}")
-                
-                return {
-                    "success": True,
-                    "content": generated_text.strip(),
-                    "error": None,
-                    "tokens_used": tokens_used,
-                    "model": free_model,
-                    "provider": "huggingface-free"
-                }
+                if response.status_code == 200:
+                    result = response.json()
                     
+                    if "choices" in result and len(result["choices"]) > 0:
+                        generated_text = result["choices"][0]["message"]["content"]
+                        tokens_used = result.get("usage", {}).get("total_tokens", 0)
+                        if tokens_used == 0:
+                            tokens_used = len(prompt + generated_text) // 4
+                    else:
+                        generated_text = str(result)
+                        tokens_used = len(prompt + generated_text) // 4
+                    
+                    if feature == "clinical":
+                        logger.info(f"Full HF response length: {len(generated_text)} chars")
+                        logger.debug(f"Full HF response: {generated_text}")
+                    
+                    logger.info(f"Hugging Face Router call succeeded. Model: {model}, Tokens: ~{tokens_used}")
+                    
+                    return {
+                        "success": True,
+                        "content": generated_text.strip(),
+                        "error": None,
+                        "tokens_used": tokens_used,
+                        "model": model,
+                        "provider": "huggingface"
+                    }
+                else:
+                    error_msg = f"Hugging Face Router API error: {response.status_code} - {response.text}"
+                    logger.error(error_msg)
+                    
+                    return {
+                        "success": False,
+                        "error": error_msg,
+                        "content": "",
+                        "tokens_used": 0,
+                        "model": model,
+                        "provider": "huggingface"
+                    }
+            
+
+                    
+        except httpx.TimeoutException as timeout_error:
+            # Handle timeout - log and notify admin
+            timeout_seconds_val = locals().get('timeout_seconds', 60)
+            error_msg = f"Model timeout after {timeout_seconds_val}s: {model}"
+            
+            logger.error(f"TIMEOUT: {error_msg}")
+            logger.error(f"Feature: {feature}, Model: {model}")
+            logger.error(f"This indicates the model is experiencing cold start or performance issues")
+            
+            # Send admin notification about timeout
+            try:
+                from services.notifications import get_notification_service
+                notification_service = get_notification_service()
+                
+                await notification_service.notify_model_timeout(
+                    feature=feature,
+                    model=model,
+                    timeout_seconds=timeout_seconds_val,
+                    provider="huggingface"
+                )
+                logger.info("Admin notification sent for model timeout")
+            except Exception as notif_error:
+                logger.warning(f"Failed to send admin notification: {str(notif_error)}")
+            
+            return {
+                "success": False,
+                "error": "The AI model is currently loading or experiencing delays. Please try again in a few moments.",
+                "content": "",
+                "tokens_used": 0,
+                "model": model,
+                "provider": "huggingface",
+                "timeout": True
+            }
         except Exception as e:
             error_msg = f"Hugging Face API error: {str(e)}"
             logger.error(error_msg)
