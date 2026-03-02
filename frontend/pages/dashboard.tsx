@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { supabase, AuthUser } from '@/lib/supabase'
 import DashboardLayout from '@/components/DashboardLayout'
+import { motion } from 'framer-motion'
 import {
   Check, Calendar, Clock, BookOpen, Brain, Activity, Heart,
   Zap, ChevronRight, Trophy, Target, TrendingUp, Flame,
@@ -356,36 +357,66 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="loading-screen">
-        <div className="spinner"></div>
-        <p>Preparing your workspace...</p>
-        <style jsx>{`
-  .loading - screen {
-  display: flex;
-  flex - direction: column;
-  justify - content: center;
-  align - items: center;
-  min - height: 100vh;
-  background - color: var(--cream - bg);
-  gap: 16px;
-}
-          .spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--cream - accent - soft);
-  border - top - color: var(--cream - text - main);
-  border - radius: 50 %;
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-            to { transform: rotate(360deg); }
-}
-          p {
-  font - size: 14px;
-  font - weight: 600;
-  color: var(--cream - text - muted);
-}
-`}</style>
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--cream-bg)] overflow-hidden">
+        {/* Background Ambient Glows */}
+        <motion.div
+          animate={{
+            scale: [1, 1.1, 1],
+            opacity: [0.2, 0.4, 0.2],
+          }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute w-[400px] h-[400px] bg-blue-200/40 rounded-full blur-[100px]"
+        />
+
+        {/* Abstract Loading Visual */}
+        <div className="relative mb-8">
+          {/* Outer Pulsing Rings */}
+          {[...Array(3)].map((_, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: [0, 1, 0], scale: [0.5, 1.2, 1.5] }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                delay: i * 1,
+                ease: "easeOut"
+              }}
+              className="absolute inset-0 bg-blue-500/20 rounded-full blur-sm"
+            />
+          ))}
+
+          {/* Core Glowing Orb */}
+          <motion.div
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-[0_0_40px_-10px_rgba(59,130,246,0.6)] border border-blue-100 z-10 relative"
+          >
+            <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-full blur-[2px]" />
+            <Sparkles className="absolute text-white" size={18} />
+          </motion.div>
+        </div>
+
+        {/* Loading Typography */}
+        <div className="text-center z-10">
+          <motion.h2
+            animate={{ opacity: [0.6, 1, 0.6] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="text-[22px] font-black text-[var(--cream-text-main)] tracking-tight mb-2"
+          >
+            Preparing Workspace
+          </motion.h2>
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-[12px] font-bold text-[var(--cream-text-muted)] tracking-wider uppercase">
+              Initializing AI Engine
+            </span>
+            <motion.span
+              animate={{ opacity: [0, 1, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+              className="w-1.5 h-1.5 bg-blue-500 rounded-full inline-block"
+            />
+          </div>
+        </div>
       </div>
     )
   }

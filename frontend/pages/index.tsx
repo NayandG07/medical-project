@@ -56,87 +56,85 @@ export default function LandingPage() {
       <LandingNavbar />
 
 
-      {/* Hero Section - Premium Redesign */}
-      <section className="pt-20 pb-32 px-6 relative overflow-hidden">
+      {/* Hero Section - Premium Refined Layout */}
+      <section className="pt-32 pb-24 px-6 relative overflow-hidden">
         {/* Artistic Background Layering */}
         <div className="absolute inset-0 -z-10 bg-[var(--cream-bg)]">
-          {/* Subtle Grid Pattern */}
           <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#000 0.5px, transparent 0.5px)', backgroundSize: '24px 24px' }}></div>
 
-          {/* Moving Gradient Orbs */}
           <motion.div
             animate={{
-              scale: [1, 1.2, 1],
-              x: [0, 50, 0],
-              y: [0, -30, 0]
+              scale: [1, 1.15, 1],
+              x: [0, 30, 0],
+              y: [0, -20, 0]
             }}
             transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-            className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-indigo-100/40 rounded-full blur-[120px]"
+            className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-indigo-100/30 rounded-full blur-[120px]"
           />
           <motion.div
             animate={{
-              scale: [1.2, 1, 1.2],
-              x: [0, -50, 0],
-              y: [0, 40, 0]
+              scale: [1.15, 1, 1.15],
+              x: [0, -30, 0],
+              y: [0, 30, 0]
             }}
             transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-            className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-orange-50/50 rounded-full blur-[100px]"
+            className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-orange-50/40 rounded-full blur-[100px]"
           />
         </div>
 
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 lg:gap-16 items-center w-full">
           <motion.div
             initial="initial"
             animate="animate"
             variants={{
               animate: {
                 transition: {
-                  staggerChildren: 0.15,
+                  staggerChildren: 0.1,
                   delayChildren: 0.2
                 }
               }
             }}
-            className="flex flex-col items-center justify-center text-center min-h-[70vh]"
+            className="flex flex-col items-center lg:items-start text-center lg:text-left pt-12 lg:pt-0"
           >
             {/* Intel Badge */}
             <motion.div
               variants={{
-                initial: { opacity: 0, y: 20 },
+                initial: { opacity: 0, y: 15 },
                 animate: { opacity: 1, y: 0 }
               }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="inline-flex items-center gap-2 px-5 py-2 bg-white rounded-full border border-[var(--cream-accent)] mb-8 shadow-sm hover:shadow-md transition-shadow cursor-default"
+              className="inline-flex items-center gap-2 px-3.5 py-1 bg-white/60 backdrop-blur-md rounded-full border border-[var(--cream-accent)] mb-6 shadow-sm hover:shadow-md transition-all cursor-default"
             >
-              <span className="relative flex h-2 w-2">
+              <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
               </span>
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--cream-text-muted)]">Intelligence v2.0 Live</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.25em] text-[var(--cream-text-muted)]">Intelligence v2.0 Live</span>
             </motion.div>
 
             {/* Main Heading */}
             <motion.h1
               variants={{
-                initial: { opacity: 0, y: 30 },
+                initial: { opacity: 0, y: 20 },
                 animate: { opacity: 1, y: 0 }
               }}
               transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-              className="text-6xl md:text-[110px] font-black text-[var(--cream-text-main)] leading-[0.85] mb-10 tracking-tighter max-w-5xl"
+              className="text-5xl md:text-6xl lg:text-[72px] font-black text-[var(--cream-text-main)] leading-[1.05] mb-6 tracking-tighter"
             >
-              Master Medicine <br />
-              With <span className="text-transparent bg-clip-text bg-gradient-to-br from-indigo-600 via-indigo-900 to-slate-900">Intelligence.</span>
+              Master Medicine <br className="hidden md:block" />
+              With <span className="text-transparent bg-clip-text bg-gradient-to-br from-indigo-600 via-indigo-900 to-slate-900 font-black">Intelligence.</span>
             </motion.h1>
 
             {/* Description */}
             <motion.p
               variants={{
-                initial: { opacity: 0, y: 20 },
+                initial: { opacity: 0, y: 15 },
                 animate: { opacity: 1, y: 0 }
               }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="text-xl md:text-2xl text-[var(--cream-text-muted)] font-medium leading-[1.6] mb-14 max-w-3xl mx-auto"
+              className="text-base md:text-lg text-[var(--cream-text-muted)] font-medium leading-[1.6] mb-10 max-w-lg lg:px-0"
             >
-              Elevate your medical education with the world&apos;s most advanced AI clinical companion. Master complex cases, visualize concepts, and ace your exams with confidence.
+              Elevate your medical education with the world&apos;s most advanced AI clinical companion. Master complex cases, visualize concepts, and ace your exams.
             </motion.p>
 
             {/* CTAs */}
@@ -146,18 +144,53 @@ export default function LandingPage() {
                 animate: { opacity: 1, scale: 1, y: 0 }
               }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="flex flex-col sm:flex-row items-center justify-center gap-6 w-full"
+              className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 w-full"
             >
-              <Link href="/login" className="w-full sm:w-auto bg-[var(--cream-text-main)] text-white px-10 py-5 rounded-[24px] text-[18px] font-black hover:bg-black transition-all shadow-2xl hover:-translate-y-2 active:translate-y-0.5 flex items-center justify-center gap-4 group">
+              <Link
+                href="/login"
+                className="w-full sm:w-auto bg-[var(--cream-text-main)] text-white px-9 py-3.5 rounded-2xl text-[15px] font-bold hover:bg-black transition-all shadow-xl hover:-translate-y-1 active:translate-y-0.5 flex items-center justify-center gap-3 group"
+              >
                 Start Studying Free
-                <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
+                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </Link>
 
-              <Link href="#features" className="w-full sm:w-auto bg-white text-[var(--cream-text-main)] border border-[var(--cream-accent)] px-10 py-5 rounded-[24px] text-[18px] font-black hover:bg-[var(--cream-accent-soft)] transition-all flex items-center justify-center gap-3 group">
+              <Link
+                href="#features"
+                className="w-full sm:w-auto bg-white text-[var(--cream-text-main)] border border-[var(--cream-accent)] px-9 py-3.5 rounded-2xl text-[15px] font-bold hover:bg-[var(--cream-accent-soft)] transition-all flex items-center justify-center gap-2 group"
+              >
                 Learn More
-                <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
               </Link>
             </motion.div>
+          </motion.div>
+
+          {/* Right Visual Asset */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, x: 20 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
+            className="hidden lg:block relative"
+          >
+            <div className="relative z-10 p-3 bg-white/20 backdrop-blur-3xl rounded-[40px] border border-white/30 shadow-2xl overflow-hidden group max-h-[70vh]">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent pointer-events-none"></div>
+              <img
+                src="/hero-asset.png"
+                alt="Vaidya AI Master Interface"
+                className="w-full h-auto max-h-[65vh] object-cover rounded-[30px] shadow-2xl transition-transform duration-700 group-hover:scale-105"
+              />
+            </div>
+
+            {/* Floating Decorative Elements */}
+            <motion.div
+              animate={{ y: [0, -15, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -top-6 -right-6 w-20 h-20 bg-orange-100 rounded-3xl blur-3xl opacity-60"
+            ></motion.div>
+            <motion.div
+              animate={{ y: [0, 15, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+              className="absolute -bottom-6 -left-6 w-28 h-28 bg-indigo-100 rounded-full blur-3xl opacity-60"
+            ></motion.div>
           </motion.div>
         </div>
       </section>

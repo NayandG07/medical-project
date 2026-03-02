@@ -54,12 +54,12 @@ export default function LandingNavbar() {
                     className="flex justify-between items-center w-full"
                 >
                     <Link href="/" className="flex items-center gap-3 group shrink-0">
-                        <div className="w-10 h-10 bg-[var(--cream-text-main)] rounded-[14px] flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 shadow-lg shadow-black/10">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <div className="w-12 h-12 bg-[var(--cream-text-main)] rounded-[16px] flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 shadow-lg shadow-black/10">
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                             </svg>
                         </div>
-                        <span className="text-2xl font-black tracking-tighter text-[var(--cream-text-main)]">Vaidya <span className="text-indigo-600">AI</span></span>
+                        <span className="text-[28px] font-black tracking-tighter text-[var(--cream-text-main)]">Vaidya <span className="text-indigo-600">AI</span></span>
                     </Link>
 
                     {/* Desktop Nav */}

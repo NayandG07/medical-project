@@ -2213,7 +2213,7 @@ async def analyze_medical_image(
     user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Analyze a medical image with AI
+    Analyze a medical image with AI and save to session history
     
     Args:
         image: Medical image file
@@ -2243,12 +2243,122 @@ async def analyze_medical_image(
             context=context
         )
         
-        logger.info(f"Image analysis completed - User: {user['id'][:8]}...")
+        # Prepare for session storage
+        import base64
+        image_base64 = base64.b64encode(file_content).decode('utf-8')
+        image_preview = f"data:{image.content_type};base64,{image_base64}"
+        
+        # Save to sessions table for history
+        session_data = {
+            "user_id": user["id"],
+            "image_filename": image.filename or "analysis.jpg",
+            "analysis_result": analysis,
+            "context": context,
+            "image_preview": image_preview
+        }
+        
+        try:
+            stored_session = supabase.table("image_analysis_sessions").insert(session_data).execute()
+            if stored_session.data and len(stored_session.data) > 0:
+                # Add the session ID to the returned analysis so frontend can select it
+                analysis["session_id"] = stored_session.data[0]["id"]
+        except Exception as db_err:
+            logger.error(f"Failed to save image analysis session: {str(db_err)}")
+            # Continue anyway as the analysis itself succeeded
+            
+        logger.info(f"Image analysis completed and saved - User: {user['id'][:8]}...")
         return analysis
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Image analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# IMAGE ANALYSIS SESSIONS ENDPOINTS
+# ============================================================================
+
+@app.get("/api/image/sessions")
+async def get_image_analysis_sessions(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get user's image analysis history"""
+    try:
+        response = supabase.table("image_analysis_sessions")\
+            .select("id, image_filename, created_at, updated_at")\
+            .eq("user_id", user["id"])\
+            .order("created_at", desc=True)\
+            .execute()
+        
+        # Format for SessionSidebar compatibility
+        sessions = []
+        for s in (response.data or []):
+            sessions.append({
+                "id": s["id"],
+                "title": s["image_filename"],
+                "created_at": s["created_at"],
+                "updated_at": s["updated_at"]
+            })
+        return sessions
+    except Exception as e:
+        logger.error(f"Failed to get image analysis sessions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/image/sessions/{session_id}")
+async def get_image_analysis_session(
+    session_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get a specific image analysis session"""
+    try:
+        response = supabase.table("image_analysis_sessions")\
+            .select("*")\
+            .eq("id", session_id)\
+            .eq("user_id", user["id"])\
+            .single()\
+            .execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        return response.data
+    except Exception as e:
+        logger.error(f"Failed to get image analysis session: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/image/sessions/{session_id}")
+async def delete_image_analysis_session(
+    session_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete an image analysis session"""
+    try:
+        supabase.table("image_analysis_sessions")\
+            .delete()\
+            .eq("id", session_id)\
+            .eq("user_id", user["id"])\
+            .execute()
+        return {"message": "Session deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete image analysis session: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/image/sessions/all")
+async def delete_all_image_analysis_sessions(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete all image analysis sessions for a user"""
+    try:
+        supabase.table("image_analysis_sessions")\
+            .delete()\
+            .eq("user_id", user["id"])\
+            .execute()
+        return {"message": "All sessions deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete all image analysis sessions: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -70,14 +70,16 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
     <div className="sidebar-container" data-lenis-prevent>
       {/* Logo & Toggle */}
       <div className="sidebar-header">
-        <div className="logo-section">
-          <div className="logo-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-            </svg>
+        <Link href="/dashboard" className="logo-link">
+          <div className="logo-section">
+            <div className="logo-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+              </svg>
+            </div>
+            {!isCollapsed && <span className="logo-text">Vaidya AI</span>}
           </div>
-          {!isCollapsed && <span className="logo-text">Vaidya AI</span>}
-        </div>
+        </Link>
 
         {!isCollapsed && (
           <button onClick={handleToggle} className="toggle-btn" title="Collapse sidebar">
@@ -169,6 +171,12 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
           align-items: center;
           justify-content: ${isCollapsed ? 'center' : 'space-between'};
           min-height: 70px;
+        }
+
+        .logo-link {
+          text-decoration: none;
+          display: block;
+          cursor: pointer;
         }
 
         .logo-section {
