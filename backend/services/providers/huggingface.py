@@ -237,6 +237,22 @@ class HuggingFaceProvider:
                 "provider": "huggingface",
                 "timeout": True
             }
+        except httpx.RemoteProtocolError as protocol_error:
+            # Handle connection/streaming errors (incomplete chunked read, connection closed, etc.)
+            error_msg = f"Connection error with HuggingFace API: {str(protocol_error)}"
+            logger.error(error_msg)
+            logger.error(f"Feature: {feature}, Model: {model}")
+            logger.error("This indicates network instability or server-side streaming issues")
+            
+            return {
+                "success": False,
+                "error": error_msg,
+                "content": "",
+                "tokens_used": 0,
+                "model": model,
+                "provider": "huggingface",
+                "connection_error": True
+            }
         except Exception as e:
             error_msg = f"Hugging Face API error: {str(e)}"
             logger.error(error_msg)

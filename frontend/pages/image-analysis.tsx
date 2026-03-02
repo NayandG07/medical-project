@@ -341,7 +341,7 @@ export default function ImageAnalysis() {
       <DashboardLayout user={user}>
         <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] gap-0 overflow-hidden bg-[var(--cream-bg)] relative">
           {/* Main Main Content */}
-          <div className="flex-1 overflow-hidden no-scrollbar">
+          <div className="flex-1 overflow-y-auto no-scrollbar">
             <motion.div
               initial="hidden"
               animate="visible"
