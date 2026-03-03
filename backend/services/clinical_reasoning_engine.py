@@ -453,46 +453,92 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
                             content = content[first_brace:i + 1]
                             break
         
+        # AGGRESSIVE CLEANUP FOR COMMON AI ERRORS
+        
+        # Fix invalid escape sequences like \1, \2, etc. (not valid JSON escapes)
+        # Valid JSON escapes are: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
+        # Replace invalid escapes with empty string or safe placeholder
+        def fix_invalid_escapes(match):
+            escaped_char = match.group(1)
+            # Check if it's a valid JSON escape
+            if escaped_char in ['"', '\\', '/', 'b', 'f', 'n', 'r', 't']:
+                return match.group(0)  # Keep valid escapes
+            elif escaped_char == 'u':
+                return match.group(0)  # Keep unicode escapes
+            else:
+                # Invalid escape - remove the backslash
+                logger.warning(f"Removing invalid escape sequence: \\{escaped_char}")
+                return escaped_char
+        
+        content = re.sub(r'\\(.)', fix_invalid_escapes, content)
+        
+        # Fix unclosed strings (missing closing quote before comma or brace)
+        # Pattern: "key": "value without closing quote,
+        # This is tricky - we need to find strings that end abruptly
+        
+        # First, fix the common case of quotes inside string values that aren't escaped
+        # Pattern: "text", more text" should be "text, more text"
+        # We need to be careful not to break valid JSON
+        
+        # Strategy: Find patterns where we have ": "text", text" and fix to ": "text, text"
+        # This handles cases like "Hello", nice to meet you" -> "Hello, nice to meet you"
+        def fix_unescaped_quotes_in_strings(text):
+            """Fix unescaped quotes inside string values"""
+            # Pattern: ": "word", more words continuing until next proper quote
+            # Look for: ": "text", text" where the comma after first quote shouldn't be there
+            
+            # Find all string value patterns
+            pattern = r':\s*"([^"]*)",\s*([^"]*?)"'
+            
+            def replacer(match):
+                first_part = match.group(1)
+                second_part = match.group(2)
+                # Check if second_part looks like it should be part of the same string
+                # (doesn't start with a key name pattern)
+                if not re.match(r'^\s*"[a-zA-Z_][a-zA-Z0-9_]*"\s*:', second_part):
+                    # It's likely a continuation of the string, not a new key
+                    return f': "{first_part}, {second_part}"'
+                return match.group(0)
+            
+            return re.sub(pattern, replacer, text)
+        
+        content = fix_unescaped_quotes_in_strings(content)
+        
+        # Also handle the pattern where quotes appear mid-sentence
+        # "text" word" should be "text word"
+        # But be careful not to break "text","key": patterns
+        content = re.sub(r'([a-z])"(\s+[a-z])', r'\1\2', content, flags=re.IGNORECASE)
+        
         # Remove any trailing commas before closing braces/brackets (common JSON error)
         content = re.sub(r',(\s*[}\]])', r'\1', content)
         
-        # Fix invalid escape sequences - this is critical for AI-generated JSON
-        # Step 1: Protect valid escape sequences by temporarily replacing them
-        protected_escapes = {}
-        escape_counter = 0
+        # Fix duplicate keys by renaming them with _N suffix
+        def fix_duplicate_keys(json_str):
+            """Fix duplicate keys in JSON by renaming them"""
+            key_counts = {}
+            lines = []
+            
+            for line in json_str.split('\n'):
+                # Find key definitions
+                key_match = re.search(r'"([^"]+)"\s*:', line)
+                if key_match:
+                    key = key_match.group(1)
+                    if key in key_counts:
+                        key_counts[key] += 1
+                        new_key = f"{key}_{key_counts[key]}"
+                        line = line.replace(f'"{key}":', f'"{new_key}":', 1)
+                        logger.warning(f"Renamed duplicate key '{key}' to '{new_key}'")
+                    else:
+                        key_counts[key] = 0
+                lines.append(line)
+            
+            return '\n'.join(lines)
         
-        def protect_valid_escape(match):
-            nonlocal escape_counter
-            placeholder = f"__ESCAPE_{escape_counter}__"
-            protected_escapes[placeholder] = match.group(0)
-            escape_counter += 1
-            return placeholder
-        
-        # Protect valid JSON escape sequences
-        content = re.sub(r'\\["\\/bfnrt]', protect_valid_escape, content)
-        content = re.sub(r'\\u[0-9a-fA-F]{4}', protect_valid_escape, content)
-        
-        # Step 2: Remove all remaining backslashes (they're invalid)
-        content = content.replace('\\', '')
-        
-        # Step 3: Restore protected valid escapes
-        for placeholder, original in protected_escapes.items():
-            content = content.replace(placeholder, original)
-        
-        # Fix common AI mistakes - remove placeholder text like "...omitted for brevity..."
-        content = re.sub(r'\[\.\.\.omitted for brevity\.\.\.\]', '[]', content)
-        content = re.sub(r'\[\.\.\..*?\.\.\.\]', '[]', content)
-        content = re.sub(r'\.\.\.omitted.*?\.\.\.', '', content)
-        content = re.sub(r'\.\.\.', '', content)
-        
-        # Fix unquoted property names (JavaScript-style to JSON)
-        # Pattern: ,timing: "value" should be ,"timing": "value"
-        # Pattern: {timing: "value" should be {"timing": "value"
-        content = re.sub(r'([,{]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', content)
+        content = fix_duplicate_keys(content)
         
         # Fix missing commas between string values and keys (the main issue)
         # Pattern: "value""key" should be "value","key"
-        content = re.sub(r'"\s*"([a-zA-Z_][a-zA-Z0-9_]*)"', r'","\\1"', content)
+        content = re.sub(r'"\s*"([a-zA-Z_][a-zA-Z0-9_]*)"', r'","\1"', content)
         
         # Fix missing commas between closing brace/bracket and opening quote
         # Pattern: }"key" should be },"key"  or ]"key" should be ],"key"
@@ -515,17 +561,19 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
         # Pattern: } "text" should be }, "text"
         content = re.sub(r'\}\s*"', r'}, "', content)
         
-        # Fix missing commas at end of strings before closing brackets
-        # Pattern: "text"] should be "text"]  (this is actually valid, but check for "text" ] with space)
-        # More importantly: "text1" "text2"] should be "text1", "text2"]
-        # The above pattern should catch this, but let's be more explicit
-        content = re.sub(r'"\s+\]', r'"]', content)  # Remove spaces before ]
-        content = re.sub(r'"\s+\}', r'"}', content)  # Remove spaces before }
+        # Remove spaces before ] and }
+        content = re.sub(r'"\s+\]', r'"]', content)
+        content = re.sub(r'"\s+\}', r'"}', content)
+        
+        # Fix unquoted property names (JavaScript-style to JSON)
+        # Pattern: ,timing: "value" should be ,"timing": "value"
+        # Pattern: {timing: "value" should be {"timing": "value"
+        content = re.sub(r'([,{]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', content)
         
         try:
             return json.loads(content)
         except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing failed: {e}")
+            logger.error(f"JSON parsing failed after cleanup: {e}")
             
             # Log the problematic area around the error position
             error_pos = e.pos if hasattr(e, 'pos') else 0
@@ -536,9 +584,8 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
             logger.error(f"Full content length: {len(content)} chars")
             logger.error(f"Original content length: {len(original_content)} chars")
             
-            # Try more aggressive cleanup
+            # Save the problematic content to a file for debugging
             try:
-                # Save the problematic content to a file for debugging
                 import os
                 debug_dir = "debug_json_errors"
                 os.makedirs(debug_dir, exist_ok=True)
@@ -546,41 +593,24 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
                 with open(debug_file, 'w', encoding='utf-8') as f:
                     f.write(content)
                 logger.error(f"Saved problematic JSON to {debug_file}")
-                
-                # Try json5 parser which is more lenient
-                try:
-                    import json5
-                    logger.info("Attempting to parse with json5...")
-                    return json5.loads(content)
-                except ImportError:
-                    logger.warning("json5 not available, trying manual repair")
-                except Exception as json5_error:
-                    logger.warning(f"json5 parsing also failed: {json5_error}")
-                
-                # Last resort: try to manually fix the JSON
-                logger.warning("Attempting manual JSON repair...")
-                
-                # Try to fix by removing problematic characters around error position
-                if error_pos > 0 and error_pos < len(content):
-                    # Check if it's a quote issue
-                    problem_area = content[max(0, error_pos-50):min(len(content), error_pos+50)]
-                    logger.error(f"Problem area: {problem_area}")
-                    
-                    # Try to fix the specific area around the error
-                    # Look for patterns like: "text""key" and fix to "text","key"
-                    fixed_content = content[:error_pos] + ',' + content[error_pos:]
-                    try:
-                        logger.info("Attempting to add comma at error position...")
-                        return json.loads(fixed_content)
-                    except:
-                        pass
-                
-                # If all else fails, return a minimal valid structure
-                raise Exception(f"Failed to parse AI response as JSON: {str(e)}. Error at position {error_pos}. The AI may have generated malformed JSON. Check logs for details.")
-                
-            except Exception as e3:
-                logger.error(f"All JSON parsing attempts failed: {str(e3)}")
-                raise Exception(f"Failed to parse AI response as JSON: {str(e)}. Error at position {error_pos}. Check logs for details.")
+            except Exception as save_error:
+                logger.warning(f"Failed to save debug file: {save_error}")
+            
+            # Try json5 parser which is more lenient
+            try:
+                import json5
+                logger.info("Attempting to parse with json5...")
+                return json5.loads(content)
+            except ImportError:
+                logger.warning("json5 not available")
+            except Exception as json5_error:
+                logger.warning(f"json5 parsing also failed: {json5_error}")
+            
+            # Last resort: try to manually fix the JSON
+            logger.warning("Attempting manual JSON repair...")
+            
+            # If all else fails, return a minimal valid structure
+            raise Exception(f"Failed to parse AI response as JSON: {str(e)}. Error at position {error_pos}. Check logs for details.")
     
     def _sanitize_case_for_user(self, case: Dict[str, Any]) -> Dict[str, Any]:
         """Remove answer fields from case before sending to user"""
@@ -1054,10 +1084,12 @@ Output ONLY valid JSON, no explanations.
 CRITICAL JSON RULES:
 - Use only valid escape sequences: \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t
 - DO NOT use invalid escapes like \\1, \\2, etc.
+- DO NOT use unescaped quotes (") inside string values - use apostrophes (') for dialogue
 - If you need to include a backslash, use \\\\
 - All strings must be properly quoted
 - No trailing commas
-- No comments"""
+- No comments
+- No duplicate keys in objects"""
     
     def _sanitize_osce_for_user(self, scenario: Dict[str, Any]) -> Dict[str, Any]:
         """Remove examiner-only fields from scenario"""
@@ -1116,35 +1148,42 @@ RECENT INTERACTIONS:
 STUDENT'S ACTION:
 {user_action}
 
-INSTRUCTIONS:
-1. Respond ONLY with valid JSON - no comments or extra text
-2. patient_response: What the patient says naturally in response to THIS specific action only
-3. checklist_triggered: Array of EXACT item names from the checklist above that THIS action satisfies
-4. examiner_notes: Brief note about what the student did (for internal tracking)
-5. next_step_hint: Optional subtle hint if student seems stuck (keep it realistic)
+CRITICAL JSON FORMATTING RULES:
+1. Return ONLY valid JSON - no markdown, no code blocks, no extra text
+2. Do NOT use quotes (") inside string values - use apostrophes (') instead
+3. Do NOT use commas followed by text inside string values
+4. Ensure all string values are properly enclosed in quotes
+5. Do NOT include any text before or after the JSON object
 
-IMPORTANT: 
-- Patient should respond ONLY to the current question/action, not reveal everything at once
-- Use EXACT item names from checklist (copy-paste them)
-- Only mark items as triggered if the student's action clearly satisfies them
-- Keep patient responses natural and conversational
-
-JSON format:
+RESPONSE STRUCTURE:
 {{
-  "patient_response": "Natural response to the current action only",
-  "examiner_notes": "What the student did in this interaction",
+  "patient_response": "Natural response using apostrophes for quotes",
+  "examiner_notes": "Brief note about student action",
   "checklist_triggered": ["Exact item name from checklist"],
   "next_step_hint": null
 }}
 
-Example: If student says "Hello, I'm Dr. Smith", patient might say "Hello Doctor" and checklist_triggered would include "Introduces self and confirms patient identity" if that exact phrase is in the checklist."""
+CONTENT GUIDELINES:
+- Patient should respond ONLY to the current question/action
+- Use EXACT item names from checklist (copy-paste them)
+- Only mark items as triggered if student's action clearly satisfies them
+- Keep patient responses natural and conversational
+- Use apostrophes (') instead of quotes (") in dialogue
+
+Example: If student says "Hello I am Dr Smith", respond with:
+{{
+  "patient_response": "Hello Doctor. Nice to meet you.",
+  "examiner_notes": "Student introduced themselves appropriately",
+  "checklist_triggered": ["Introduces self and confirms patient identity"],
+  "next_step_hint": null
+}}"""
 
         provider = await router.select_provider("osce")
         result = await router.execute_with_fallback(
             provider=provider,
             feature="osce",
             prompt=prompt,
-            system_prompt="You are simulating an OSCE examination. Respond as a realistic patient. Output ONLY valid JSON with no comments or extra text."
+            system_prompt="You are simulating an OSCE patient. Return ONLY valid JSON. Do NOT use quotes inside string values - use apostrophes instead. Do NOT wrap JSON in markdown code blocks."
         )
         
         if not result["success"]:

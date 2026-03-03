@@ -50,3 +50,6 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Debug
+debug_json_errors/

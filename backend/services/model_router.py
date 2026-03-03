@@ -580,12 +580,28 @@ class ModelRouterService:
                     error_msg = result.get("error", "Unknown error")
                     is_token_limit = result.get("is_token_limit_error", False)
                     
+                    # Clean up error message for logging - truncate HTML
+                    log_error_msg = error_msg
+                    if isinstance(error_msg, str) and (error_msg.startswith('<!DOCTYPE') or '<html' in error_msg[:100]):
+                        # Extract just the key info from HTML error
+                        if '504' in error_msg:
+                            log_error_msg = "Gateway Timeout (504)"
+                        elif '502' in error_msg:
+                            log_error_msg = "Bad Gateway (502)"
+                        elif '503' in error_msg:
+                            log_error_msg = "Service Unavailable (503)"
+                        else:
+                            log_error_msg = "API returned HTML error page"
+                    elif isinstance(error_msg, str) and len(error_msg) > 200:
+                        # Truncate long error messages
+                        log_error_msg = error_msg[:200] + "..."
+                    
                     logger.warning(
-                        f"Key {key_id} failed on attempt {actual_attempt}: {error_msg}"
+                        f"Key {key_id} failed on attempt {actual_attempt}: {log_error_msg}"
                     )
                     
-                    # Record the failure
-                    await self.record_failure(key_id, error_msg)
+                    # Record the failure (use truncated message)
+                    await self.record_failure(key_id, log_error_msg)
                     
                     # If this is a token limit error, skip remaining paid APIs and go straight to Hugging Face
                     if is_token_limit:

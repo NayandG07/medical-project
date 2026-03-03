@@ -190,8 +190,16 @@ class HuggingFaceProvider:
                         "provider": "huggingface"
                     }
                 else:
-                    error_msg = f"Hugging Face Router API error: {response.status_code} - {response.text}"
-                    logger.error(error_msg)
+                    # Clean up error message - truncate HTML responses
+                    error_text = response.text
+                    if error_text.startswith('<!DOCTYPE') or error_text.startswith('<html'):
+                        # It's an HTML error page, extract just the status
+                        error_msg = f"Hugging Face Router API error: {response.status_code} Gateway Timeout"
+                        logger.error(f"Hugging Face API returned HTML error page (status {response.status_code})")
+                    else:
+                        # It's a JSON or text error, log it normally
+                        error_msg = f"Hugging Face Router API error: {response.status_code} - {error_text[:200]}"
+                        logger.error(error_msg)
                     
                     return {
                         "success": False,
