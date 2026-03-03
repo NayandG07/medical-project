@@ -8,7 +8,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8624296538:AAF902bmkkinfZs05M8pII3MuVd3tRgagns")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+if not BOT_TOKEN:
+    print("❌ Error: TELEGRAM_BOT_TOKEN not found in environment variables")
+    print("Please set it in telegram_bot/.env file")
+    exit(1)
 
 print("="*80)
 print("Getting Telegram Chat ID")
