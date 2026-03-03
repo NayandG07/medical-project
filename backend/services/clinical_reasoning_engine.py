@@ -375,9 +375,20 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
     def _parse_json_response(self, content: str) -> Dict[str, Any]:
         """Extract and parse JSON from AI response with robust error handling"""
         import re
+        import time
         
         original_content = content
         content = content.strip()
+        
+        # Log the raw content for debugging
+        logger.debug(f"Parsing JSON response (length: {len(content)} chars)")
+        logger.debug(f"First 200 chars: {content[:200]}")
+        
+        # First, try direct JSON parsing (fastest path)
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            logger.debug("Direct JSON parse failed, trying extraction methods")
         
         # Try to extract JSON from markdown code blocks
         if "```json" in content:
@@ -385,11 +396,21 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
             end = content.find("```", start)
             if end != -1:
                 content = content[start:end].strip()
+                logger.debug("Extracted JSON from ```json``` block")
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError:
+                    logger.debug("Extracted JSON still invalid, continuing cleanup")
         elif "```" in content:
             start = content.find("```") + 3
             end = content.find("```", start)
             if end != -1:
                 content = content[start:end].strip()
+                logger.debug("Extracted JSON from ``` block")
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError:
+                    logger.debug("Extracted JSON still invalid, continuing cleanup")
         
         # Remove comments BEFORE extracting JSON (they might be after the JSON)
         # Remove single-line comments (// ...)
@@ -710,13 +731,13 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
     ) -> Dict[str, Any]:
         """Evaluate a user's reasoning step using AI"""
         
-        prompt = f"""Evaluate this medical student's clinical reasoning response.
+        prompt = f"""You are evaluating a medical student's clinical reasoning. Analyze their response and provide structured feedback.
 
 CASE CONTEXT:
-Chief Complaint: {case.get('chief_complaint')}
-Current Stage: {current_stage + 1}
-Specialty: {case.get('specialty')}
-Difficulty: {case.get('difficulty')}
+- Chief Complaint: {case.get('chief_complaint')}
+- Current Stage: {current_stage + 1}
+- Specialty: {case.get('specialty')}
+- Difficulty: {case.get('difficulty')}
 
 STEP TYPE: {step_type}
 
@@ -730,35 +751,95 @@ EVALUATION CRITERIA:
 4. Recognition of red flags
 5. Evidence-based thinking
 
-Provide evaluation as JSON:
+CRITICAL INSTRUCTIONS:
+- Return ONLY a JSON object
+- Do NOT wrap in markdown code blocks
+- Do NOT include any explanatory text before or after the JSON
+- The "feedback" field should contain a brief paragraph of text, NOT a JSON structure
+- Score from 0-100
+
+Required JSON structure:
 {{
   "score": 85,
-  "feedback": "Overall assessment of the response",
-  "strengths": ["Point 1", "Point 2"],
-  "improvements": ["Area 1", "Area 2"],
-  "missed_points": ["Important consideration missed"],
-  "model_answer": "The ideal response would include...",
+  "feedback": "Write a brief paragraph here assessing the overall response quality",
+  "strengths": ["Specific strength 1", "Specific strength 2"],
+  "improvements": ["Area to improve 1", "Area to improve 2"],
+  "missed_points": ["Important point missed"],
+  "model_answer": "Describe what an ideal response would include",
   "advance_stage": true,
-  "clinical_tips": ["Teaching point 1"]
-}}
-
-Be constructive but rigorous. Score 0-100."""
+  "clinical_tips": ["Teaching point 1", "Teaching point 2"]
+}}"""
 
         provider = await router.select_provider("clinical")
         result = await router.execute_with_fallback(
             provider=provider,
             feature="clinical",
             prompt=prompt,
-            system_prompt="You are a senior clinical examiner evaluating medical students. Provide constructive, evidence-based feedback. Respond with JSON only."
+            system_prompt="You are a clinical examiner. Return ONLY valid JSON. Do not use markdown formatting. Do not wrap JSON in code blocks. The feedback field must be plain text, not a JSON structure."
         )
         
         if not result["success"]:
-            return {"score": 50, "feedback": "Evaluation error", "advance_stage": True}
+            return {
+                "score": 50,
+                "feedback": "Evaluation service temporarily unavailable. Your response has been recorded.",
+                "strengths": [],
+                "improvements": [],
+                "missed_points": [],
+                "model_answer": "",
+                "advance_stage": True,
+                "clinical_tips": []
+            }
         
         try:
-            return self._parse_json_response(result["content"])
-        except:
-            return {"score": 50, "feedback": result["content"], "advance_stage": True}
+            parsed = self._parse_json_response(result["content"])
+            
+            # Validate that feedback is a string, not a dict or other structure
+            feedback = parsed.get("feedback", "")
+            if isinstance(feedback, dict) or isinstance(feedback, list):
+                logger.warning(f"Feedback field is not a string: {type(feedback)}. Converting to string.")
+                feedback = "Response evaluated. Please review the detailed feedback below."
+            
+            # Check if feedback contains JSON-like structure and clean it
+            feedback_str = str(feedback)
+            if feedback_str.strip().startswith('{') or feedback_str.strip().startswith('['):
+                logger.warning("Feedback appears to contain JSON structure. Extracting text content.")
+                try:
+                    # Try to parse it and extract meaningful text
+                    nested_json = json.loads(feedback_str)
+                    if isinstance(nested_json, dict):
+                        # Extract the actual feedback from nested structure
+                        feedback = nested_json.get('feedback', 'Response evaluated.')
+                    else:
+                        feedback = "Response evaluated. Please review the detailed feedback below."
+                except:
+                    # If it's not valid JSON, just use a default message
+                    feedback = "Response evaluated. Please review the detailed feedback below."
+            
+            # Ensure all required fields exist with proper types
+            return {
+                "score": int(parsed.get("score", 50)),
+                "feedback": str(feedback),
+                "strengths": list(parsed.get("strengths", [])),
+                "improvements": list(parsed.get("improvements", [])),
+                "missed_points": list(parsed.get("missed_points", [])),
+                "model_answer": str(parsed.get("model_answer", "")),
+                "advance_stage": bool(parsed.get("advance_stage", True)),
+                "clinical_tips": list(parsed.get("clinical_tips", []))
+            }
+        except Exception as e:
+            logger.error(f"Failed to parse evaluation response: {str(e)}")
+            logger.error(f"Raw content: {result.get('content', '')[:500]}")
+            # Return a safe fallback
+            return {
+                "score": 50,
+                "feedback": "Unable to parse evaluation. Your response has been recorded. Please try submitting again.",
+                "strengths": [],
+                "improvements": [],
+                "missed_points": [],
+                "model_answer": "",
+                "advance_stage": True,
+                "clinical_tips": []
+            }
     
     # =========================================================================
     # OSCE SIMULATION
