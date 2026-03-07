@@ -1,0 +1,204 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600">
+  <!-- Define styles -->
+  <defs>
+    <style>
+      .box { fill: #ffffff; stroke: #2563eb; stroke-width: 2; }
+      .decision { fill: #fef3c7; stroke: #f59e0b; stroke-width: 2; }
+      .success { fill: #d1fae5; stroke: #10b981; stroke-width: 2; }
+      .error { fill: #fee2e2; stroke: #ef4444; stroke-width: 2; }
+      .process { fill: #e0e7ff; stroke: #6366f1; stroke-width: 2; }
+      .text { font-family: Arial, sans-serif; font-size: 14px; fill: #1f2937; }
+      .title { font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; fill: #1f2937; }
+      .small { font-family: Arial, sans-serif; font-size: 12px; fill: #4b5563; }
+      .arrow { stroke: #2563eb; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .arrow-red { stroke: #ef4444; stroke-width: 2; fill: none; marker-end: url(#arrowhead-red); }
+      .arrow-green { stroke: #10b981; stroke-width: 2; fill: none; marker-end: url(#arrowhead-green); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#2563eb" />
+    </marker>
+    <marker id="arrowhead-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#ef4444" />
+    </marker>
+    <marker id="arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#10b981" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="600" y="30" class="title" text-anchor="middle" font-size="20">Optimized API Workflow with Smart Fallback</text>
+
+  <!-- Start -->
+  <rect x="500" y="60" width="200" height="60" class="box" rx="5"/>
+  <text x="600" y="85" class="title" text-anchor="middle">User Request</text>
+  <text x="600" y="105" class="small" text-anchor="middle">OSCE interaction</text>
+
+  <!-- Arrow -->
+  <path d="M 600 120 L 600 160" class="arrow"/>
+
+  <!-- Step 1: Query DB -->
+  <rect x="450" y="160" width="300" height="80" class="process" rx="5"/>
+  <text x="600" y="185" class="title" text-anchor="middle">1. Query Active API Keys</text>
+  <text x="600" y="205" class="small" text-anchor="middle">SELECT * FROM api_keys</text>
+  <text x="600" y="220" class="small" text-anchor="middle">WHERE feature='osce' AND status='active'</text>
+  <text x="600" y="235" class="small" text-anchor="middle">ORDER BY priority DESC</text>
+
+  <!-- Arrow -->
+  <path d="M 600 240 L 600 280" class="arrow"/>
+
+  <!-- Step 2: Health Check -->
+  <rect x="400" y="280" width="400" height="120" class="process" rx="5"/>
+  <text x="600" y="305" class="title" text-anchor="middle">2. Calculate Health Status</text>
+  
+  <!-- Health table -->
+  <rect x="420" y="315" width="360" height="75" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+  <text x="440" y="335" class="small" font-weight="bold">Provider</text>
+  <text x="560" y="335" class="small" font-weight="bold">Failures</text>
+  <text x="660" y="335" class="small" font-weight="bold">Status</text>
+  
+  <text x="440" y="355" class="small">OpenRouter</text>
+  <text x="560" y="355" class="small">8/10 (80%)</text>
+  <text x="660" y="355" class="small" fill="#ef4444">🔴 DEGRADED</text>
+  
+  <text x="440" y="375" class="small">HuggingFace</text>
+  <text x="560" y="375" class="small">1/10 (10%)</text>
+  <text x="660" y="375" class="small" fill="#10b981">🟢 HEALTHY</text>
+
+  <!-- Arrow -->
+  <path d="M 600 400 L 600 440" class="arrow"/>
+
+  <!-- Decision: Healthy paid API? -->
+  <path d="M 600 440 L 750 500 L 600 560 L 450 500 Z" class="decision"/>
+  <text x="600" y="495" class="title" text-anchor="middle">Healthy Paid</text>
+  <text x="600" y="515" class="title" text-anchor="middle">API Available?</text>
+
+  <!-- YES path -->
+  <path d="M 750 500 L 900 500" class="arrow-green"/>
+  <text x="810" y="490" class="small" fill="#10b981" font-weight="bold">YES</text>
+
+  <!-- Paid API Call -->
+  <rect x="900" y="460" width="250" height="80" class="box" rx="5"/>
+  <text x="1025" y="485" class="title" text-anchor="middle">3a. Call Paid API</text>
+  <text x="1025" y="505" class="small" text-anchor="middle">OpenRouter/Anthropic</text>
+  <text x="1025" y="520" class="small" text-anchor="middle">⏱️ ~3-5 seconds</text>
+
+  <!-- Arrow down from paid API -->
+  <path d="M 1025 540 L 1025 600" class="arrow"/>
+
+  <!-- Decision: Success? -->
+  <path d="M 1025 600 L 1125 650 L 1025 700 L 925 650 Z" class="decision"/>
+  <text x="1025" y="655" class="title" text-anchor="middle">Success?</text>
+
+  <!-- Success from paid -->
+  <path d="M 1125 650 L 1180 650 L 1180 1450 L 600 1450 L 600 1490" class="arrow-green"/>
+  <text x="1140" y="640" class="small" fill="#10b981" font-weight="bold">YES</text>
+
+  <!-- Fail from paid -->
+  <path d="M 925 650 L 800 650" class="arrow-red"/>
+  <text x="850" y="640" class="small" fill="#ef4444" font-weight="bold">NO</text>
+
+  <!-- Mark degraded -->
+  <rect x="650" y="620" width="150" height="60" class="error" rx="5"/>
+  <text x="725" y="645" class="small" text-anchor="middle">Mark key as</text>
+  <text x="725" y="665" class="small" text-anchor="middle" font-weight="bold">DEGRADED</text>
+
+  <!-- Arrow to HF fallback -->
+  <path d="M 725 680 L 725 760 L 600 760" class="arrow-red"/>
+
+  <!-- NO path (use HF directly) -->
+  <path d="M 450 500 L 300 500 L 300 760 L 400 760" class="arrow"/>
+  <text x="360" y="490" class="small" fill="#2563eb" font-weight="bold">NO</text>
+  <text x="310" y="630" class="small" fill="#2563eb">Skip degraded</text>
+  <text x="310" y="645" class="small" fill="#2563eb">paid APIs</text>
+
+  <!-- HuggingFace Call -->
+  <rect x="400" y="730" width="300" height="80" class="success" rx="5"/>
+  <text x="550" y="755" class="title" text-anchor="middle">3b. Call HuggingFace</text>
+  <text x="550" y="775" class="small" text-anchor="middle">Med42-70B (Free fallback)</text>
+  <text x="550" y="790" class="small" text-anchor="middle">⏱️ ~15 seconds</text>
+
+  <!-- Arrow -->
+  <path d="M 550 810 L 550 850" class="arrow"/>
+
+  <!-- Decision: HF Success? -->
+  <path d="M 550 850 L 650 900 L 550 950 L 450 900 Z" class="decision"/>
+  <text x="550" y="905" class="title" text-anchor="middle">Success?</text>
+
+  <!-- HF Success -->
+  <path d="M 550 950 L 550 1020" class="arrow-green"/>
+  <text x="560" y="985" class="small" fill="#10b981" font-weight="bold">YES</text>
+
+  <!-- Update health stats -->
+  <rect x="425" y="1020" width="250" height="80" class="process" rx="5"/>
+  <text x="550" y="1045" class="title" text-anchor="middle">4. Update Health Stats</text>
+  <text x="550" y="1065" class="small" text-anchor="middle">recent_successes++</text>
+  <text x="550" y="1080" class="small" text-anchor="middle">recent_attempts++</text>
+
+  <!-- Arrow -->
+  <path d="M 550 1100 L 550 1140" class="arrow"/>
+
+  <!-- Log usage -->
+  <rect x="425" y="1140" width="250" height="80" class="process" rx="5"/>
+  <text x="550" y="1165" class="title" text-anchor="middle">5. Log to Database</text>
+  <text x="550" y="1185" class="small" text-anchor="middle">model_usage_logs</text>
+  <text x="550" y="1200" class="small" text-anchor="middle">tokens, response time, etc.</text>
+
+  <!-- Arrow -->
+  <path d="M 550 1220 L 550 1260" class="arrow"/>
+
+  <!-- HF Fail -->
+  <path d="M 650 900 L 850 900" class="arrow-red"/>
+  <text x="730" y="890" class="small" fill="#ef4444" font-weight="bold">NO</text>
+
+  <!-- Maintenance mode -->
+  <rect x="850" y="870" width="200" height="60" class="error" rx="5"/>
+  <text x="950" y="895" class="title" text-anchor="middle">Trigger Maintenance</text>
+  <text x="950" y="915" class="small" text-anchor="middle">All APIs failed</text>
+
+  <!-- Arrow to error response -->
+  <path d="M 950 930 L 950 1320 L 600 1320 L 600 1360" class="arrow-red"/>
+
+  <!-- Error Response -->
+  <rect x="475" y="1360" width="250" height="60" class="error" rx="5"/>
+  <text x="600" y="1385" class="title" text-anchor="middle">Return Error</text>
+  <text x="600" y="1405" class="small" text-anchor="middle">Service temporarily unavailable</text>
+
+  <!-- Success Response -->
+  <rect x="475" y="1490" width="250" height="60" class="success" rx="5"/>
+  <text x="600" y="1515" class="title" text-anchor="middle">Return Success</text>
+  <text x="600" y="1535" class="small" text-anchor="middle">AI response to user</text>
+
+  <!-- Legend -->
+  <rect x="50" y="1400" width="300" height="180" fill="#f9fafb" stroke="#d1d5db" stroke-width="2" rx="5"/>
+  <text x="200" y="1425" class="title" text-anchor="middle">Legend</text>
+  
+  <rect x="70" y="1440" width="40" height="20" class="box"/>
+  <text x="120" y="1455" class="small">Standard Process</text>
+  
+  <rect x="70" y="1470" width="40" height="20" class="process"/>
+  <text x="120" y="1485" class="small">Database Operation</text>
+  
+  <rect x="70" y="1500" width="40" height="20" class="decision"/>
+  <text x="120" y="1515" class="small">Decision Point</text>
+  
+  <rect x="70" y="1530" width="40" height="20" class="success"/>
+  <text x="120" y="1545" class="small">Success Path</text>
+  
+  <rect x="70" y="1560" width="40" height="20" class="error"/>
+  <text x="120" y="1575" class="small">Error/Fallback</text>
+
+  <!-- Performance comparison -->
+  <rect x="850" y="1400" width="300" height="180" fill="#f0f9ff" stroke="#0284c7" stroke-width="2" rx="5"/>
+  <text x="1000" y="1425" class="title" text-anchor="middle">Performance Gains</text>
+  
+  <text x="870" y="1450" class="small" font-weight="bold">Current System:</text>
+  <text x="870" y="1470" class="small">• Try paid → Fail (30s)</text>
+  <text x="870" y="1490" class="small">• Fallback → Success (15s)</text>
+  <text x="870" y="1510" class="small" font-weight="bold">Total: 45+ seconds</text>
+  
+  <text x="870" y="1535" class="small" font-weight="bold" fill="#10b981">New System:</text>
+  <text x="870" y="1555" class="small" fill="#10b981">• Skip degraded (0.1s)</text>
+  <text x="870" y="1575" class="small" fill="#10b981">• Direct HF → Success (15s)</text>
+  <text x="870" y="1595" class="small" font-weight="bold" fill="#10b981">Total: 15 seconds ⚡</text>
+
+</svg>
