@@ -33,15 +33,23 @@ export default function UpgradePage() {
             // Fetch pricing settings
             try {
                 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-                const res = await fetch(`${API_URL}/api/system/settings`)
-                if (res.ok) {
+                const controller = new AbortController()
+                const timeoutId = setTimeout(() => controller.abort(), 3000)
+
+                const res = await fetch(`${API_URL}/api/system/settings`, {
+                    signal: controller.signal
+                }).catch(() => null)
+
+                clearTimeout(timeoutId)
+
+                if (res && res.ok) {
                     const data = await res.json()
                     if (data.student_plan_price) setStudentPrice(data.student_plan_price)
                     if (data.pro_plan_price) setProPrice(data.pro_plan_price)
                     if (data.yearly_discount_percentage) setYearlyDiscountPercentage(data.yearly_discount_percentage)
                 }
             } catch (error) {
-                console.error('Failed to fetch pricing settings', error)
+                console.warn('Failed to fetch pricing settings:', error)
             }
         } finally {
             setLoading(false)

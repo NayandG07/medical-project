@@ -1,60 +1,51 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
-import { Search, History as HistoryIcon, Trash2, Map as MapIcon, Info, Sparkles, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Search, Map as MapIcon, Info, Sparkles, AlertTriangle, CheckCircle2, ChevronRight, ChevronLeft } from 'lucide-react'
 import { supabase, AuthUser } from '@/lib/supabase'
 import DashboardLayout from '@/components/DashboardLayout'
 import ClinicalMapViewer, { parseClinicalMapData, MapNode, MapConnection } from '@/components/ClinicalMapViewer'
+import SessionSidebar, { ChatSession } from '@/components/SessionSidebar'
 
 // Tailwind class mappings
 const styles = {
-  container: "w-full h-[calc(100vh-150px)] flex flex-col overflow-hidden",
-  mainLayout: "grid grid-cols-[240px_1fr_280px] gap-4 flex-1 min-h-0 max-[1024px]:grid-cols-1 max-[1024px]:grid-rows-[auto_1fr_auto] overflow-hidden",
-  sidebar: "bg-[#F7F7F6] rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden max-[1024px]:order-2",
-  sidebarHeader: "p-4 border-b border-slate-200/60 flex items-center gap-2 flex-shrink-0",
-  sidebarTitle: "text-[11px] font-bold text-slate-500 uppercase tracking-widest m-0",
-  sessionList: "flex flex-col gap-1.5 flex-1 overflow-y-auto p-3 min-h-0",
-  sessionItem: "group p-3 bg-white/60 rounded-xl cursor-pointer transition-all relative border border-transparent hover:bg-white hover:border-slate-200 flex flex-col gap-1",
-  active: "!bg-medical-indigo/5 !border-medical-indigo/20 shadow-sm",
-  sessionTitle: "font-semibold text-[13px] text-slate-800 line-clamp-1 pr-8 group-hover:text-medical-indigo transition-colors",
-  sessionDate: "text-[11px] text-slate-400 font-medium",
-  deleteBtn: "absolute top-1/2 right-2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all z-10",
-  emptyState: "flex flex-col items-center justify-center py-12 px-4 text-slate-400 text-sm font-medium gap-3 h-full",
-  sidebarFooter: "p-3 border-t border-slate-200/60 bg-slate-50/30 flex-shrink-0",
-  clearBtn: "flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-red-50 text-red-600 text-[11px] font-bold border border-red-100 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all w-full uppercase tracking-widest shadow-sm",
+  container: "w-full min-h-[500px] h-[calc(100vh-150px)] flex flex-col overflow-hidden max-[1024px]:h-auto max-[1024px]:overflow-visible relative",
+  mainLayout: "flex gap-4 flex-1 min-h-0 max-[1024px]:flex-col max-[1024px]:overflow-visible overflow-hidden",
 
-  mainContent: "bg-[#F7F7F6] rounded-xl p-4 shadow-sm border border-slate-200 flex flex-col min-h-0 overflow-hidden max-[1024px]:order-1 max-[1024px]:min-h-[500px]",
+  mainContent: "bg-[#F7F7F6] rounded-xl p-4 shadow-sm border border-slate-200 flex flex-col min-h-0 overflow-hidden flex-1 max-[1024px]:order-1 max-[1024px]:min-h-[500px]",
   inputSection: "flex gap-3 mb-4 flex-shrink-0 max-[640px]:flex-col items-center",
   searchBox: "flex-1 flex items-center bg-white/50 border border-slate-200 rounded-xl px-4 transition-all focus-within:border-medical-indigo focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(102,126,234,0.1)] h-12",
   searchIcon: "text-slate-400",
   topicInput: "flex-1 py-1 border-0 bg-transparent text-[15px] outline-none text-slate-900 placeholder:text-slate-400 font-medium ml-2",
-  generateBtn: "bg-gradient-to-br from-medical-indigo to-[#5a67d8] text-white border-0 px-8 h-12 rounded-xl text-[14px] font-bold cursor-pointer transition-all whitespace-nowrap hover:shadow-[0_8px_20px_rgba(102,126,234,0.3)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed max-[640px]:w-full",
+  generateBtn: "bg-gradient-to-br from-[#6366F1] to-[#4F46E5] text-white border-none px-6 h-12 rounded-[14px] text-[15px] font-bold cursor-pointer transition-all whitespace-nowrap hover:shadow-[0_8px_24px_rgba(99,102,241,0.35)] hover:-translate-y-[2px] disabled:opacity-60 disabled:cursor-not-allowed max-[640px]:w-full flex items-center justify-center",
   error: "bg-red-50 text-red-700 px-4 py-3 rounded-lg mb-4 border-l-[3px] border-red-600 text-sm font-medium flex-shrink-0",
   mapContainer: "flex-1 min-h-0 flex flex-col rounded-xl overflow-hidden border border-slate-100",
-  placeholder: "flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-50/50 rounded-xl border-2 border-dashed border-slate-200",
-  placeholderIcon: "w-20 h-20 bg-white rounded-2xl shadow-sm flex items-center justify-center text-[2.5rem] mb-6 border border-slate-100",
+  placeholder: "flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-50/50 rounded-xl border-2 border-dashed border-slate-200 p-8", // Reverted transparency
+  placeholderIcon: "w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-[2.5rem] mb-4 border border-slate-100 flex-shrink-0 animate-pulse",
 
-  rightSidebar: "bg-[#F7F7F6] rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden max-[1024px]:order-3",
-  rightSidebarHeader: "p-4 border-b border-slate-100 flex items-center gap-2 flex-shrink-0",
-  rightSidebarContent: "flex-1 overflow-y-auto p-4 custom-scrollbar",
-  summaryCard: "flex flex-col gap-6",
-  topicIcon: "flex justify-center mb-2",
-  iconCircle: "w-20 h-20 bg-gradient-to-br from-medical-indigo/10 to-medical-indigo/5 rounded-2xl flex items-center justify-center text-[2rem] shadow-sm border border-medical-indigo/10",
-  topicTitle: "text-center text-lg text-slate-800 m-0 font-bold tracking-tight",
-  statsSection: "flex flex-col gap-5 py-5 border-t border-b border-slate-100",
-  statItem: "flex flex-col gap-2",
-  statLabel: "text-[10px] text-slate-400 font-extrabold tracking-widest uppercase",
-  statBadges: "flex flex-wrap gap-1.5",
-  badge: "bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border border-blue-100/50 shadow-sm",
-  treatmentList: "flex flex-col gap-2",
-  treatmentItem: "bg-green-50 text-green-700 px-3 py-2 rounded-lg text-[11px] font-bold border border-green-100/50 flex items-center gap-2 shadow-sm",
-  legend: "pt-2",
-  legendTitle: "text-[10px] text-slate-400 font-extrabold tracking-widest uppercase mb-4",
-  legendItems: "grid grid-cols-1 gap-2",
-  legendItem: "flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors",
-  legendColor: "w-4 h-4 rounded-md shadow-sm",
-  legendLabel: "text-xs font-semibold text-slate-600 flex-1",
-  legendCount: "bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[10px] font-bold min-w-[20px] text-center"
+  rightSidebar: "bg-[#F7F7F6] rounded-xl shadow-sm border border-slate-200 flex flex-col h-full overflow-hidden flex-shrink-0 max-[1024px]:order-3 max-[1024px]:!w-full max-[1024px]:h-auto max-[1024px]:overflow-visible",
+  rightSidebarHeader: "p-3.5 flex items-center gap-2 flex-shrink-0",
+  rightSidebarContent: "flex-1 overflow-y-auto p-3 custom-scrollbar h-full scrollbar-none max-[1024px]:h-auto max-[1024px]:overflow-visible",
+  summaryCard: "flex flex-col gap-3",
+  topicIcon: "flex justify-center mb-1",
+  iconCircle: "w-12 h-12 bg-gradient-to-br from-medical-indigo/10 to-medical-indigo/5 rounded-2xl flex items-center justify-center text-[1.2rem] shadow-sm border border-medical-indigo/10",
+  topicTitle: "text-center text-sm text-slate-600 m-0 font-bold tracking-tight px-2",
+  statsSection: "flex flex-col gap-2.5 py-2.5 border-t border-b border-slate-100",
+  statItem: "flex flex-col gap-1",
+  statLabel: "text-[9px] text-slate-400 font-extrabold tracking-widest uppercase",
+  statBadges: "flex flex-wrap gap-1",
+  badge: "bg-blue-50 text-blue-700 px-2 py-1 rounded-lg text-[11px] font-bold border border-blue-100/50 shadow-sm",
+  treatmentList: "flex flex-col gap-1",
+  treatmentItem: "bg-green-50 text-green-700 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border border-green-100/50 flex items-center gap-1.5 shadow-sm",
+  legend: "pt-1.5",
+  legendTitle: "text-[9px] text-slate-400 font-extrabold tracking-widest uppercase mb-1.5",
+  legendItems: "grid grid-cols-1 gap-1",
+  legendItem: "flex items-center gap-2 p-1 rounded-lg hover:bg-slate-50 transition-colors",
+  legendColor: "w-4 h-4 rounded-md shadow-sm border border-black/5",
+  legendLabel: "text-[12px] font-semibold text-slate-500/90 flex-1",
+  legendCount: "bg-slate-100 text-slate-400 px-2 py-0.5 rounded-md text-[10px] font-bold min-w-[20px] text-center",
+  sidebarTitle: "text-[11px] font-bold text-slate-400/80 uppercase tracking-widest m-0",
+  emptyState: "flex flex-col items-center justify-center py-6 px-4 text-slate-400 text-sm font-medium gap-3 h-full",
 }
 
 // Helper to get emoji icon based on topic
@@ -100,8 +91,16 @@ export default function ConceptMap() {
   const [currentSession, setCurrentSession] = useState<ConceptMapSession | null>(null)
   const [materials, setMaterials] = useState<ConceptMapMaterial[]>([])
   const [currentMaterial, setCurrentMaterial] = useState<ConceptMapMaterial | null>(null)
-  const [deleteConfirmationId, setDeleteConfirmationId] = useState<string | null>(null)
-  const [deleteAllConfirmation, setDeleteAllConfirmation] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [summaryCollapsed, setSummaryCollapsed] = useState(false)
+  const [isMobileScreen, setIsMobileScreen] = useState(false)
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobileScreen(window.innerWidth < 1024)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   useEffect(() => {
     checkAuth()
@@ -139,11 +138,6 @@ export default function ConceptMap() {
 
       if (error) throw error
       setSessions(data || [])
-
-      // Auto-select most recent session
-      if (data && data.length > 0 && !currentSession) {
-        setCurrentSession(data[0])
-      }
     } catch (err: any) {
       console.error('Failed to load sessions:', err)
     }
@@ -254,9 +248,7 @@ export default function ConceptMap() {
     }
   }
 
-  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-
+  const handleDeleteSession = async (sessionId: string) => {
     try {
       const { error } = await supabase
         .from('study_tool_sessions')
@@ -278,6 +270,13 @@ export default function ConceptMap() {
       console.error('Failed to delete session:', err)
       setError('Failed to delete session')
     }
+  }
+
+  const handleNewSession = () => {
+    setCurrentSession(null)
+    setMaterials([])
+    setCurrentMaterial(null)
+    setTopic('')
   }
 
   if (loading || !user) {
@@ -314,54 +313,24 @@ export default function ConceptMap() {
       <DashboardLayout user={user}>
         <div className={styles.container}>
           <div className={styles.mainLayout}>
-            {/* Left Sidebar - History */}
-            <div className={styles.sidebar}>
-              <div className={styles.sidebarHeader}>
-                <HistoryIcon size={16} className="text-slate-500" />
-                <h3 className={styles.sidebarTitle}>History</h3>
-              </div>
-              <div className={styles.sessionList} data-lenis-prevent>
-                {sessions.length === 0 ? (
-                  <div className={styles.emptyState}>
-                    <HistoryIcon size={32} className="opacity-20" />
-                    <span>No previous maps</span>
-                  </div>
-                ) : (
-                  sessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className={`${styles.sessionItem} ${currentSession?.id === session.id ? styles.active : ''}`}
-                      onClick={() => setCurrentSession(session)}
-                    >
-                      <div className={styles.sessionTitle}>{session.title}</div>
-                      <div className={styles.sessionDate}>
-                        {new Date(session.created_at).toLocaleDateString()}
-                      </div>
-                      <button
-                        className={styles.deleteBtn}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteConfirmationId(session.id);
-                        }}
-                        title="Delete session"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className={styles.sidebarFooter}>
-                <button
-                  onClick={() => setDeleteAllConfirmation(true)}
-                  disabled={sessions.length === 0}
-                  className={styles.clearBtn}
-                >
-                  <Trash2 size={14} />
-                  Clear All History
-                </button>
-              </div>
-            </div>
+            {/* Left Sidebar - History using SessionSidebar */}
+            <SessionSidebar
+              sessions={sessions as ChatSession[]}
+              currentSessionId={currentSession?.id || null}
+              onSelectSession={(id) => {
+                const session = sessions.find(s => s.id === id)
+                if (session) setCurrentSession(session)
+              }}
+              onNewSession={handleNewSession}
+              onDeleteSession={handleDeleteSession}
+              onDeleteAllSessions={handleDeleteAllSessions}
+              loading={loading}
+              error={error}
+              newSessionLabel="New Map"
+              untitledLabel="Untitled Map"
+              isCollapsed={sidebarCollapsed}
+              onToggleCollapsed={setSidebarCollapsed}
+            />
 
             {/* Main Content */}
             <div className={styles.mainContent}>
@@ -380,7 +349,7 @@ export default function ConceptMap() {
                 </div>
                 <button
                   onClick={handleGenerate}
-                  disabled={generating}
+                  disabled={generating || !topic.trim()}
                   className={styles.generateBtn}
                 >
                   {generating ? 'Generating...' : 'Generate'}
@@ -396,7 +365,7 @@ export default function ConceptMap() {
 
               {/* Concept Map Display */}
               {currentMaterial ? (
-                <div className={styles.mapContainer} data-lenis-prevent>
+                <div className={styles.mapContainer} data-lenis-prevent="true">
                   <ClinicalMapViewer
                     title={currentMaterial.topic}
                     nodes={mapNodes}
@@ -408,21 +377,90 @@ export default function ConceptMap() {
                   <div className={styles.placeholderIcon}>
                     <MapIcon size={40} className="text-medical-indigo opacity-80" />
                   </div>
-                  <h3 className="text-xl font-bold text-slate-800 mb-2">Generate Clinical Maps</h3>
-                  <p className="text-slate-500 font-medium">Enter a topic above to create a visual medical guide</p>
+                  <h3 className="text-2xl font-bold text-slate-600 mb-3 text-center tracking-tight">Generate Clinical Maps</h3>
+                  <p className="text-slate-400/90 text-[15px] font-medium text-center max-w-[340px] leading-relaxed">
+                    Enter a medical topic above to create a visual comprehensive guide
+                  </p>
                 </div>
               )}
             </div>
 
             {/* Right Sidebar - Card Summary */}
-            <div className={styles.rightSidebar}>
-              <div className={styles.rightSidebarHeader}>
-                <Info size={16} className="text-slate-500" />
-                <h3 className={styles.sidebarTitle}>Card Summary</h3>
-              </div>
+            <div
+              className={`${styles.rightSidebar} ${(!isMobileScreen && summaryCollapsed) ? '!w-[70px] items-center py-6' : 'w-[280px]'} transition-all duration-300 border-l border-slate-200 relative`}
+            >
+              {(!summaryCollapsed || isMobileScreen) && (
+                /* Expanded Header */
+                <div className={`${styles.rightSidebarHeader} justify-between border-b border-slate-100 mb-2 w-full`}>
+                  <div className="flex items-center gap-2">
+                    <Info size={16} className="text-slate-500" />
+                    <h3 className={styles.sidebarTitle}>Card Summary</h3>
+                  </div>
+                  {!isMobileScreen && (
+                    <button
+                      onClick={() => setSummaryCollapsed(true)}
+                      className="bg-white border border-black/5 shadow-sm p-1.5 rounded-lg transition-all cursor-pointer text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                      title="Collapse Summary"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  )}
+                </div>
+              )}
 
-              {currentMaterial ? (
-                <div className={styles.rightSidebarContent} data-lenis-prevent>
+              {summaryCollapsed && !isMobileScreen && (
+                /* Collapsed Icon/Button - Mirrored from History */
+                <button
+                  onClick={() => setSummaryCollapsed(false)}
+                  style={{
+                    background: 'white',
+                    border: '1px solid rgba(0,0,0,0.08)',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    width: '42px',
+                    height: '42px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#64748b',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+                    marginBottom: '20px',
+                    marginTop: '4px',
+                    transition: 'all 0.2s',
+                    flexShrink: 0
+                  }}
+                  title="Expand Summary"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+              )}
+
+              {(summaryCollapsed && !isMobileScreen) ? (
+                <div className="flex-1 flex flex-col items-center justify-between w-full px-2 py-4 overflow-hidden" data-lenis-prevent="true">
+                  <div className="flex flex-col items-center gap-6">
+                    <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center text-lg flex-shrink-0">
+                      {currentMaterial ? getTopicIcon(currentMaterial.topic) : <Sparkles size={18} className="text-slate-300" />}
+                    </div>
+                    <div className="flex flex-col gap-4 w-full">
+                      {['symptoms', 'diagnosis', 'riskFactors', 'treatments'].map((type) => (
+                        <div key={type} className="w-full flex flex-col items-center gap-1">
+                          <div
+                            className="w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-bold shadow-sm"
+                            title={type.charAt(0).toUpperCase() + type.slice(1)}
+                            style={{
+                              background: type === 'symptoms' ? '#fef3c7' : type === 'diagnosis' ? '#dbeafe' : type === 'riskFactors' ? '#fce7f3' : '#d1fae5',
+                              border: `1px solid ${type === 'symptoms' ? '#f59e0b' : type === 'diagnosis' ? '#3b82f6' : type === 'riskFactors' ? '#ec4899' : '#10b981'}`
+                            }}
+                          >
+                            {(stats as any)[type]}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : currentMaterial ? (
+                <div className={`${styles.rightSidebarContent} flex flex-col justify-between pb-8`} data-lenis-prevent="true">
                   <div className={styles.summaryCard}>
                     <div className={styles.topicIcon}>
                       <div className={styles.iconCircle}>{getTopicIcon(currentMaterial.topic)}</div>
@@ -492,76 +530,11 @@ export default function ConceptMap() {
             </div>
           </div>
         </div>
-
-        {/* Delete Single Confirmation Modal */}
-        {deleteConfirmationId && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] backdrop-blur-sm p-4 animate-in fade-in duration-200"
-            onClick={() => setDeleteConfirmationId(null)}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-[24px] p-6 w-full max-w-[340px] shadow-2xl animate-in zoom-in-95 duration-200"
-            >
-              <h3 className="text-lg font-bold text-slate-800 mb-2">Delete Session?</h3>
-              <p className="text-sm text-slate-500 mb-6">Permanently remove this session and all its clinical maps?</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setDeleteConfirmationId(null)}
-                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 bg-white text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    handleDeleteSession(deleteConfirmationId, { stopPropagation: () => { } } as any);
-                    setDeleteConfirmationId(null);
-                  }}
-                  className="flex-1 py-3 px-4 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-colors shadow-lg shadow-red-200"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Delete ALL Confirmation Modal */}
-        {deleteAllConfirmation && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] backdrop-blur-sm p-4 animate-in fade-in duration-200"
-            onClick={() => setDeleteAllConfirmation(false)}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-[32px] p-8 w-full max-w-[380px] shadow-2xl text-center animate-in zoom-in-95 duration-200"
-            >
-              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-red-500 shadow-sm border border-red-100">
-                <Trash2 size={32} />
-              </div>
-              <h3 className="text-xl font-extrabold text-slate-800 mb-2 tracking-tight">Clear All History?</h3>
-              <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium">
-                This action cannot be undone. All your collected clinical maps and sessions will be permanently deleted.
-              </p>
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => {
-                    handleDeleteAllSessions();
-                    setDeleteAllConfirmation(false);
-                  }}
-                  className="w-full py-4 rounded-2xl bg-red-500 text-white font-bold text-[15px] hover:bg-red-600 transition-all shadow-lg shadow-red-200 active:scale-[0.98]"
-                >
-                  Confirm Delete
-                </button>
-                <button
-                  onClick={() => setDeleteAllConfirmation(false)}
-                  className="w-full py-4 rounded-2xl border border-slate-200 bg-white text-slate-600 font-bold text-[15px] hover:bg-slate-50 transition-all active:scale-[0.98]"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </DashboardLayout>
+      <style jsx>{`
+        .scrollbar-none::-webkit-scrollbar { display: none; }
+        .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </>
   )
 }

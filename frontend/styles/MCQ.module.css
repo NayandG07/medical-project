@@ -69,12 +69,11 @@
    ============================================================================ */
 
 .emptyState {
-    background: transparent;
-    border-radius: 28px;
-    padding: 40px 32px;
+    background: #ffffff;
+    border-radius: 32px;
+    padding: 40px;
     text-align: center;
-    box-shadow: none;
-    border: none;
+    border: 1px solid #E2E8F0;
     margin-top: 0;
     max-width: 750px;
     margin-left: auto;
@@ -82,52 +81,46 @@
 }
 
 .iconWrapper {
-    width: 64px;
-    height: 64px;
-    background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
-    border-radius: 20px;
+    width: 56px;
+    height: 56px;
+    background: #EEF2FF;
+    border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto 20px;
-    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.15);
+    margin: 0 auto 12px;
 }
 
 .emptyTitle {
     font-size: 24px;
     font-weight: 800;
     color: #0F172A;
-    margin-bottom: 12px;
-    letter-spacing: -0.5px;
+    margin-bottom: 8px;
 }
 
 .emptySubtitle {
     font-size: 16px;
     color: #64748B;
     margin-bottom: 24px;
-    max-width: 400px;
-    margin-left: auto;
-    margin-right: auto;
-    line-height: 1.6;
+    max-width: 100%;
 }
 
 .searchContainer {
-    background: #F8FAFC;
-    border: 2px solid #E2E8F0;
-    padding: 6px 6px 6px 20px;
-    border-radius: 20px;
+    background: #ffffff;
+    border: 1.5px solid #E2E8F0;
+    padding: 6px;
+    padding-left: 20px;
+    border-radius: 16px;
     display: flex;
     align-items: center;
     gap: 12px;
-    max-width: 540px;
+    max-width: 100%;
     margin: 0 auto;
     transition: all 0.25s ease;
 }
 
 .searchContainer:focus-within {
     border-color: #6366F1;
-    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
-    background: #ffffff;
 }
 
 .searchInput {
@@ -148,12 +141,12 @@
     background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
     color: white;
     border: none;
-    padding: 12px 24px;
-    border-radius: 14px;
+    padding: 10px 24px;
+    border-radius: 12px;
     font-size: 15px;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -168,6 +161,96 @@
 .generateButton:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+.countSelectorWrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.countLabel {
+    font-size: 14px;
+    font-weight: 700;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.countSelectExternal {
+    padding: 10px 16px;
+    border-radius: 12px;
+    border: 2px solid #E2E8F0;
+    font-size: 14px;
+    font-weight: 700;
+    color: #334155;
+    background: #ffffff;
+    cursor: pointer;
+    min-width: 120px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.countSelectExternal:focus {
+    border-color: #6366F1;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+.customCountWrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 2px 2px 2px 14px;
+    border-radius: 12px;
+    border: 2px solid #E2E8F0;
+    transition: all 0.2s ease;
+}
+
+.customCountWrapper:focus-within {
+    border-color: #6366F1;
+}
+
+.customCountInput {
+    border: none;
+    background: transparent;
+    font-size: 15px;
+    font-weight: 700;
+    color: #334155;
+    width: 60px;
+    outline: none;
+    text-align: center;
+    /* Hide number input arrows */
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+}
+
+.customCountInput::-webkit-outer-spin-button,
+.customCountInput::-webkit-inner-spin-button {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.cancelCustomBtn {
+    background: #F1F5F9;
+    border: none;
+    color: #94A3B8;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.cancelCustomBtn:hover {
+    background: #FEE2E2;
+    color: #EF4444;
 }
 
 /* Quick Topics */
@@ -308,12 +391,15 @@
 /* Question Card */
 .questionCard {
     background: #ffffff;
-    border-radius: 24px;
-    padding: 32px;
-    box-shadow:
-        0 25px 60px -12px rgba(0, 0, 0, 0.08),
-        0 8px 16px -8px rgba(0, 0, 0, 0.05);
-    border: 1px solid #E2E8F0;
+    border-radius: 32px;
+    padding: 24px;
+    border: 2px solid #E2E8F0;
+}
+
+@media (min-width: 640px) {
+    .questionCard {
+        padding: 48px;
+    }
 }
 
 .questionHeader {

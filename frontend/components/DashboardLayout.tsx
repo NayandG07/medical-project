@@ -27,21 +27,24 @@ const getPageTitle = (pathname: string): string => {
     '/study-planner': 'Study Planner',
     '/documents': 'Documents',
     '/profile': 'Profile',
+    '/image-analysis': 'Image Analysis',
   }
   return titles[pathname] || pathname.slice(1).charAt(0).toUpperCase() + pathname.slice(2)
 }
 
-// Store sidebar state globally
+// Store sidebar and plan state globally to prevent flicker on navigation
 let globalSidebarCollapsed = false
+let sessionPlanCache: string | null = null
 
 export default function DashboardLayout({ user, children }: DashboardLayoutProps) {
   const router = useRouter()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(globalSidebarCollapsed)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
-  const [plan, setPlan] = useState<string>(user?.user_metadata?.plan || 'free')
+  const [plan, setPlan] = useState<string | null>(sessionPlanCache)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
@@ -54,21 +57,37 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
     const fetchUserPlan = async () => {
       if (!user) return
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('users')
           .select('plan')
           .eq('id', user.id)
           .single()
 
+        if (error) {
+          console.warn('Could not fetch user plan from Supabase:', error.message)
+          return
+        }
+
         if (data?.plan) {
           setPlan(data.plan)
+          sessionPlanCache = data.plan
+          localStorage.setItem('valdia_user_plan', data.plan)
         }
       } catch (error) {
-        console.error('Error fetching user plan:', error)
+        console.error('Network or technical error fetching user plan:', error)
       }
     }
 
-    if (user?.id) {
+    // Try to load from localStorage first if not in global cache
+    if (!sessionPlanCache) {
+      const savedPlan = localStorage.getItem('valdia_user_plan')
+      if (savedPlan) {
+        sessionPlanCache = savedPlan
+        setPlan(savedPlan)
+      }
+    }
+
+    if (user?.id && !sessionPlanCache) {
       fetchUserPlan()
     }
   }, [user?.id])
@@ -79,6 +98,8 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
   }
 
   const handleSignOut = async () => {
+    sessionPlanCache = null
+    localStorage.removeItem('valdia_user_plan')
     await supabase.auth.signOut()
     router.push('/')
   }
@@ -90,16 +111,19 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
       if (!target.closest('#user-profile-menu')) {
         setIsDropdownOpen(false)
       }
+      if (!target.closest('#notifications-menu')) {
+        setIsNotificationsOpen(false)
+      }
     }
 
-    if (isDropdownOpen) {
+    if (isDropdownOpen || isNotificationsOpen) {
       document.addEventListener('click', handleClickOutside)
     }
 
     return () => {
       document.removeEventListener('click', handleClickOutside)
     }
-  }, [isDropdownOpen])
+  }, [isDropdownOpen, isNotificationsOpen])
 
   // Mobile Menu Items
   const mobileMenuItems = [
@@ -112,6 +136,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
     { name: 'Concept Map', path: '/conceptmap', icon: '🗺️' },
     { name: 'Clinical Cases', path: '/clinical-cases', icon: '🏥' },
     { name: 'OSCE Simulator', path: '/osce', icon: '👨‍⚕️' },
+    { name: 'Image Analysis', path: '/image-analysis', icon: '🔬' },
     { name: 'Study Planner', path: '/study-planner', icon: '📅' },
     { name: 'Documents', path: '/documents', icon: '📄' },
     { name: 'Profile', path: '/profile', icon: '👤' },
@@ -145,7 +170,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
                   <h3 className="drawer-username">{user ? (user.user_metadata?.name || user.email?.split('@')[0]) : 'Loading...'}</h3>
                   <div className="drawer-email">{user?.email || '...'}</div>
                   <div className="drawer-badge">
-                    {plan === 'free' ? 'User' : 'Premium'}
+                    {(plan || 'free') === 'free' ? 'User' : 'Premium'}
                   </div>
                 </div>
               </div>
@@ -233,12 +258,40 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
             {/* Desktop Profile Menu */}
             {!isMobile && (
               <>
-                <button className="icon-action-btn">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                  </svg>
-                </button>
+                <div id="notifications-menu" className="relative">
+                  <button
+                    onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                    className={`icon-action-btn ${isNotificationsOpen ? 'active' : ''}`}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                  </button>
+
+                  {isNotificationsOpen && (
+                    <div className="notification-dropdown">
+                      <div className="notification-header">
+                        <h3 className="notification-title">Notifications</h3>
+                        <button className="mark-read-btn">Clear all</button>
+                      </div>
+                      <div className="notification-content">
+                        <div className="empty-notification">
+                          <div className="empty-icon-container">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                              <path d="m13.5 8.5-4 4" />
+                              <path d="m9.5 8.5 4 4" />
+                            </svg>
+                          </div>
+                          <p className="empty-text">Your medical feed is pristine.</p>
+                          <span className="empty-subtext">No new alerts. Your dashboard is in peak health.</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div id="user-profile-menu" className="relative">
                   <div
@@ -251,7 +304,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
                     <div className="user-meta hidden sm:block">
                       <p className="user-full-name">{user ? (user.user_metadata?.name || user.email?.split('@')[0]) : 'Loading...'}</p>
                       <p className="user-plan-badge">
-                        {plan === 'free' ? 'Standard' : plan === 'pro' ? 'Premium' : plan.charAt(0).toUpperCase() + plan.slice(1)}
+                        {(plan || user?.user_metadata?.plan || 'free') === 'free' ? 'Standard' : (plan || user?.user_metadata?.plan || 'pro') === 'pro' ? 'Premium' : (plan || 'free').charAt(0).toUpperCase() + (plan || 'free').slice(1)}
                       </p>
                     </div>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={`arrow-icon ${isDropdownOpen ? 'rotate-180' : ''}`}>
@@ -298,10 +351,12 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
         </div>
 
         {/* Main Content Area */}
-        <main className={`main-scroll-area ${['/chat', '/mcqs', '/flashcards', '/explain', '/osce', '/clinical-cases', '/highyield'].includes(router.pathname) ? 'no-padding' : ''}`}>
+        <main className={`main-scroll-area ${['/chat', '/mcqs', '/flashcards', '/explain', '/osce', '/clinical-cases', '/highyield', '/image-analysis'].includes(router.pathname) ? 'no-padding' : ''}`}>
           {children}
         </main>
       </div>
+
+      <div id="vaidya-portal-root" />
 
       {/* Logout Modal */}
       {isLogoutModalOpen && (
@@ -337,15 +392,6 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
           font-family: 'Plus Jakarta Sans', sans-serif;
         }
 
-        .layout-root:has([data-station-active="true"]) {
-          height: 100vh;
-          overflow: hidden;
-        }
-
-        .main-scroll-area:has([data-station-active="true"]) {
-          overflow: hidden !important;
-        }
-
         .main-content-wrapper {
           flex: 1;
           transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -357,8 +403,8 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
         .top-bar {
           height: 64px;
           background: linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(253, 253, 255, 0.6) 100%);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          backdrop-filter: blur(12px) saturate(180%);
+          -webkit-backdrop-filter: blur(12px) saturate(180%);
           border-bottom: none;
           box-shadow: 
             0 10px 40px -10px rgba(0, 0, 0, 0.05),
@@ -404,11 +450,12 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
         }
 
-        .icon-action-btn:hover {
+        .icon-action-btn:hover, .icon-action-btn.active {
           background-color: white;
           color: var(--cream-text-main);
           border-color: var(--cream-accent);
           transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
         }
 
         .profile-trigger {
@@ -512,6 +559,105 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
           to { opacity: 1; transform: translateY(0); }
         }
 
+        .notification-dropdown {
+          position: absolute;
+          top: calc(100% + 12px);
+          right: 0;
+          width: 340px;
+          background-color: white;
+          border-radius: 24px;
+          box-shadow: 
+            0 20px 40px -8px rgba(0,0,0,0.12), 
+            0 0 0 1px rgba(0,0,0,0.04),
+            0 10px 20px -5px rgba(0, 0, 0, 0.05);
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          overflow: hidden;
+          animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          z-index: 100;
+        }
+
+        .notification-header {
+          padding: 18px 24px;
+          background-color: var(--cream-bg);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        .notification-title {
+          font-size: 15px;
+          font-weight: 800;
+          margin: 0;
+          color: var(--cream-text-main);
+          letter-spacing: -0.01em;
+        }
+
+        .mark-read-btn {
+          font-size: 11px;
+          font-weight: 800;
+          color: #6366F1;
+          background: rgba(99, 102, 241, 0.08);
+          border: none;
+          cursor: pointer;
+          padding: 6px 12px;
+          border-radius: 10px;
+          transition: all 0.2s;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+        }
+
+        .mark-read-btn:hover {
+          background-color: #6366F1;
+          color: white;
+          transform: translateY(-1px);
+        }
+
+        .notification-content {
+          padding: 0;
+          max-height: 420px;
+          overflow-y: auto;
+        }
+
+        .empty-notification {
+          padding: 56px 32px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          gap: 16px;
+          background: linear-gradient(180deg, white 0%, var(--cream-bg) 100%);
+        }
+
+        .empty-icon-container {
+          width: 72px;
+          height: 72px;
+          background-color: white;
+          color: #94A3B8;
+          border-radius: 22px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), inset 0 0 0 1px rgba(0,0,0,0.02);
+          margin-bottom: 4px;
+        }
+
+        .empty-text {
+          font-size: 16px;
+          font-weight: 800;
+          color: var(--cream-text-main);
+          margin: 0;
+          letter-spacing: -0.02em;
+        }
+
+        .empty-subtext {
+          font-size: 13.5px;
+          color: var(--cream-text-muted);
+          font-weight: 500;
+          line-height: 1.6;
+          max-width: 220px;
+        }
+
         .dropdown-header {
           padding: 24px 20px;
           background-color: var(--cream-bg);
@@ -604,13 +750,15 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
         .modal-backdrop {
           position: fixed;
           inset: 0;
-          background-color: rgba(26, 26, 26, 0.4);
-          backdrop-filter: blur(8px);
+          background-color: rgba(15, 23, 42, 0.4);
+          backdrop-filter: blur(12px) saturate(160%);
+          -webkit-backdrop-filter: blur(12px) saturate(160%);
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 1000;
+          z-index: 5000;
           padding: 20px;
+          transition: all 0.4s ease;
         }
 
         .modal-content {

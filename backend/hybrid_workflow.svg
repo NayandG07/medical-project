@@ -1,0 +1,215 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 2000">
+  <defs>
+    <style>
+      .box { fill: #ffffff; stroke: #2563eb; stroke-width: 2; }
+      .frontend { fill: #dbeafe; stroke: #3b82f6; stroke-width: 2; }
+      .backend { fill: #fef3c7; stroke: #f59e0b; stroke-width: 2; }
+      .decision { fill: #fef3c7; stroke: #f59e0b; stroke-width: 2; }
+      .success { fill: #d1fae5; stroke: #10b981; stroke-width: 2; }
+      .error { fill: #fee2e2; stroke: #ef4444; stroke-width: 2; }
+      .cache { fill: #e0e7ff; stroke: #6366f1; stroke-width: 2; }
+      .text { font-family: Arial, sans-serif; font-size: 13px; fill: #1f2937; }
+      .title { font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; fill: #1f2937; }
+      .small { font-family: Arial, sans-serif; font-size: 11px; fill: #4b5563; }
+      .arrow { stroke: #2563eb; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .arrow-red { stroke: #ef4444; stroke-width: 2; fill: none; marker-end: url(#arrowhead-red); }
+      .arrow-green { stroke: #10b981; stroke-width: 2; fill: none; marker-end: url(#arrowhead-green); }
+      .arrow-purple { stroke: #8b5cf6; stroke-width: 2; fill: none; marker-end: url(#arrowhead-purple); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#2563eb" />
+    </marker>
+    <marker id="arrowhead-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#ef4444" />
+    </marker>
+    <marker id="arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#10b981" />
+    </marker>
+    <marker id="arrowhead-purple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#8b5cf6" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="700" y="30" class="title" text-anchor="middle" font-size="20">Hybrid Approach: Session Cache + Health Tracking</text>
+
+  <!-- User Action -->
+  <rect x="600" y="60" width="200" height="50" class="box" rx="5"/>
+  <text x="700" y="85" class="title" text-anchor="middle">User Request</text>
+  <text x="700" y="100" class="small" text-anchor="middle">MCQ Generation</text>
+
+  <path d="M 700 110 L 700 150" class="arrow"/>
+
+  <!-- Frontend Section Label -->
+  <rect x="50" y="150" width="200" height="40" class="frontend" rx="5"/>
+  <text x="150" y="175" class="title" text-anchor="middle">FRONTEND</text>
+
+  <!-- Check Session Cache -->
+  <rect x="550" y="150" width="300" height="80" class="cache" rx="5"/>
+  <text x="700" y="175" class="title" text-anchor="middle">1. Check Session Cache</text>
+  <text x="700" y="195" class="small" text-anchor="middle">sessionStorage.getItem('mcq_provider')</text>
+  <text x="700" y="215" class="small" text-anchor="middle">Result: "huggingface" (from previous failure)</text>
+
+  <path d="M 700 230 L 700 270" class="arrow"/>
+
+  <!-- Send Request with Preference -->
+  <rect x="550" y="270" width="300" height="80" class="frontend" rx="5"/>
+  <text x="700" y="295" class="title" text-anchor="middle">2. Send Request to Backend</text>
+  <text x="700" y="315" class="small" text-anchor="middle">POST /api/mcq/generate</text>
+  <text x="700" y="330" class="small" text-anchor="middle">{ preferred_provider: "huggingface" }</text>
+
+  <path d="M 700 350 L 700 390" class="arrow"/>
+
+  <!-- Backend Section Label -->
+  <rect x="50" y="390" width="200" height="40" class="backend" rx="5"/>
+  <text x="150" y="415" class="title" text-anchor="middle">BACKEND</text>
+
+  <!-- Backend Receives Request -->
+  <rect x="550" y="390" width="300" height="80" class="backend" rx="5"/>
+  <text x="700" y="415" class="title" text-anchor="middle">3. Backend Receives Request</text>
+  <text x="700" y="435" class="small" text-anchor="middle">User prefers: HuggingFace</text>
+  <text x="700" y="450" class="small" text-anchor="middle">Now check global health...</text>
+
+  <path d="M 700 470 L 700 510" class="arrow"/>
+
+  <!-- Query Global Health -->
+  <rect x="500" y="510" width="400" height="100" class="backend" rx="5"/>
+  <text x="700" y="535" class="title" text-anchor="middle">4. Query Global Health Status</text>
+  <rect x="520" y="545" width="360" height="55" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+  <text x="540" y="565" class="small" font-weight="bold">Provider</text>
+  <text x="660" y="565" class="small" font-weight="bold">Health</text>
+  <text x="540" y="585" class="small">OpenRouter (paid)</text>
+  <text x="660" y="585" class="small" fill="#ef4444">🔴 DEGRADED (80% fail)</text>
+  <text x="540" y="600" class="small">HuggingFace (free)</text>
+  <text x="660" y="600" class="small" fill="#10b981">🟢 HEALTHY (10% fail)</text>
+
+  <path d="M 700 610 L 700 650" class="arrow"/>
+
+  <!-- Decision: Override Session? -->
+  <path d="M 700 650 L 850 720 L 700 790 L 550 720 Z" class="decision"/>
+  <text x="700" y="710" class="title" text-anchor="middle">Should Override</text>
+  <text x="700" y="730" class="title" text-anchor="middle">Session Cache?</text>
+
+  <!-- NO - Use Session Preference -->
+  <path d="M 550 720 L 350 720" class="arrow-green"/>
+  <text x="430" y="710" class="small" fill="#10b981" font-weight="bold">NO</text>
+  <text x="430" y="725" class="small" fill="#10b981">Paid still degraded</text>
+
+  <rect x="150" y="680" width="200" height="80" class="success" rx="5"/>
+  <text x="250" y="705" class="title" text-anchor="middle">5a. Use HuggingFace</text>
+  <text x="250" y="725" class="small" text-anchor="middle">(Session preference)</text>
+  <text x="250" y="740" class="small" text-anchor="middle">⏱️ 15 seconds</text>
+
+  <path d="M 250 760 L 250 1400 L 700 1400 L 700 1440" class="arrow-green"/>
+
+  <!-- YES - Override to Paid -->
+  <path d="M 850 720 L 1050 720" class="arrow-purple"/>
+  <text x="930" y="710" class="small" fill="#8b5cf6" font-weight="bold">YES</text>
+  <text x="930" y="725" class="small" fill="#8b5cf6">Paid recovered!</text>
+
+  <rect x="1050" y="680" width="200" height="80" class="box" rx="5"/>
+  <text x="1150" y="705" class="title" text-anchor="middle">5b. Try Paid API</text>
+  <text x="1150" y="725" class="small" text-anchor="middle">(Override session)</text>
+  <text x="1150" y="740" class="small" text-anchor="middle">⏱️ 3-5 seconds</text>
+
+  <path d="M 1150 760 L 1150 820" class="arrow"/>
+
+  <!-- Paid API Result -->
+  <path d="M 1150 820 L 1250 880 L 1150 940 L 1050 880 Z" class="decision"/>
+  <text x="1150" y="885" class="title" text-anchor="middle">Success?</text>
+
+  <!-- Paid Success -->
+  <path d="M 1250 880 L 1320 880 L 1320 1400 L 700 1400 L 700 1440" class="arrow-green"/>
+  <text x="1270" y="870" class="small" fill="#10b981" font-weight="bold">YES</text>
+
+  <!-- Paid Fail -->
+  <path d="M 1050 880 L 900 880" class="arrow-red"/>
+  <text x="960" y="870" class="small" fill="#ef4444" font-weight="bold">NO</text>
+
+  <rect x="750" y="850" width="150" height="60" class="error" rx="5"/>
+  <text x="825" y="875" class="small" text-anchor="middle">Mark degraded</text>
+  <text x="825" y="895" class="small" text-anchor="middle">again</text>
+
+  <path d="M 825 910 L 825 1000 L 700 1000" class="arrow-red"/>
+
+  <!-- Fallback to HF -->
+  <rect x="550" y="970" width="300" height="60" class="success" rx="5"/>
+  <text x="700" y="995" class="title" text-anchor="middle">Fallback to HuggingFace</text>
+  <text x="700" y="1015" class="small" text-anchor="middle">⏱️ 15 seconds</text>
+
+  <path d="M 700 1030 L 700 1070" class="arrow"/>
+
+  <!-- Update Backend Health -->
+  <rect x="550" y="1070" width="300" height="80" class="backend" rx="5"/>
+  <text x="700" y="1095" class="title" text-anchor="middle">6. Update Global Health</text>
+  <text x="700" y="1115" class="small" text-anchor="middle">UPDATE api_keys SET</text>
+  <text x="700" y="1130" class="small" text-anchor="middle">recent_successes++, attempts++</text>
+
+  <path d="M 700 1150 L 700 1190" class="arrow"/>
+
+  <!-- Log Usage -->
+  <rect x="550" y="1190" width="300" height="60" class="backend" rx="5"/>
+  <text x="700" y="1215" class="title" text-anchor="middle">7. Log to Database</text>
+  <text x="700" y="1235" class="small" text-anchor="middle">model_usage_logs</text>
+
+  <path d="M 700 1250 L 700 1290" class="arrow"/>
+
+  <!-- Return Response -->
+  <rect x="550" y="1290" width="300" height="100" class="backend" rx="5"/>
+  <text x="700" y="1315" class="title" text-anchor="middle">8. Return Response</text>
+  <text x="700" y="1335" class="small" text-anchor="middle">{ answer: "...",</text>
+  <text x="700" y="1350" class="small" text-anchor="middle">  provider_used: "huggingface",</text>
+  <text x="700" y="1365" class="small" text-anchor="middle">  recommendation: "huggingface" }</text>
+
+  <path d="M 700 1390 L 700 1440" class="arrow"/>
+
+  <!-- Frontend Updates Cache -->
+  <rect x="550" y="1440" width="300" height="80" class="frontend" rx="5"/>
+  <text x="700" y="1465" class="title" text-anchor="middle">9. Frontend Updates Cache</text>
+  <text x="700" y="1485" class="small" text-anchor="middle">sessionStorage.setItem(</text>
+  <text x="700" y="1500" class="small" text-anchor="middle">'mcq_provider', 'huggingface')</text>
+
+  <path d="M 700 1520 L 700 1560" class="arrow"/>
+
+  <!-- Display to User -->
+  <rect x="600" y="1560" width="200" height="60" class="success" rx="5"/>
+  <text x="700" y="1585" class="title" text-anchor="middle">10. Display Result</text>
+  <text x="700" y="1605" class="small" text-anchor="middle">User sees MCQ</text>
+
+  <!-- Recovery Mechanism Box -->
+  <rect x="50" y="1700" width="600" height="250" fill="#fef3c7" stroke="#f59e0b" stroke-width="3" rx="5"/>
+  <text x="350" y="1730" class="title" text-anchor="middle" font-size="16">API RECOVERY MECHANISM</text>
+  
+  <text x="70" y="1760" class="small" font-weight="bold">Background Job (Every 5 minutes):</text>
+  <text x="70" y="1780" class="small">1. Check all degraded APIs</text>
+  <text x="70" y="1795" class="small">2. If last failure > 10 minutes ago:</text>
+  <text x="90" y="1810" class="small">   → Reset health counters</text>
+  <text x="90" y="1825" class="small">   → Mark as "recovering"</text>
+  <text x="70" y="1845" class="small">3. Next request will try it again</text>
+  <text x="70" y="1860" class="small">4. If succeeds 3 times in a row:</text>
+  <text x="90" y="1875" class="small">   → Mark as "healthy"</text>
+  <text x="90" y="1890" class="small">   → Backend starts recommending it</text>
+  
+  <text x="70" y="1915" class="small" font-weight="bold">Session Override:</text>
+  <text x="70" y="1935" class="small">• Backend can override session cache</text>
+  <text x="70" y="1950" class="small">• Happens when paid API recovers</text>
+
+  <!-- Performance Box -->
+  <rect x="750" y="1700" width="600" height="250" fill="#d1fae5" stroke="#10b981" stroke-width="3" rx="5"/>
+  <text x="1050" y="1730" class="title" text-anchor="middle" font-size="16">PERFORMANCE BENEFITS</text>
+  
+  <text x="770" y="1760" class="small" font-weight="bold">First Request (Cold Start):</text>
+  <text x="770" y="1780" class="small">• Current: 45s (paid fail + HF)</text>
+  <text x="770" y="1795" class="small" fill="#10b981">• Hybrid: 20s (quick fail + HF)</text>
+  <text x="770" y="1810" class="small" fill="#10b981">• Improvement: 55% faster</text>
+  
+  <text x="770" y="1835" class="small" font-weight="bold">Subsequent Requests (Cached):</text>
+  <text x="770" y="1855" class="small">• Current: 45s (still tries paid)</text>
+  <text x="770" y="1870" class="small" fill="#10b981">• Hybrid: 15s (uses cache)</text>
+  <text x="770" y="1885" class="small" fill="#10b981">• Improvement: 66% faster</text>
+  
+  <text x="770" y="1910" class="small" font-weight="bold">When API Recovers:</text>
+  <text x="770" y="1930" class="small" fill="#10b981">• Auto-switches back to paid</text>
+  <text x="770" y="1945" class="small" fill="#10b981">• Users get faster responses (3s)</text>
+
+</svg>

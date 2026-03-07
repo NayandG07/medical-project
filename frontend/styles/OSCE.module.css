@@ -4,7 +4,7 @@
    ============================================================ */
 
 /* CSS Variables */
-:root {
+.osceWrapper {
     --osce-primary: #4F46E5;
     --osce-primary-soft: #EEF2FF;
     --osce-accent: #14B8A6;
@@ -44,18 +44,14 @@
 }
 
 /* Ensure the background is consistent even if parents vary */
-:global(.main-content-wrapper:has(.osceWrapper)) {
-    background-color: var(--osce-bg) !important;
-}
+/* Moved to global styles - CSS modules don't support complex :global selectors */
 
 .osceWrapper * {
     box-sizing: border-box;
 }
 
 /* Apply background to the global page when in OSCE mode */
-:global(body:has(.clinicalContextPanel)) {
-    background-color: #fdfbf7 !important;
-}
+/* Moved to global styles - CSS modules don't support complex :global selectors */
 
 /* Subtle Pulse Wave Background Animation */
 .pulseBackground {
@@ -1420,7 +1416,7 @@
     align-items: center;
     gap: 12px;
     padding: 12px 36px;
-    background: linear-gradient(135deg, var(--osce-primary) 0%, #7C3AED 100%);
+    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
     color: white;
     border: none;
     border-radius: var(--osce-radius);
@@ -1428,12 +1424,12 @@
     font-weight: 700;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 8px 32px rgba(79, 70, 229, 0.3);
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
 }
 
 .startButton:hover:not(:disabled) {
     transform: translateY(-3px);
-    box-shadow: 0 12px 40px rgba(79, 70, 229, 0.4);
+    box-shadow: 0 12px 32px rgba(99, 102, 241, 0.45);
 }
 
 .startButton:disabled {

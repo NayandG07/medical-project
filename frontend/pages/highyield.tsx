@@ -6,6 +6,7 @@ import DashboardLayout from '@/components/DashboardLayout'
 import { parseMarkdown } from '@/lib/markdown'
 import styles from '@/styles/HighYield.module.css'
 import SessionSidebar, { ChatSession } from '@/components/SessionSidebar'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, FileText, Trash2, Search, ArrowRight, BookOpen, Star } from 'lucide-react'
 
 // Quick topic suggestions
@@ -17,6 +18,21 @@ const SUGGESTIONS = [
   'Glomerulonephritis',
   'Multiple Sclerosis'
 ]
+
+// Premium styles (strictly like Flashcards)
+const stylesMap = {
+  container: "max-w-[1200px] mx-auto",
+  mainArea: "flex-1 flex flex-col overflow-y-auto p-4 pt-12 sm:p-8 custom-scrollbar bg-[#fdfbf7]",
+  searchOnlyState: "bg-white rounded-[24px] sm:rounded-[32px] p-6 sm:p-10 text-center border border-[#E2E8F0] mt-4 sm:mt-0 w-full max-w-[750px] mx-auto",
+  sparkleIcon: "w-10 h-10 sm:w-14 sm:h-14 bg-[#EDE9FE] rounded-xl sm:rounded-2xl mx-auto mb-3 sm:mb-4 flex items-center justify-center",
+  h1: "text-2xl sm:text-2xl font-[800] mb-1 sm:mb-2 text-[#0F172A]",
+  p: "text-sm sm:text-base text-[#64748B] mb-5 sm:mb-6",
+  largeSearch: "bg-white border-[1.5px] border-[#E2E8F0] p-1.5 pl-4 sm:p-1.5 sm:pl-5 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 focus-within:border-[#8B5CF6] focus-within:ring-4 focus-within:ring-[#8B5CF6]/5 transition-all outline-none",
+  topicInput: "border-none bg-transparent flex-1 text-sm sm:text-base font-medium outline-none text-[#1E293B] placeholder:text-slate-400 min-w-0",
+  generateBtn: "bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white border-none px-4 py-2.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl font-bold cursor-pointer hover:translate-y-[-2px] transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm sm:text-base",
+  suggestionChip: "px-4 py-2 bg-[#F1F5F9] text-[#475569] rounded-full text-xs sm:text-sm font-bold cursor-pointer border border-transparent hover:bg-[#EDE9FE] hover:text-[#8B5CF6] hover:border-[#8B5CF6]/20 transition-all",
+  resultCard: "bg-[#FFFFFF] rounded-2xl sm:rounded-3xl p-6 sm:p-10 border border-[#E2E8F0] border-2"
+}
 
 export default function HighYield() {
   const router = useRouter()
@@ -59,31 +75,44 @@ export default function HighYield() {
   }
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      router.push('/')
-      return
+    try {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error || !data.session) {
+        console.warn('Auth session missing or Supabase unreachable');
+        // If we're strictly enforcing auth, redirect. 
+        // Otherwise, allow "guest" mode or show a clear login required message.
+        router.push('/');
+        return;
+      }
+
+      setUser(data.session.user as AuthUser);
+      loadSessions(data.session.access_token);
+    } catch (err) {
+      console.error('Supabase auth check failed:', err);
+      // Fallback: stay on page but show loading/error or redirect
+      setError('Connection to security service failed. Please try again later.');
+    } finally {
+      setLoading(false);
     }
-    setUser(session.user as AuthUser)
-
-    // Load sessions
-    loadSessions(session.access_token)
-
-    setLoading(false)
   }
 
   const loadSessions = async (token: string) => {
     try {
       setSessionsLoading(true)
+      setSessionsError(null)
       const response = await fetch(`${API_URL}/api/study-tools/sessions?feature=highyield`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (response.ok) {
         const data = await response.json()
         setSessions(data)
+      } else {
+        setSessionsError('Failed to load sessions')
       }
     } catch (err) {
       console.error('Failed to load sessions:', err)
+      setSessionsError('Connection failed: Backend server unreachable.')
     } finally {
       setSessionsLoading(false)
     }
@@ -94,13 +123,18 @@ export default function HighYield() {
       setCurrentSessionId(sessionId)
       setResult(null) // Clear current result while loading
       setGenerating(true) // Show loading state
+      setError(null)
 
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
+      const { data, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !data.session) {
+        throw new Error('You must be logged in to view session history');
+      }
 
       // Load session materials
       const response = await fetch(`${API_URL}/api/study-tools/sessions/${sessionId}/materials`, {
-        headers: { Authorization: `Bearer ${session.access_token}` }
+        headers: { Authorization: `Bearer ${data.session.access_token}` }
+      }).catch(e => {
+        throw new Error('Connection failed: Analytics server unreachable.');
       })
 
       if (response.ok) {
@@ -111,14 +145,15 @@ export default function HighYield() {
           setResult({
             content: latest.content,
             topic: latest.topic,
-            // Citations might be missing in history per backend impl, but we use what we have
           })
           setTopic(latest.topic || '')
         }
+      } else {
+        setError('Failed to load session content')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to select session:', err)
-      setError('Failed to load session content')
+      setError(err.message || 'Connection failed: Backend server unreachable.')
     } finally {
       setGenerating(false)
     }
@@ -224,7 +259,9 @@ export default function HighYield() {
             session_id: currentSessionId // Pass current session ID if exists
           })
         }
-      )
+      ).catch(e => {
+        throw new Error('Connection failed: Backend server unreachable.')
+      })
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -324,39 +361,40 @@ export default function HighYield() {
                 )}
 
                 {!result && !generating ? (
-                  <div className={styles.landingView}>
-                    <div className={styles.heroIcon}>
-                      <Star fill="white" size={48} color="white" />
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={stylesMap.searchOnlyState}
+                  >
+                    <div className={stylesMap.sparkleIcon}>
+                      <Star fill="#8B5CF6" size={32} color="#8B5CF6" />
                     </div>
-                    <div className={styles.heroText}>
-                      <h1>High-Yield Notes</h1>
-                      <p>Transform deep medical topics into structured, clinical summary points</p>
-                    </div>
+                    <h1 className={stylesMap.h1}>High-Yield Notes</h1>
+                    <p className={stylesMap.p}>Transform medical topics into structured clinical summaries</p>
 
-                    <div className={styles.inputSection}>
+                    <div className={stylesMap.largeSearch}>
                       <input
                         type="text"
                         placeholder="Enter a medical topic (e.g. 'Atrial Fibrillation')"
                         value={topic}
                         onChange={(e) => setTopic(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
-                        className={styles.topicInput}
+                        className={stylesMap.topicInput}
                       />
                       <button
                         onClick={() => handleGenerate()}
                         disabled={generating || !topic.trim()}
-                        className={styles.generateBtn}
+                        className={stylesMap.generateBtn}
                       >
-                        Generate Notes
-                        <ArrowRight size={18} />
+                        Generate
                       </button>
                     </div>
 
-                    <div className={styles.quickSuggestions}>
+                    <div className="flex flex-wrap gap-2 justify-center mt-6">
                       {SUGGESTIONS.map((s) => (
                         <button
                           key={s}
-                          className={styles.suggestionChip}
+                          className={stylesMap.suggestionChip}
                           onClick={() => handleGenerate(s)}
                         >
                           {s}
@@ -365,12 +403,11 @@ export default function HighYield() {
                     </div>
 
                     {error && (
-                      <div className={styles.errorBanner}>
-                        <Sparkles size={18} />
+                      <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm font-semibold border border-red-100">
                         {error}
                       </div>
                     )}
-                  </div>
+                  </motion.div>
                 ) : (
                   <div className={styles.resultsView}>
                     <div className={styles.resultHeader}>
@@ -407,7 +444,7 @@ export default function HighYield() {
                       </div>
                     )}
 
-                    <div className={styles.resultCard}>
+                    <div className={stylesMap.resultCard}>
                       {generating ? (
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px' }}>
                           <div className={styles.loadingSpinner} style={{ width: '40px', height: '40px', borderTopColor: '#8B5CF6', marginBottom: '20px' }}></div>
@@ -421,11 +458,11 @@ export default function HighYield() {
 
                           {result?.citations && (
                             <div className={styles.citationsSection}>
-                              <h4>Evidence-Based Citations</h4>
+                              <h4 className="text-sm font-bold text-[#1E293B] mb-4">Evidence-Based Citations</h4>
                               {result.citations.sources?.map((source: any, idx: number) => (
-                                <div key={idx} className={styles.citationItem}>
-                                  <FileText size={14} />
-                                  {source.document_filename}
+                                <div key={idx} className="bg-[#F8FAFC] px-4 py-3 rounded-xl mb-2 text-[#64748B] font-medium border border-[#F1F5F9] flex items-center gap-2 text-xs sm:text-sm">
+                                  <BookOpen size={14} className="text-[#8B5CF6]" />
+                                  <span className="text-sm">{source.document_filename}</span>
                                 </div>
                               ))}
                             </div>

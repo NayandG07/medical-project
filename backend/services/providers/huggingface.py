@@ -33,11 +33,11 @@ class HuggingFaceProvider:
         
         # Specialized medical models
         "safety": "m42-health/Llama3-Med42-70B:featherless-ai",
-        "image": "microsoft/llava-med-v1.5-mistral-7b", # Image-text-to-text medical vision
+        # "image": "microsoft/llava-med-v1.5-mistral-7b", # Image-text-to-text medical vision
+        "image": "Qwen/Qwen3.5-397B-A17B", # Image-text-to-text
         # "image": "Qwen/Qwen3-VL-235B-A22B-Thinking", # Image-to-text vision
         
-        # Embeddings - Using BAAI BGE (best free model, MTEB: 62.17)
-        # "embedding": "BAAI/bge-small-en-v1.5",
+        # Embeddings - Using Qwen3 Embedding (4096 dimensions, superior semantic understanding)
         "embedding": "Qwen/Qwen3-Embedding-8B",
     }
     
@@ -66,8 +66,9 @@ class HuggingFaceProvider:
         feature: str,
         prompt: str,
         system_prompt: Optional[str] = None,
-        max_tokens: int = 3072,
-        temperature: float = 0.7
+        max_tokens: int = 4096,
+        temperature: float = 0.9,
+        image_data: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Call Hugging Face Router API (OpenAI-compatible format)
@@ -78,6 +79,7 @@ class HuggingFaceProvider:
             system_prompt: Optional system prompt
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature
+            image_data: Optional base64-encoded image data for vision models
             
         Returns:
             Dict with success, content, error, tokens_used
@@ -91,7 +93,7 @@ class HuggingFaceProvider:
             }
         
         model = self.MEDICAL_MODELS.get(feature, self.MEDICAL_MODELS["chat"])
-        logger.info(f"Calling Hugging Face model: {model} for feature: {feature}")
+        logger.info(f"Calling Hugging Face model: {model} for feature: {feature} (has_image={image_data is not None})")
         
         try:
             import httpx
@@ -99,7 +101,28 @@ class HuggingFaceProvider:
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
+            
+            # Build user message with optional image
+            if image_data and feature == "image":
+                # Vision model - include image in message
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_data}"
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": prompt
+                        }
+                    ]
+                })
+            else:
+                # Text-only message
+                messages.append({"role": "user", "content": prompt})
             
             url = f"{self.router_url}/chat/completions"
             headers = {
@@ -115,8 +138,31 @@ class HuggingFaceProvider:
                 "stream": False
             }
             
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # Use longer timeout for image models and Med42 models (they're larger and slower)
+            # Med42-70B needs more time due to cold starts and model size
+            if feature == "image":
+                timeout_seconds = 120.0
+            elif model == "m42-health/Llama3-Med42-70B:featherless-ai":
+                timeout_seconds = 180.0  # 3 minutes for Med42 cold starts
+            else:
+                timeout_seconds = 90.0  # Default 90s for other models
+            
+            logger.info(f"Using timeout: {timeout_seconds}s for model: {model}")
+            async with httpx.AsyncClient(timeout=timeout_seconds) as client:
                 response = await client.post(url, headers=headers, json=payload)
+                
+                # If 402 (payment required), return error
+                if response.status_code == 402:
+                    error_msg = "HuggingFace Router API credits depleted"
+                    logger.error(error_msg)
+                    return {
+                        "success": False,
+                        "error": error_msg,
+                        "content": "",
+                        "tokens_used": 0,
+                        "model": model,
+                        "provider": "huggingface"
+                    }
                 
                 if response.status_code == 200:
                     result = response.json()
@@ -130,12 +176,11 @@ class HuggingFaceProvider:
                         generated_text = str(result)
                         tokens_used = len(prompt + generated_text) // 4
                     
-                    # Log the full response for debugging JSON parsing issues
                     if feature == "clinical":
                         logger.info(f"Full HF response length: {len(generated_text)} chars")
                         logger.debug(f"Full HF response: {generated_text}")
                     
-                    logger.info(f"Hugging Face call succeeded. Model: {model}, Tokens: ~{tokens_used}")
+                    logger.info(f"Hugging Face Router call succeeded. Model: {model}, Tokens: ~{tokens_used}")
                     
                     return {
                         "success": True,
@@ -146,8 +191,16 @@ class HuggingFaceProvider:
                         "provider": "huggingface"
                     }
                 else:
-                    error_msg = f"Hugging Face API error: {response.status_code} - {response.text}"
-                    logger.error(error_msg)
+                    # Clean up error message - truncate HTML responses
+                    error_text = response.text
+                    if error_text.startswith('<!DOCTYPE') or error_text.startswith('<html'):
+                        # It's an HTML error page, extract just the status
+                        error_msg = f"Hugging Face Router API error: {response.status_code} Gateway Timeout"
+                        logger.error(f"Hugging Face API returned HTML error page (status {response.status_code})")
+                    else:
+                        # It's a JSON or text error, log it normally
+                        error_msg = f"Hugging Face Router API error: {response.status_code} - {error_text[:200]}"
+                        logger.error(error_msg)
                     
                     return {
                         "success": False,
@@ -157,11 +210,65 @@ class HuggingFaceProvider:
                         "model": model,
                         "provider": "huggingface"
                     }
+            
+
                     
-        except Exception as e:
+        except httpx.TimeoutException as timeout_error:
+            # Handle timeout - log and notify admin
+            timeout_seconds_val = locals().get('timeout_seconds', 60)
+            error_msg = f"Model timeout after {timeout_seconds_val}s: {model}"
+            
+            logger.error(f"TIMEOUT: {error_msg}")
+            logger.error(f"Feature: {feature}, Model: {model}")
+            logger.error(f"This indicates the model is experiencing cold start or performance issues")
+            
+            # Send admin notification about timeout
+            try:
+                from services.notifications import get_notification_service
+                notification_service = get_notification_service()
+                
+                await notification_service.notify_model_timeout(
+                    feature=feature,
+                    model=model,
+                    timeout_seconds=timeout_seconds_val,
+                    provider="huggingface"
+                )
+                logger.info("Admin notification sent for model timeout")
+            except Exception as notif_error:
+                logger.warning(f"Failed to send admin notification: {str(notif_error)}")
+            
             return {
                 "success": False,
-                "error": f"Hugging Face API error: {str(e)}",
+                "error": "The AI model is currently loading or experiencing delays. Please try again in a few moments.",
+                "content": "",
+                "tokens_used": 0,
+                "model": model,
+                "provider": "huggingface",
+                "timeout": True
+            }
+        except httpx.RemoteProtocolError as protocol_error:
+            # Handle connection/streaming errors (incomplete chunked read, connection closed, etc.)
+            error_msg = f"Connection error with HuggingFace API: {str(protocol_error)}"
+            logger.error(error_msg)
+            logger.error(f"Feature: {feature}, Model: {model}")
+            logger.error("This indicates network instability or server-side streaming issues")
+            
+            return {
+                "success": False,
+                "error": error_msg,
+                "content": "",
+                "tokens_used": 0,
+                "model": model,
+                "provider": "huggingface",
+                "connection_error": True
+            }
+        except Exception as e:
+            error_msg = f"Hugging Face API error: {str(e)}"
+            logger.error(error_msg)
+            logger.exception("Full HuggingFace error traceback:")
+            return {
+                "success": False,
+                "error": error_msg,
                 "content": "",
                 "tokens_used": 0,
                 "model": model,
@@ -189,28 +296,49 @@ class HuggingFaceProvider:
         model = self.MEDICAL_MODELS["embedding"]
         
         try:
+            # For Qwen models, no special instruction needed
             # For BGE models, prepend instruction to queries for better retrieval
-            # Documents/passages don't need instructions
-            if prepend_instruction and "bge" in model.lower():
-                text_to_embed = f"Represent this sentence for searching relevant passages: {text}"
-            else:
-                text_to_embed = text
+            text_to_embed = text
+            
+            if prepend_instruction:
+                if "bge" in model.lower():
+                    text_to_embed = f"Represent this sentence for searching relevant passages: {text}"
+                # Qwen models don't need special instructions
             
             logger.info(f"Generating embedding with model: {model}")
             
-            # Use InferenceClient for feature extraction (embeddings)
-            embedding = self.inference_client.feature_extraction(
-                text=text_to_embed,
-                model=model
-            )
+            try:
+                # Try Router API first
+                embedding = self.inference_client.feature_extraction(
+                    text=text_to_embed,
+                    model=model
+                )
+            except Exception as router_error:
+                # If Router API fails (402 payment required), use free Inference API
+                if "402" in str(router_error) or "Payment Required" in str(router_error):
+                    logger.warning("Router API credits depleted for embeddings, using free model")
+                    # Use a free embedding model
+                    free_embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
+                    logger.info(f"Using free embedding model: {free_embedding_model}")
+                    embedding = self.inference_client.feature_extraction(
+                        text=text_to_embed,
+                        model=free_embedding_model
+                    )
+                    model = free_embedding_model
+                else:
+                    raise router_error
             
             # Convert to list if it's a numpy array or tensor
             if hasattr(embedding, 'tolist'):
                 embedding = embedding.tolist()
-            elif isinstance(embedding, list) and len(embedding) > 0:
-                # If it's a list of lists (batch), take first element
-                if isinstance(embedding[0], list):
-                    embedding = embedding[0]
+            
+            # Handle nested lists - feature_extraction often returns [[...]]
+            while isinstance(embedding, list) and len(embedding) > 0 and isinstance(embedding[0], list):
+                embedding = embedding[0]
+            
+            # Ensure it's a flat list of numbers
+            if not isinstance(embedding, list) or not all(isinstance(x, (int, float)) for x in embedding):
+                raise ValueError(f"Invalid embedding format: {type(embedding)}")
             
             logger.info(f"Embedding generated successfully, dimension: {len(embedding) if embedding else 0}")
             

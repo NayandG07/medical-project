@@ -28,30 +28,35 @@ export default function ProfilePage() {
 
   const checkUser = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data, error: authError } = await supabase.auth.getUser()
 
-      if (!user) {
+      if (authError || !data?.user) {
+        console.warn('Profile auth check failed:', authError)
         router.push('/')
         return
       }
 
-      setUser(user as AuthUser)
+      setUser(data.user as AuthUser)
 
-      // Fetch user plan
-      const { data: userData } = await supabase
-        .from('users')
-        .select('plan')
-        .eq('id', user.id)
-        .single()
+      // Fetch user plan - wrap in its own try/catch to not block everything
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('plan')
+          .eq('id', data.user.id)
+          .single()
 
-      if (userData?.plan) {
-        setPlan(userData.plan)
+        if (userData?.plan) {
+          setPlan(userData.plan)
+        }
+      } catch (planErr) {
+        console.error('Failed to fetch plan:', planErr)
       }
 
-      await fetchUserKey(user.id)
+      await fetchUserKey(data.user.id)
     } catch (err) {
       console.error('Error checking user:', err)
-      setError('Failed to load user credentials')
+      setError('Connection failed: Identity service unreachable. Please refresh.')
     } finally {
       setLoading(false)
     }
@@ -59,10 +64,16 @@ export default function ProfilePage() {
 
   const fetchUserKey = async (userId: string) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) return
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/api-key`, {
         headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          'Authorization': `Bearer ${token}`
         }
+      }).catch(e => {
+        throw new Error('Connection failed: Backend server unreachable.')
       })
 
       if (response.ok) {
@@ -71,47 +82,64 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error('Error fetching user key:', err)
+      setError('Connection failed: Backend server unreachable. Some settings might be offline.')
     }
   }
 
   const handleSubmitKey = async (key: string) => {
-    const session = await supabase.auth.getSession()
-    const token = session.data.session?.access_token
+    try {
+      const session = await supabase.auth.getSession()
+      const token = session.data.session?.access_token
+      if (!token) throw new Error('No active session')
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/api-key`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ key })
-    })
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/api-key`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ key })
+      }).catch(e => {
+        throw new Error('Connection failed: Backend server unreachable.')
+      })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Failed to save API key')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Failed to save API key')
+      }
+
+      setCurrentKey('exists')
+    } catch (err: any) {
+      setError(err.message)
+      throw err
     }
-
-    setCurrentKey('exists')
   }
 
   const handleRemoveKey = async () => {
-    const session = await supabase.auth.getSession()
-    const token = session.data.session?.access_token
+    try {
+      const session = await supabase.auth.getSession()
+      const token = session.data.session?.access_token
+      if (!token) throw new Error('No active session')
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/api-key`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/api-key`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }).catch(e => {
+        throw new Error('Connection failed: Backend server unreachable.')
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Failed to remove API key')
       }
-    })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Failed to remove API key')
+      setCurrentKey(null)
+    } catch (err: any) {
+      setError(err.message)
+      throw err
     }
-
-    setCurrentKey(null)
   }
 
   const handleSignOut = async () => {

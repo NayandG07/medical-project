@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   plan TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'student', 'pro', 'admin')),
   role TEXT CHECK (role IN ('super_admin', 'admin', 'ops', 'support', 'viewer')),
   personal_api_key TEXT,
+  fallback_locks JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   disabled BOOLEAN NOT NULL DEFAULT FALSE
@@ -182,13 +183,30 @@ CREATE TABLE IF NOT EXISTS public.documents (
   file_size INTEGER,
   storage_path TEXT,
   processing_status TEXT DEFAULT 'pending' CHECK (processing_status IN ('pending', 'processing', 'completed', 'failed')),
+  processing_progress INTEGER DEFAULT 0,
+  processing_stage TEXT DEFAULT 'Pending',
   error_message TEXT,
   expires_at TIMESTAMPTZ,
   processed_at TIMESTAMPTZ,
   feature TEXT CHECK (feature IN ('chat', 'mcq', 'flashcard', 'explain', 'highyield')),
   file_hash TEXT,
+  total_chunks INTEGER DEFAULT 0,
+  chunks_with_embeddings INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT documents_file_type_check CHECK (
+      file_type IN (
+          'application/pdf',
+          'image/jpeg',
+          'image/jpg',
+          'image/png',
+          'image/gif',
+          'image/webp',
+          'text/plain',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ) OR file_type IS NULL
+  )
 );
 
 -- -----------------------------------------------------------------------------
@@ -200,7 +218,7 @@ CREATE TABLE IF NOT EXISTS public.document_chunks (
   document_id UUID NOT NULL REFERENCES public.documents(id) ON DELETE CASCADE,
   chunk_index INTEGER NOT NULL,
   content TEXT NOT NULL,
-  embedding VECTOR(384),
+  embedding VECTOR(4096),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -750,7 +768,67 @@ CREATE TABLE IF NOT EXISTS public.case_templates (
 
 
 -- ============================================================================
--- SECTION 8: SUBSCRIPTION & PAYMENT TABLES
+-- SECTION 8: MEDICAL IMAGES & SESSIONS TABLES
+-- ============================================================================
+
+-- -----------------------------------------------------------------------------
+-- Medical Images Table
+-- Stores medical images for AI-powered analysis and classification
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.medical_images (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    file_size BIGINT NOT NULL,
+    storage_path TEXT NOT NULL,
+    width INTEGER,
+    height INTEGER,
+    format TEXT,
+    category TEXT,
+    image_type TEXT,
+    body_region TEXT,
+    analysis_status TEXT NOT NULL DEFAULT 'pending',
+    analysis_text TEXT,
+    findings TEXT[],
+    clinical_impression TEXT,
+    error_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    analyzed_at TIMESTAMPTZ,
+    CONSTRAINT valid_analysis_status CHECK (analysis_status IN ('pending', 'analyzing', 'completed', 'failed'))
+);
+
+CREATE OR REPLACE VIEW public.medical_image_stats AS
+SELECT 
+    user_id,
+    COUNT(*) as total_images,
+    COUNT(CASE WHEN analysis_status = 'completed' THEN 1 END) as analyzed_images,
+    COUNT(CASE WHEN analysis_status = 'pending' THEN 1 END) as pending_images,
+    COUNT(CASE WHEN analysis_status = 'failed' THEN 1 END) as failed_images,
+    COUNT(DISTINCT category) as unique_categories,
+    SUM(file_size) as total_storage_bytes,
+    MAX(created_at) as last_upload_at
+FROM public.medical_images
+GROUP BY user_id;
+
+-- -----------------------------------------------------------------------------
+-- Image Analysis Sessions Table
+-- Stores history of all image analyses with clinical context
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.image_analysis_sessions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    image_filename TEXT NOT NULL,
+    analysis_result JSONB NOT NULL,
+    context TEXT,
+    image_preview TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+
+-- ============================================================================
+-- SECTION 9: SUBSCRIPTION & PAYMENT TABLES
 -- ============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -831,7 +909,20 @@ CREATE INDEX IF NOT EXISTS idx_documents_status ON public.documents(processing_s
 CREATE INDEX IF NOT EXISTS idx_documents_feature ON public.documents(feature);
 CREATE INDEX IF NOT EXISTS idx_documents_expires_at ON public.documents(expires_at);
 CREATE INDEX IF NOT EXISTS idx_documents_file_hash ON public.documents(file_hash);
+CREATE INDEX IF NOT EXISTS idx_documents_processing_status ON public.documents(processing_status);
+CREATE INDEX IF NOT EXISTS idx_documents_user_feature ON public.documents(user_id, feature);
 CREATE INDEX IF NOT EXISTS idx_document_chunks_document_id ON public.document_chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_users_fallback_locks ON public.users USING GIN (fallback_locks);
+
+-- Medical images & sessions indexes
+CREATE INDEX IF NOT EXISTS idx_medical_images_user_id ON public.medical_images(user_id);
+CREATE INDEX IF NOT EXISTS idx_medical_images_category ON public.medical_images(category);
+CREATE INDEX IF NOT EXISTS idx_medical_images_analysis_status ON public.medical_images(analysis_status);
+CREATE INDEX IF NOT EXISTS idx_medical_images_created_at ON public.medical_images(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_medical_images_image_type ON public.medical_images(image_type);
+CREATE INDEX IF NOT EXISTS idx_medical_images_body_region ON public.medical_images(body_region);
+CREATE INDEX IF NOT EXISTS idx_medical_images_analysis_text ON public.medical_images USING gin(to_tsvector('english', COALESCE(analysis_text, '')));
+CREATE INDEX IF NOT EXISTS idx_image_analysis_sessions_user_id ON public.image_analysis_sessions(user_id);
 
 -- RAG indexes
 CREATE INDEX IF NOT EXISTS idx_rag_logs_user_id ON public.rag_usage_logs(user_id);
@@ -891,9 +982,8 @@ CREATE INDEX IF NOT EXISTS idx_model_usage_logs_timestamp_provider ON public.mod
 CREATE INDEX IF NOT EXISTS idx_model_usage_logs_timestamp_feature ON public.model_usage_logs(timestamp DESC, feature);
 
 -- Vector similarity index for document chunks
--- Note: ivfflat index requires data to exist. Run this after inserting documents.
--- You may need to adjust 'lists' parameter based on data size (default 100 for small datasets)
-CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding ON public.document_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- Note: ivfflat index requires data to exist. Using HNSW for 4096 dims
+CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding ON public.document_chunks USING hnsw (embedding vector_cosine_ops);
 
 
 -- ============================================================================
@@ -953,7 +1043,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- RPC function for vector similarity search on document chunks
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION match_document_chunks(
-    query_embedding VECTOR(384),
+    query_embedding VECTOR(4096),
     match_count INT DEFAULT 5,
     filter_doc_ids UUID[] DEFAULT NULL
 )
@@ -1073,6 +1163,11 @@ DROP TRIGGER IF EXISTS update_api_keys_updated_at ON public.api_keys;
 CREATE TRIGGER update_api_keys_updated_at BEFORE UPDATE ON public.api_keys
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Image Analysis Sessions updated_at trigger
+DROP TRIGGER IF EXISTS update_image_analysis_sessions_updated_at ON public.image_analysis_sessions;
+CREATE TRIGGER update_image_analysis_sessions_updated_at BEFORE UPDATE ON public.image_analysis_sessions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- Auth user sync trigger
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -1114,6 +1209,8 @@ ALTER TABLE public.performance_metrics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_recommendations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.study_streaks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.study_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.medical_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.image_analysis_sessions ENABLE ROW LEVEL SECURITY;
 
 
 -- ============================================================================
@@ -1441,6 +1538,33 @@ CREATE POLICY audit_logs_insert_admin ON public.audit_logs FOR INSERT WITH CHECK
 
 DROP POLICY IF EXISTS audit_logs_select_admin ON public.audit_logs;
 CREATE POLICY audit_logs_select_admin ON public.audit_logs FOR SELECT USING (is_admin());
+
+-- -----------------------------------------------------------------------------
+-- Medical Images & Sessions Policies
+-- -----------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Users can view their own medical images" ON public.medical_images;
+CREATE POLICY "Users can view their own medical images" ON public.medical_images FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert their own medical images" ON public.medical_images;
+CREATE POLICY "Users can insert their own medical images" ON public.medical_images FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own medical images" ON public.medical_images;
+CREATE POLICY "Users can update their own medical images" ON public.medical_images FOR UPDATE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete their own medical images" ON public.medical_images;
+CREATE POLICY "Users can delete their own medical images" ON public.medical_images FOR DELETE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can view their own sessions" ON public.image_analysis_sessions;
+CREATE POLICY "Users can view their own sessions" ON public.image_analysis_sessions FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert their own sessions" ON public.image_analysis_sessions;
+CREATE POLICY "Users can insert their own sessions" ON public.image_analysis_sessions FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own sessions" ON public.image_analysis_sessions;
+CREATE POLICY "Users can update their own sessions" ON public.image_analysis_sessions FOR UPDATE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete their own sessions" ON public.image_analysis_sessions;
+CREATE POLICY "Users can delete their own sessions" ON public.image_analysis_sessions FOR DELETE USING (auth.uid() = user_id);
 
 -- -----------------------------------------------------------------------------
 -- Model Usage Logs Policies

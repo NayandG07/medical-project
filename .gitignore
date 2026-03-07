@@ -52,4 +52,10 @@ dist/
 *.egg
 .hypothesis
 
+# Temporary utility scripts
+backend/add_huggingface_key.py
+backend/insert_huggingface_keys.sql
+backend/test_*.py
+*.md
+
 gemini-access.json

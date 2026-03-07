@@ -83,14 +83,16 @@ class ClinicalReasoningEngine:
         user_id: str,
         specialty: str = "general_medicine",
         difficulty: str = "intermediate",
-        case_type: str = "clinical_reasoning"
+        case_type: str = "clinical_reasoning",
+        use_custom_condition: bool = False,
+        custom_condition: Optional[str] = None
     ) -> Dict[str, Any]:
         """Generate a structured clinical case with progressive disclosure"""
         from services.model_router import get_model_router_service
         
         router = get_model_router_service(self.supabase)
         
-        prompt = self._build_case_generation_prompt(specialty, difficulty)
+        prompt = self._build_case_generation_prompt(specialty, difficulty, use_custom_condition, custom_condition)
         
         provider = await router.select_provider("clinical")
         result = await router.execute_with_fallback(
@@ -144,7 +146,7 @@ class ClinicalReasoningEngine:
         # Return case without revealing answers
         return self._sanitize_case_for_user(created_case)
     
-    def _build_case_generation_prompt(self, specialty: str, difficulty: str) -> str:
+    def _build_case_generation_prompt(self, specialty: str, difficulty: str, use_custom_condition: bool = False, custom_condition: Optional[str] = None) -> str:
         """Build prompt for clinical case generation based on parameters"""
         
         complexity_guidelines = {
@@ -223,9 +225,18 @@ class ClinicalReasoningEngine:
         
         conditions = specialty_conditions.get(specialty, specialty_conditions["general_medicine"])
         
-        # Add explicit randomization
-        import random
-        suggested_condition = random.choice(conditions)
+        # Handle custom condition or random selection
+        if use_custom_condition and custom_condition:
+            suggested_condition = custom_condition
+            condition_instruction = f"- You MUST create a case for this SPECIFIC condition: {custom_condition}"
+        else:
+            # Add explicit randomization
+            import random
+            suggested_condition = random.choice(conditions)
+            condition_instruction = f"""- You MUST choose ONE condition from this list: {', '.join(conditions)}
+- SUGGESTED condition for THIS case: {suggested_condition}
+- DO NOT default to common conditions like MI or chest pain
+- Use the FULL variety of conditions provided"""
         
         return f"""Generate a UNIQUE, realistic clinical case for MBBS students in {specialty} at {difficulty} level.
 
@@ -235,10 +246,7 @@ CRITICAL REQUIREMENTS:
 - Complexity: {complexity_guidelines.get(difficulty, complexity_guidelines["intermediate"])}
 
 CONDITION SELECTION:
-- You MUST choose ONE condition from this list: {', '.join(conditions)}
-- SUGGESTED condition for THIS case: {suggested_condition}
-- DO NOT default to common conditions like MI or chest pain
-- Use the FULL variety of conditions provided
+{condition_instruction}
 - Make each case unique and different
 
 PATIENT VARIATION:
@@ -342,6 +350,14 @@ IMPORTANT:
 - No markdown formatting
 - Make it specific to {specialty} and appropriate for {difficulty} level
 
+CRITICAL JSON RULES:
+- Use only valid escape sequences: \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t
+- DO NOT use invalid escapes like \\1, \\2, etc.
+- If you need to include a backslash, use \\\\
+- All strings must be properly quoted
+- No trailing commas
+- No comments
+
 Ensure the case is medically accurate, educational, and UNIQUE."""
 
     def _get_case_generation_system_prompt(self) -> str:
@@ -357,11 +373,22 @@ Your cases must be:
 Always respond with valid JSON only. No markdown formatting or explanation text."""
 
     def _parse_json_response(self, content: str) -> Dict[str, Any]:
-        """Extract and parse JSON from AI response"""
+        """Extract and parse JSON from AI response with robust error handling"""
         import re
+        import time
         
         original_content = content
         content = content.strip()
+        
+        # Log the raw content for debugging
+        logger.debug(f"Parsing JSON response (length: {len(content)} chars)")
+        logger.debug(f"First 200 chars: {content[:200]}")
+        
+        # First, try direct JSON parsing (fastest path)
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            logger.debug("Direct JSON parse failed, trying extraction methods")
         
         # Try to extract JSON from markdown code blocks
         if "```json" in content:
@@ -369,11 +396,21 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
             end = content.find("```", start)
             if end != -1:
                 content = content[start:end].strip()
+                logger.debug("Extracted JSON from ```json``` block")
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError:
+                    logger.debug("Extracted JSON still invalid, continuing cleanup")
         elif "```" in content:
             start = content.find("```") + 3
             end = content.find("```", start)
             if end != -1:
                 content = content[start:end].strip()
+                logger.debug("Extracted JSON from ``` block")
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError:
+                    logger.debug("Extracted JSON still invalid, continuing cleanup")
         
         # Remove comments BEFORE extracting JSON (they might be after the JSON)
         # Remove single-line comments (// ...)
@@ -416,19 +453,127 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
                             content = content[first_brace:i + 1]
                             break
         
+        # AGGRESSIVE CLEANUP FOR COMMON AI ERRORS
+        
+        # Fix invalid escape sequences like \1, \2, etc. (not valid JSON escapes)
+        # Valid JSON escapes are: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
+        # Replace invalid escapes with empty string or safe placeholder
+        def fix_invalid_escapes(match):
+            escaped_char = match.group(1)
+            # Check if it's a valid JSON escape
+            if escaped_char in ['"', '\\', '/', 'b', 'f', 'n', 'r', 't']:
+                return match.group(0)  # Keep valid escapes
+            elif escaped_char == 'u':
+                return match.group(0)  # Keep unicode escapes
+            else:
+                # Invalid escape - remove the backslash
+                logger.warning(f"Removing invalid escape sequence: \\{escaped_char}")
+                return escaped_char
+        
+        content = re.sub(r'\\(.)', fix_invalid_escapes, content)
+        
+        # Fix unclosed strings (missing closing quote before comma or brace)
+        # Pattern: "key": "value without closing quote,
+        # This is tricky - we need to find strings that end abruptly
+        
+        # First, fix the common case of quotes inside string values that aren't escaped
+        # Pattern: "text", more text" should be "text, more text"
+        # We need to be careful not to break valid JSON
+        
+        # Strategy: Find patterns where we have ": "text", text" and fix to ": "text, text"
+        # This handles cases like "Hello", nice to meet you" -> "Hello, nice to meet you"
+        def fix_unescaped_quotes_in_strings(text):
+            """Fix unescaped quotes inside string values"""
+            # Pattern: ": "word", more words continuing until next proper quote
+            # Look for: ": "text", text" where the comma after first quote shouldn't be there
+            
+            # Find all string value patterns
+            pattern = r':\s*"([^"]*)",\s*([^"]*?)"'
+            
+            def replacer(match):
+                first_part = match.group(1)
+                second_part = match.group(2)
+                # Check if second_part looks like it should be part of the same string
+                # (doesn't start with a key name pattern)
+                if not re.match(r'^\s*"[a-zA-Z_][a-zA-Z0-9_]*"\s*:', second_part):
+                    # It's likely a continuation of the string, not a new key
+                    return f': "{first_part}, {second_part}"'
+                return match.group(0)
+            
+            return re.sub(pattern, replacer, text)
+        
+        content = fix_unescaped_quotes_in_strings(content)
+        
+        # Also handle the pattern where quotes appear mid-sentence
+        # "text" word" should be "text word"
+        # But be careful not to break "text","key": patterns
+        content = re.sub(r'([a-z])"(\s+[a-z])', r'\1\2', content, flags=re.IGNORECASE)
+        
         # Remove any trailing commas before closing braces/brackets (common JSON error)
         content = re.sub(r',(\s*[}\]])', r'\1', content)
         
-        # Fix common AI mistakes - remove placeholder text like "...omitted for brevity..."
-        content = re.sub(r'\[\.\.\.omitted for brevity\.\.\.\]', '[]', content)
-        content = re.sub(r'\[\.\.\..*?\.\.\.\]', '[]', content)
-        content = re.sub(r'\.\.\.omitted.*?\.\.\.', '', content)
-        content = re.sub(r'\.\.\.', '', content)
+        # Fix duplicate keys by renaming them with _N suffix
+        def fix_duplicate_keys(json_str):
+            """Fix duplicate keys in JSON by renaming them"""
+            key_counts = {}
+            lines = []
+            
+            for line in json_str.split('\n'):
+                # Find key definitions
+                key_match = re.search(r'"([^"]+)"\s*:', line)
+                if key_match:
+                    key = key_match.group(1)
+                    if key in key_counts:
+                        key_counts[key] += 1
+                        new_key = f"{key}_{key_counts[key]}"
+                        line = line.replace(f'"{key}":', f'"{new_key}":', 1)
+                        logger.warning(f"Renamed duplicate key '{key}' to '{new_key}'")
+                    else:
+                        key_counts[key] = 0
+                lines.append(line)
+            
+            return '\n'.join(lines)
+        
+        content = fix_duplicate_keys(content)
+        
+        # Fix missing commas between string values and keys (the main issue)
+        # Pattern: "value""key" should be "value","key"
+        content = re.sub(r'"\s*"([a-zA-Z_][a-zA-Z0-9_]*)"', r'","\1"', content)
+        
+        # Fix missing commas between closing brace/bracket and opening quote
+        # Pattern: }"key" should be },"key"  or ]"key" should be ],"key"
+        content = re.sub(r'([}\]])\s*"', r'\1,"', content)
+        
+        # Fix missing commas between number and opening quote
+        # Pattern: 123"key" should be 123,"key"
+        content = re.sub(r'(\d)\s*"([a-zA-Z_])', r'\1,"\2', content)
+        
+        # Fix missing commas between closing quote and opening quote (array elements)
+        # Pattern: "value" "value" should be "value", "value"
+        # This needs to be more aggressive to catch all cases
+        content = re.sub(r'"\s+(?=")', r'", ', content)
+        
+        # Fix missing commas between ] and "
+        # Pattern: ] "text" should be ], "text"
+        content = re.sub(r'\]\s*"', r'], "', content)
+        
+        # Fix missing commas between } and "
+        # Pattern: } "text" should be }, "text"
+        content = re.sub(r'\}\s*"', r'}, "', content)
+        
+        # Remove spaces before ] and }
+        content = re.sub(r'"\s+\]', r'"]', content)
+        content = re.sub(r'"\s+\}', r'"}', content)
+        
+        # Fix unquoted property names (JavaScript-style to JSON)
+        # Pattern: ,timing: "value" should be ,"timing": "value"
+        # Pattern: {timing: "value" should be {"timing": "value"
+        content = re.sub(r'([,{]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', content)
         
         try:
             return json.loads(content)
         except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing failed: {e}")
+            logger.error(f"JSON parsing failed after cleanup: {e}")
             
             # Log the problematic area around the error position
             error_pos = e.pos if hasattr(e, 'pos') else 0
@@ -439,30 +584,33 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
             logger.error(f"Full content length: {len(content)} chars")
             logger.error(f"Original content length: {len(original_content)} chars")
             
-            # Try more aggressive cleanup
+            # Save the problematic content to a file for debugging
             try:
-                # Try json5 parser which is more lenient
-                try:
-                    import json5
-                    return json5.loads(content)
-                except ImportError:
-                    pass
-                
-                # Last resort: try to manually fix the JSON
-                logger.warning("Attempting manual JSON repair...")
-                
-                # Try to fix by removing problematic characters around error position
-                if error_pos > 0 and error_pos < len(content):
-                    # Check if it's a quote issue
-                    problem_area = content[max(0, error_pos-50):min(len(content), error_pos+50)]
-                    logger.error(f"Problem area: {problem_area}")
-                
-                # If all else fails, return a minimal valid structure
-                raise Exception(f"Failed to parse AI response as JSON: {str(e)}. Error at position {error_pos}. The AI may have generated malformed JSON. Check logs for details.")
-                
-            except Exception as e3:
-                logger.error(f"All JSON parsing attempts failed: {str(e3)}")
-                raise Exception(f"Failed to parse AI response as JSON: {str(e)}. Error at position {error_pos}. Check logs for details.")
+                import os
+                debug_dir = "debug_json_errors"
+                os.makedirs(debug_dir, exist_ok=True)
+                debug_file = os.path.join(debug_dir, f"error_{error_pos}_{int(time.time())}.json")
+                with open(debug_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                logger.error(f"Saved problematic JSON to {debug_file}")
+            except Exception as save_error:
+                logger.warning(f"Failed to save debug file: {save_error}")
+            
+            # Try json5 parser which is more lenient
+            try:
+                import json5
+                logger.info("Attempting to parse with json5...")
+                return json5.loads(content)
+            except ImportError:
+                logger.warning("json5 not available")
+            except Exception as json5_error:
+                logger.warning(f"json5 parsing also failed: {json5_error}")
+            
+            # Last resort: try to manually fix the JSON
+            logger.warning("Attempting manual JSON repair...")
+            
+            # If all else fails, return a minimal valid structure
+            raise Exception(f"Failed to parse AI response as JSON: {str(e)}. Error at position {error_pos}. Check logs for details.")
     
     def _sanitize_case_for_user(self, case: Dict[str, Any]) -> Dict[str, Any]:
         """Remove answer fields from case before sending to user"""
@@ -613,13 +761,13 @@ Always respond with valid JSON only. No markdown formatting or explanation text.
     ) -> Dict[str, Any]:
         """Evaluate a user's reasoning step using AI"""
         
-        prompt = f"""Evaluate this medical student's clinical reasoning response.
+        prompt = f"""You are evaluating a medical student's clinical reasoning. Analyze their response and provide structured feedback.
 
 CASE CONTEXT:
-Chief Complaint: {case.get('chief_complaint')}
-Current Stage: {current_stage + 1}
-Specialty: {case.get('specialty')}
-Difficulty: {case.get('difficulty')}
+- Chief Complaint: {case.get('chief_complaint')}
+- Current Stage: {current_stage + 1}
+- Specialty: {case.get('specialty')}
+- Difficulty: {case.get('difficulty')}
 
 STEP TYPE: {step_type}
 
@@ -633,35 +781,95 @@ EVALUATION CRITERIA:
 4. Recognition of red flags
 5. Evidence-based thinking
 
-Provide evaluation as JSON:
+CRITICAL INSTRUCTIONS:
+- Return ONLY a JSON object
+- Do NOT wrap in markdown code blocks
+- Do NOT include any explanatory text before or after the JSON
+- The "feedback" field should contain a brief paragraph of text, NOT a JSON structure
+- Score from 0-100
+
+Required JSON structure:
 {{
   "score": 85,
-  "feedback": "Overall assessment of the response",
-  "strengths": ["Point 1", "Point 2"],
-  "improvements": ["Area 1", "Area 2"],
-  "missed_points": ["Important consideration missed"],
-  "model_answer": "The ideal response would include...",
+  "feedback": "Write a brief paragraph here assessing the overall response quality",
+  "strengths": ["Specific strength 1", "Specific strength 2"],
+  "improvements": ["Area to improve 1", "Area to improve 2"],
+  "missed_points": ["Important point missed"],
+  "model_answer": "Describe what an ideal response would include",
   "advance_stage": true,
-  "clinical_tips": ["Teaching point 1"]
-}}
-
-Be constructive but rigorous. Score 0-100."""
+  "clinical_tips": ["Teaching point 1", "Teaching point 2"]
+}}"""
 
         provider = await router.select_provider("clinical")
         result = await router.execute_with_fallback(
             provider=provider,
             feature="clinical",
             prompt=prompt,
-            system_prompt="You are a senior clinical examiner evaluating medical students. Provide constructive, evidence-based feedback. Respond with JSON only."
+            system_prompt="You are a clinical examiner. Return ONLY valid JSON. Do not use markdown formatting. Do not wrap JSON in code blocks. The feedback field must be plain text, not a JSON structure."
         )
         
         if not result["success"]:
-            return {"score": 50, "feedback": "Evaluation error", "advance_stage": True}
+            return {
+                "score": 50,
+                "feedback": "Evaluation service temporarily unavailable. Your response has been recorded.",
+                "strengths": [],
+                "improvements": [],
+                "missed_points": [],
+                "model_answer": "",
+                "advance_stage": True,
+                "clinical_tips": []
+            }
         
         try:
-            return self._parse_json_response(result["content"])
-        except:
-            return {"score": 50, "feedback": result["content"], "advance_stage": True}
+            parsed = self._parse_json_response(result["content"])
+            
+            # Validate that feedback is a string, not a dict or other structure
+            feedback = parsed.get("feedback", "")
+            if isinstance(feedback, dict) or isinstance(feedback, list):
+                logger.warning(f"Feedback field is not a string: {type(feedback)}. Converting to string.")
+                feedback = "Response evaluated. Please review the detailed feedback below."
+            
+            # Check if feedback contains JSON-like structure and clean it
+            feedback_str = str(feedback)
+            if feedback_str.strip().startswith('{') or feedback_str.strip().startswith('['):
+                logger.warning("Feedback appears to contain JSON structure. Extracting text content.")
+                try:
+                    # Try to parse it and extract meaningful text
+                    nested_json = json.loads(feedback_str)
+                    if isinstance(nested_json, dict):
+                        # Extract the actual feedback from nested structure
+                        feedback = nested_json.get('feedback', 'Response evaluated.')
+                    else:
+                        feedback = "Response evaluated. Please review the detailed feedback below."
+                except:
+                    # If it's not valid JSON, just use a default message
+                    feedback = "Response evaluated. Please review the detailed feedback below."
+            
+            # Ensure all required fields exist with proper types
+            return {
+                "score": int(parsed.get("score", 50)),
+                "feedback": str(feedback),
+                "strengths": list(parsed.get("strengths", [])),
+                "improvements": list(parsed.get("improvements", [])),
+                "missed_points": list(parsed.get("missed_points", [])),
+                "model_answer": str(parsed.get("model_answer", "")),
+                "advance_stage": bool(parsed.get("advance_stage", True)),
+                "clinical_tips": list(parsed.get("clinical_tips", []))
+            }
+        except Exception as e:
+            logger.error(f"Failed to parse evaluation response: {str(e)}")
+            logger.error(f"Raw content: {result.get('content', '')[:500]}")
+            # Return a safe fallback
+            return {
+                "score": 50,
+                "feedback": "Unable to parse evaluation. Your response has been recorded. Please try submitting again.",
+                "strengths": [],
+                "improvements": [],
+                "missed_points": [],
+                "model_answer": "",
+                "advance_stage": True,
+                "clinical_tips": []
+            }
     
     # =========================================================================
     # OSCE SIMULATION
@@ -672,14 +880,16 @@ Be constructive but rigorous. Score 0-100."""
         user_id: str,
         scenario_type: str = "history_taking",
         specialty: str = "general_medicine",
-        difficulty: str = "intermediate"
+        difficulty: str = "intermediate",
+        use_custom_condition: bool = False,
+        custom_condition: Optional[str] = None
     ) -> Dict[str, Any]:
         """Create an OSCE examination scenario"""
         from services.model_router import get_model_router_service
         
         router = get_model_router_service(self.supabase)
         
-        prompt = self._build_osce_generation_prompt(scenario_type, specialty, difficulty)
+        prompt = self._build_osce_generation_prompt(scenario_type, specialty, difficulty, use_custom_condition, custom_condition)
         
         provider = await router.select_provider("osce")
         result = await router.execute_with_fallback(
@@ -718,7 +928,7 @@ Be constructive but rigorous. Score 0-100."""
         
         return self._sanitize_osce_for_user(response.data[0])
     
-    def _build_osce_generation_prompt(self, scenario_type: str, specialty: str, difficulty: str) -> str:
+    def _build_osce_generation_prompt(self, scenario_type: str, specialty: str, difficulty: str, use_custom_condition: bool = False, custom_condition: Optional[str] = None) -> str:
         """Build prompt for OSCE scenario generation based on parameters"""
         
         # Define scenario-specific guidance
@@ -790,9 +1000,18 @@ Be constructive but rigorous. Score 0-100."""
         guidance = scenario_guidance.get(scenario_type, "Create a realistic clinical scenario")
         complexity = difficulty_guidance.get(difficulty, difficulty_guidance["intermediate"])
         
-        # Add explicit instruction to pick randomly
-        import random
-        suggested_condition = random.choice(conditions)
+        # Handle custom condition or random selection
+        if use_custom_condition and custom_condition:
+            suggested_condition = custom_condition
+            condition_instruction = f"- You MUST create a scenario for this SPECIFIC condition: {custom_condition}"
+        else:
+            # Add explicit instruction to pick randomly
+            import random
+            suggested_condition = random.choice(conditions)
+            condition_instruction = f"""- You MUST choose ONE condition from this list: {', '.join(conditions)}
+- SUGGESTED condition for THIS scenario: {suggested_condition}
+- DO NOT default to chest pain or common conditions - use the full variety
+- Vary the presentation each time"""
         
         return f"""Generate a UNIQUE OSCE scenario for {scenario_type} in {specialty} at {difficulty} level.
 
@@ -804,10 +1023,7 @@ CRITICAL REQUIREMENTS:
 - {complexity}
 
 CONDITION SELECTION:
-- You MUST choose ONE condition from this list: {', '.join(conditions)}
-- SUGGESTED condition for THIS scenario: {suggested_condition}
-- DO NOT default to chest pain or common conditions - use the full variety
-- Vary the presentation each time
+{condition_instruction}
 
 PATIENT VARIATION:
 - Create DIFFERENT patient demographics each time
@@ -831,7 +1047,7 @@ Generate JSON with this EXACT structure:
     "severity": "mild/moderate/severe"
   }},
   "patient_script": {{
-    "opening": "Patient's opening statement in their own words",
+    "opening": "Brief initial greeting or single chief complaint only (e.g., 'Hello doctor, I've been having chest pain' - DO NOT reveal full history)",
     "responses": {{
       "relevant_question_1": "Natural response to expected question",
       "relevant_question_2": "Natural response to expected question",
@@ -858,8 +1074,22 @@ IMPORTANT:
 - Make patient responses realistic and contextual
 - Vary complexity based on difficulty level
 - Make it educationally valuable and clinically realistic
+- CRITICAL: Patient opening statement should be BRIEF (1-2 sentences max) - just a greeting and chief complaint
+- Patient should NOT reveal full history, symptoms, or details in opening - these come out through questioning
+- Example good opening: "Hello doctor, I've been having some chest discomfort"
+- Example BAD opening: "Hello doctor, I've been having chest pain for 3 days that radiates to my left arm, with shortness of breath and nausea"
 
-Output ONLY valid JSON, no explanations."""
+Output ONLY valid JSON, no explanations.
+
+CRITICAL JSON RULES:
+- Use only valid escape sequences: \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t
+- DO NOT use invalid escapes like \\1, \\2, etc.
+- DO NOT use unescaped quotes (") inside string values - use apostrophes (') for dialogue
+- If you need to include a backslash, use \\\\
+- All strings must be properly quoted
+- No trailing commas
+- No comments
+- No duplicate keys in objects"""
     
     def _sanitize_osce_for_user(self, scenario: Dict[str, Any]) -> Dict[str, Any]:
         """Remove examiner-only fields from scenario"""
@@ -918,35 +1148,42 @@ RECENT INTERACTIONS:
 STUDENT'S ACTION:
 {user_action}
 
-INSTRUCTIONS:
-1. Respond ONLY with valid JSON - no comments or extra text
-2. patient_response: What the patient says naturally in response to THIS specific action only
-3. checklist_triggered: Array of EXACT item names from the checklist above that THIS action satisfies
-4. examiner_notes: Brief note about what the student did (for internal tracking)
-5. next_step_hint: Optional subtle hint if student seems stuck (keep it realistic)
+CRITICAL JSON FORMATTING RULES:
+1. Return ONLY valid JSON - no markdown, no code blocks, no extra text
+2. Do NOT use quotes (") inside string values - use apostrophes (') instead
+3. Do NOT use commas followed by text inside string values
+4. Ensure all string values are properly enclosed in quotes
+5. Do NOT include any text before or after the JSON object
 
-IMPORTANT: 
-- Patient should respond ONLY to the current question/action, not reveal everything at once
-- Use EXACT item names from checklist (copy-paste them)
-- Only mark items as triggered if the student's action clearly satisfies them
-- Keep patient responses natural and conversational
-
-JSON format:
+RESPONSE STRUCTURE:
 {{
-  "patient_response": "Natural response to the current action only",
-  "examiner_notes": "What the student did in this interaction",
+  "patient_response": "Natural response using apostrophes for quotes",
+  "examiner_notes": "Brief note about student action",
   "checklist_triggered": ["Exact item name from checklist"],
   "next_step_hint": null
 }}
 
-Example: If student says "Hello, I'm Dr. Smith", patient might say "Hello Doctor" and checklist_triggered would include "Introduces self and confirms patient identity" if that exact phrase is in the checklist."""
+CONTENT GUIDELINES:
+- Patient should respond ONLY to the current question/action
+- Use EXACT item names from checklist (copy-paste them)
+- Only mark items as triggered if student's action clearly satisfies them
+- Keep patient responses natural and conversational
+- Use apostrophes (') instead of quotes (") in dialogue
+
+Example: If student says "Hello I am Dr Smith", respond with:
+{{
+  "patient_response": "Hello Doctor. Nice to meet you.",
+  "examiner_notes": "Student introduced themselves appropriately",
+  "checklist_triggered": ["Introduces self and confirms patient identity"],
+  "next_step_hint": null
+}}"""
 
         provider = await router.select_provider("osce")
         result = await router.execute_with_fallback(
             provider=provider,
             feature="osce",
             prompt=prompt,
-            system_prompt="You are simulating an OSCE examination. Respond as a realistic patient. Output ONLY valid JSON with no comments or extra text."
+            system_prompt="You are simulating an OSCE patient. Return ONLY valid JSON. Do NOT use quotes inside string values - use apostrophes instead. Do NOT wrap JSON in markdown code blocks."
         )
         
         if not result["success"]:

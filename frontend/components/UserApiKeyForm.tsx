@@ -317,7 +317,7 @@ export default function UserApiKeyForm({ currentKey, onSubmit, onRemove }: UserA
           style={{
             width: '100%',
             padding: '14px',
-            backgroundColor: '#6366f1',
+            background: (submitting || removing || !key) ? '#6366f1' : 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
             color: 'white',
             border: 'none',
             borderRadius: '14px',
@@ -325,7 +325,7 @@ export default function UserApiKeyForm({ currentKey, onSubmit, onRemove }: UserA
             fontSize: '1rem',
             fontWeight: '700',
             transition: 'all 0.2s',
-            boxShadow: (submitting || removing || !key) ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.25)',
+            boxShadow: (submitting || removing || !key) ? 'none' : '0 8px 24px rgba(99, 102, 241, 0.35)',
             opacity: (submitting || removing || !key) ? 0.6 : 1
           }}
           onMouseOver={(e) => {

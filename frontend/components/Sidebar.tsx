@@ -9,7 +9,7 @@ interface SidebarProps {
   currentPath: string
   collapsed?: boolean
   onToggle?: (collapsed: boolean) => void
-  plan?: string
+  plan?: string | null
 }
 
 // Store collapsed state globally to persist across pages
@@ -26,7 +26,7 @@ const getPlanLabel = (plan: string = 'free') => {
   return plans[plan.toLowerCase()] || 'Standard Plan'
 }
 
-export default function Sidebar({ user, currentPath, collapsed: controlledCollapsed, onToggle, plan = 'free' }: SidebarProps) {
+export default function Sidebar({ user, currentPath, collapsed: controlledCollapsed, onToggle, plan }: SidebarProps) {
   const router = useRouter()
   const [isCollapsed, setIsCollapsed] = useState(globalCollapsed)
 
@@ -54,6 +54,7 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
     { name: 'Concept Map', path: '/conceptmap', icon: '🗺️' },
     { name: 'Clinical Cases', path: '/clinical-cases', icon: '🏥' },
     { name: 'OSCE Simulator', path: '/osce', icon: '👨‍⚕️' },
+    { name: 'Image Analysis', path: '/image-analysis', icon: '🔬' },
     { name: 'Study Planner', path: '/study-planner', icon: '📅' },
     { name: 'Documents', path: '/documents', icon: '📄' },
     { name: 'Profile', path: '/profile', icon: '👤' },
@@ -63,18 +64,22 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
   const sidebarWidth = isCollapsed ? '70px' : '240px'
   const nameMaxWidth = '160px'
 
+  const userInitial = user ? (user.user_metadata?.name || user.email)?.[0].toUpperCase() : 'U'
+
   return (
     <div className="sidebar-container" data-lenis-prevent>
       {/* Logo & Toggle */}
       <div className="sidebar-header">
-        <div className="logo-section">
-          <div className="logo-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-            </svg>
+        <Link href="/dashboard" className="logo-link">
+          <div className="logo-section">
+            <div className="logo-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+              </svg>
+            </div>
+            {!isCollapsed && <span className="logo-text">Vaidya AI</span>}
           </div>
-          {!isCollapsed && <span className="logo-text">Vaidya AI</span>}
-        </div>
+        </Link>
 
         {!isCollapsed && (
           <button onClick={handleToggle} className="toggle-btn" title="Collapse sidebar">
@@ -110,13 +115,13 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
       <div className="sidebar-footer">
         {isCollapsed ? (
           <div className="user-avatar-small">
-            {user ? (user.user_metadata?.name || user.email)?.[0].toUpperCase() : '?'}
+            {userInitial}
           </div>
         ) : (
           <div className="user-full-card">
             <div className="user-info-row">
               <div className="user-avatar">
-                {user ? (user.user_metadata?.name || user.email)?.[0].toUpperCase() : '?'}
+                {userInitial}
               </div>
               <div className="user-text">
                 <p
@@ -126,7 +131,7 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
                 >
                   {user ? (user.user_metadata?.name || user.email?.split('@')[0]) : 'Loading...'}
                 </p>
-                <p className="user-subtext">{getPlanLabel(plan)}</p>
+                <p className="user-subtext">{getPlanLabel(plan || 'free')}</p>
               </div>
 
 
@@ -134,8 +139,8 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
 
             {/* Token Meter Removed */}
 
-            {/* Only show upgrade button for free users */}
-            {plan.toLowerCase() === 'free' && (
+            {/* Only show upgrade button for free users, and only when plan is confirmed */}
+            {plan?.toLowerCase() === 'free' && (
               <button onClick={() => router.push('/upgrade')} className="upgrade-button">
                 Upgrade Plan
               </button>
@@ -166,6 +171,12 @@ export default function Sidebar({ user, currentPath, collapsed: controlledCollap
           align-items: center;
           justify-content: ${isCollapsed ? 'center' : 'space-between'};
           min-height: 70px;
+        }
+
+        .logo-link {
+          text-decoration: none;
+          display: block;
+          cursor: pointer;
         }
 
         .logo-section {

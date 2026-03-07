@@ -18,15 +18,29 @@ export default function LandingFooter() {
         const fetchSettings = async () => {
             const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
             try {
-                const res = await fetch(`${API_URL}/api/system/settings`)
-                if (res.ok) {
+                // Use a short timeout to prevent long hanging requests if server is down
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                
+                const res = await fetch(`${API_URL}/api/system/settings`, {
+                    signal: controller.signal
+                }).catch(() => {
+                   // Silently fail if server is unreachable
+                   return null;
+                });
+                
+                clearTimeout(timeoutId);
+
+                if (res && res.ok) {
                     const data = await res.json()
                     if (data.support_email) {
                         setSupportEmail(data.support_email)
                     }
                 }
             } catch (error) {
-                console.error("Failed to fetch settings:", error)
+                // If it's an abort error or other fetch error, we just log it normally
+                // This prevents the global "Failed to fetch" error overlay in some environments
+                console.log("System settings fetch status: Server unavailable or request timed out");
             }
         }
 

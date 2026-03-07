@@ -18,7 +18,7 @@ const styles = {
   toolDesc: "text-sm opacity-90",
   inputSection: "flex gap-4 mb-8 max-md:flex-col",
   topicInput: "flex-1 px-6 py-4 border-2 border-slate-300 rounded-xl text-base transition-colors focus:outline-none focus:border-medical-indigo text-slate-900 placeholder:text-slate-400",
-  generateBtn: "bg-gradient-to-br from-medical-indigo to-medical-purple text-white border-0 px-10 py-4 rounded-xl text-base font-bold cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(102,126,234,0.5)] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap max-md:w-full shadow-md",
+  generateBtn: "bg-gradient-to-br from-[#6366F1] to-[#4F46E5] text-white border-0 px-10 py-4 rounded-xl text-base font-bold cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(99,102,241,0.35)] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap max-md:w-full shadow-md",
   error: "bg-red-50 text-red-700 p-4 rounded-lg mb-4 border-l-4 border-red-600 font-medium",
   resultCard: "bg-white rounded-xl p-8 shadow-lg border border-slate-300",
   resultHeader: "flex justify-between items-center mb-6 pb-4 border-b-2 border-slate-300",
@@ -79,7 +79,7 @@ export default function StudyTools() {
 
       // Call the appropriate study tool endpoint directly
       const endpoint = getToolEndpoint(selectedTool)
-      
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/study-tools/${endpoint}`,
         {
@@ -88,14 +88,16 @@ export default function StudyTools() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             topic: topic,
             format: 'interactive'  // Request interactive format
           })
         }
-      )
+      ).catch(err => {
+        throw new Error('Connection failed. Backend server might be offline.')
+      })
 
-      if (!response.ok) {
+      if (response && !response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.detail?.error?.message || 'Failed to generate content')
       }
@@ -143,103 +145,103 @@ export default function StudyTools() {
       </Head>
       <DashboardLayout user={user}>
         <div className={styles.container}>
-        <div className={styles.header}>
-          <h1>Study Tools 📚</h1>
-          <p>Generate custom study materials for any medical topic</p>
-        </div>
-
-        <div className={styles.toolSelector}>
-          {tools.map((tool) => (
-            <button
-              key={tool.id}
-              className={`${styles.toolBtn} ${selectedTool === tool.id ? styles.toolBtnActive : ''}`}
-              onClick={() => setSelectedTool(tool.id as ToolType)}
-            >
-              <span className={styles.toolIcon}>{tool.icon}</span>
-              <span className={styles.toolName}>{tool.name}</span>
-              <span className={styles.toolDesc}>{tool.description}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className={styles.inputSection}>
-          <input
-            type="text"
-            placeholder="Enter a medical topic (e.g., 'cardiac cycle', 'diabetes mellitus')"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
-            className={styles.topicInput}
-          />
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className={styles.generateBtn}
-          >
-            {generating ? 'Generating...' : 'Generate'}
-          </button>
-        </div>
-
-        {error && (
-          <div className={styles.error}>
-            ⚠️ {error}
+          <div className={styles.header}>
+            <h1>Study Tools 📚</h1>
+            <p>Generate custom study materials for any medical topic</p>
           </div>
-        )}
 
-        {result && (
-          <div className={styles.resultCard}>
-            <div className={styles.resultHeader}>
-              <h3>Generated Content</h3>
+          <div className={styles.toolSelector}>
+            {tools.map((tool) => (
               <button
-                onClick={() => {
-                  setResult(null)
-                  setTopic('')
-                }}
-                className={styles.clearBtn}
+                key={tool.id}
+                className={`${styles.toolBtn} ${selectedTool === tool.id ? styles.toolBtnActive : ''}`}
+                onClick={() => setSelectedTool(tool.id as ToolType)}
               >
-                Clear
+                <span className={styles.toolIcon}>{tool.icon}</span>
+                <span className={styles.toolName}>{tool.name}</span>
+                <span className={styles.toolDesc}>{tool.description}</span>
               </button>
+            ))}
+          </div>
+
+          <div className={styles.inputSection}>
+            <input
+              type="text"
+              placeholder="Enter a medical topic (e.g., 'cardiac cycle', 'diabetes mellitus')"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
+              className={styles.topicInput}
+            />
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className={styles.generateBtn}
+            >
+              {generating ? 'Generating...' : 'Generate'}
+            </button>
+          </div>
+
+          {error && (
+            <div className={styles.error}>
+              ⚠️ {error}
             </div>
-            <div className={styles.resultContent}>
-              {selectedTool === 'conceptmap' ? (
-                (() => {
-                  const { nodes, connections } = parseClinicalMapData(result.content)
-                  return (
-                    <ClinicalMapViewer
-                      title={topic}
-                      nodes={nodes}
-                      connections={connections}
-                    />
-                  )
-                })()
-              ) : (
-                <div dangerouslySetInnerHTML={{ __html: parseMarkdown(result.content) }} />
+          )}
+
+          {result && (
+            <div className={styles.resultCard}>
+              <div className={styles.resultHeader}>
+                <h3>Generated Content</h3>
+                <button
+                  onClick={() => {
+                    setResult(null)
+                    setTopic('')
+                  }}
+                  className={styles.clearBtn}
+                >
+                  Clear
+                </button>
+              </div>
+              <div className={styles.resultContent}>
+                {selectedTool === 'conceptmap' ? (
+                  (() => {
+                    const { nodes, connections } = parseClinicalMapData(result.content)
+                    return (
+                      <ClinicalMapViewer
+                        title={topic}
+                        nodes={nodes}
+                        connections={connections}
+                      />
+                    )
+                  })()
+                ) : (
+                  <div dangerouslySetInnerHTML={{ __html: parseMarkdown(result.content) }} />
+                )}
+              </div>
+              {result.citations && (
+                <div className={styles.citations}>
+                  <h4>Sources:</h4>
+                  {result.citations.sources?.map((source: any, idx: number) => (
+                    <div key={idx} className={styles.citation}>
+                      📄 {source.document_filename}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-            {result.citations && (
-              <div className={styles.citations}>
-                <h4>Sources:</h4>
-                {result.citations.sources?.map((source: any, idx: number) => (
-                  <div key={idx} className={styles.citation}>
-                    📄 {source.document_filename}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+          )}
 
-        {!result && !generating && (
-          <div className={styles.placeholder}>
-            <div className={styles.placeholderIcon}>
-              {tools.find(t => t.id === selectedTool)?.icon}
+          {!result && !generating && (
+            <div className={styles.placeholder}>
+              <div className={styles.placeholderIcon}>
+                {tools.find(t => t.id === selectedTool)?.icon}
+              </div>
+              <h3>Ready to generate {tools.find(t => t.id === selectedTool)?.name.toLowerCase()}</h3>
+              <p>Enter a topic above and click Generate to create your study materials</p>
             </div>
-            <h3>Ready to generate {tools.find(t => t.id === selectedTool)?.name.toLowerCase()}</h3>
-            <p>Enter a topic above and click Generate to create your study materials</p>
-          </div>
-        )}
-      </div>
-    </DashboardLayout>
+          )}
+        </div>
+      </DashboardLayout>
     </>
   )
 }

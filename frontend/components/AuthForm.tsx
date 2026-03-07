@@ -21,13 +21,13 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
     const fetchSettings = async () => {
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-        const res = await fetch(`${API_URL}/api/system/settings`)
-        if (res.ok) {
+        const res = await fetch(`${API_URL}/api/system/settings`).catch(() => null)
+        if (res && res.ok) {
           const data = await res.json()
           setPlatformName(data.platform_name)
         }
       } catch (err) {
-        console.error('Failed to fetch platform settings:', err)
+        console.warn('Failed to fetch platform settings:', err)
       }
     }
     fetchSettings()

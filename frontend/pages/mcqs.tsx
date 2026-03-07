@@ -30,7 +30,7 @@ interface SessionStats {
   correct: number
   incorrect: number
   totalAttempted: number
-  tokensEarned: number
+  pointsEarned: number
   streak: number
 }
 
@@ -60,6 +60,8 @@ export default function MCQs() {
 
   // Quiz state
   const [topic, setTopic] = useState('')
+  const [mcqCount, setMcqCount] = useState(5)  // Number of MCQs to generate
+  const [isCustomCount, setIsCustomCount] = useState(false)
   const [questions, setQuestions] = useState<MCQuestion[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
@@ -82,12 +84,13 @@ export default function MCQs() {
     correct: 0,
     incorrect: 0,
     totalAttempted: 0,
-    tokensEarned: 0,
+    pointsEarned: 0,
     streak: 0
   })
 
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null)
   const [topicHistory, setTopicHistory] = useState<{ topic: string, count: number, color: string }[]>([])
+  const [activeDocument, setActiveDocument] = useState<any>(null)
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -107,6 +110,24 @@ export default function MCQs() {
     checkAuth()
   }, [router])
 
+  // Check for document context
+  useEffect(() => {
+    const documentId = router.query.document as string
+    if (documentId) {
+      const stored = sessionStorage.getItem('activeDocument')
+      if (stored) {
+        try {
+          const docData = JSON.parse(stored)
+          if (docData.id === documentId) {
+            setActiveDocument(docData)
+          }
+        } catch (e) {
+          console.error('Failed to parse document data:', e)
+        }
+      }
+    }
+  }, [router.query.document])
+
   const getAuthToken = async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token || null
@@ -121,9 +142,12 @@ export default function MCQs() {
 
       const response = await fetch(`${API_URL}/api/study-tools/sessions?feature=mcq`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
+      }).catch(err => {
+        console.warn('Network error fetching sessions:', err)
+        return null
       })
 
-      if (response.ok) {
+      if (response && response.ok) {
         const data = await response.json()
         setSessions(data)
       }
@@ -186,9 +210,12 @@ export default function MCQs() {
 
       const response = await fetch(`${API_URL}/api/study-tools/sessions/${sessionId}/materials`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
+      }).catch(err => {
+        console.warn('Network error fetching session materials:', err)
+        return null
       })
 
-      if (response.ok) {
+      if (response && response.ok) {
         const materials = await response.json()
         if (materials && materials.length > 0) {
           const material = materials[0]
@@ -210,8 +237,8 @@ export default function MCQs() {
   const parseMCQs = (content: string): MCQuestion[] => {
     const questions: MCQuestion[] = []
 
-    // Try multiple parsing patterns
-    const sections = content.split(/Question \d+:|Q\d+:|\n\n(?=\d+\.)/).filter(s => s.trim())
+    // Split by "Question N:" pattern
+    const sections = content.split(/Question\s+\d+:/i).filter(s => s.trim())
 
     sections.forEach((section) => {
       const lines = section.trim().split('\n').filter(l => l.trim())
@@ -223,42 +250,60 @@ export default function MCQs() {
       let explanation = ''
       let inExplanation = false
 
-      lines.forEach(line => {
-        // Match options
-        const optionMatch = line.match(/^([A-Da-d])[\)\.]?\s*(.+)$/i)
-        if (optionMatch) {
-          options.push({
-            id: optionMatch[1].toLowerCase(),
-            text: optionMatch[2].trim()
-          })
-        }
+      lines.forEach((line, index) => {
+        const trimmedLine = line.trim()
 
-        // Match correct answer
-        const correctMatch = line.match(/Correct(?:\s+Answer)?:\s*([A-Da-d])/i)
+        // Skip if this is the question line
+        if (index === 0) return
+
+        // Match correct answer BEFORE matching options (to avoid capturing it as an option)
+        const correctMatch = trimmedLine.match(/^Correct(?:\s+Answer)?:\s*([A-Da-d])/i)
         if (correctMatch) {
           correctId = correctMatch[1].toLowerCase()
+          return // Skip this line, don't process as option
         }
 
         // Match explanation
-        const explanationMatch = line.match(/Explanation:\s*(.+)$/i)
+        const explanationMatch = trimmedLine.match(/^Explanation:\s*(.+)$/i)
         if (explanationMatch) {
           explanation = explanationMatch[1].trim()
           inExplanation = true
-        } else if (inExplanation && !line.match(/^[A-D][\)\.]|Correct|Question/i)) {
-          explanation += ' ' + line.trim()
+          return // Skip this line
+        } else if (inExplanation && !trimmedLine.match(/^[A-D][\)\.]|^Correct|^Question/i)) {
+          explanation += ' ' + trimmedLine
+          return
+        }
+
+        // Match options - must start with letter followed by ) or .
+        const optionMatch = trimmedLine.match(/^([A-Da-d])[\)\.]?\s+(.+)$/i)
+        if (optionMatch && !trimmedLine.match(/^Correct/i)) {
+          const optionId = optionMatch[1].toLowerCase()
+          const optionText = optionMatch[2].trim()
+
+          // Only add if we don't already have this option ID
+          if (!options.find(o => o.id === optionId)) {
+            options.push({
+              id: optionId,
+              text: optionText
+            })
+          }
         }
       })
 
       if (questionText && options.length >= 2) {
+        // Ensure we have exactly 4 options
+        const finalOptions = options.slice(0, 4)
+        while (finalOptions.length < 4) {
+          const nextId = String.fromCharCode(97 + finalOptions.length)
+          finalOptions.push({
+            id: nextId,
+            text: `Option ${nextId.toUpperCase()}`
+          })
+        }
+
         questions.push({
           question: questionText,
-          options: options.length >= 4 ? options : [
-            ...options,
-            ...Array(4 - options.length).fill(null).map((_, i) => ({
-              id: String.fromCharCode(97 + options.length + i),
-              text: `Option ${String.fromCharCode(65 + options.length + i)}`
-            }))
-          ],
+          options: finalOptions,
           correctId: correctId || 'a',
           explanation: explanation || 'This is the correct answer based on clinical evidence.',
           difficulty: Math.random() > 0.6 ? 'hard' : Math.random() > 0.3 ? 'medium' : 'easy'
@@ -332,7 +377,7 @@ export default function MCQs() {
       correct: 0,
       incorrect: 0,
       totalAttempted: 0,
-      tokensEarned: 0,
+      pointsEarned: 0,
       streak: 0
     })
   }
@@ -344,6 +389,11 @@ export default function MCQs() {
       return
     }
 
+    let finalCount = mcqCount;
+    if (finalCount < 1) finalCount = 1;
+    if (finalCount > 100) finalCount = 100;
+    setMcqCount(finalCount);
+
     setGenerating(true)
     setError(null)
     setQuestions([])
@@ -353,6 +403,27 @@ export default function MCQs() {
       const authToken = await getAuthToken()
       if (!authToken) throw new Error('Not authenticated')
 
+      // If document is active, search for relevant context
+      let documentContext = ''
+      if (activeDocument) {
+        try {
+          const searchResponse = await fetch(
+            `${API_URL}/api/documents/search?query=${encodeURIComponent(topic)}&feature=mcq&top_k=5`,
+            {
+              headers: { 'Authorization': `Bearer ${authToken}` }
+            }
+          )
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json()
+            if (searchData.results && searchData.results.length > 0) {
+              documentContext = searchData.results.map((r: any) => r.content).join('\n\n')
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch document context:', err)
+        }
+      }
+
       const response = await fetch(`${API_URL}/api/study-tools/mcqs`, {
         method: 'POST',
         headers: {
@@ -361,11 +432,15 @@ export default function MCQs() {
         },
         body: JSON.stringify({
           topic,
-          session_id: currentSessionId
+          session_id: currentSessionId,
+          count: mcqCount,
+          document_context: documentContext || undefined
         })
+      }).catch(err => {
+        throw new Error('Connection failed. Backend server might be offline.')
       })
 
-      if (!response.ok) {
+      if (response && !response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.detail || 'Failed to generate MCQs')
       }
@@ -477,7 +552,7 @@ export default function MCQs() {
       correct: isCorrect ? prev.correct + 1 : prev.correct,
       incorrect: isCorrect ? prev.incorrect : prev.incorrect + 1,
       totalAttempted: prev.totalAttempted + 1,
-      tokensEarned: isCorrect ? prev.tokensEarned + 15 : prev.tokensEarned,
+      pointsEarned: isCorrect ? prev.pointsEarned + 15 : prev.pointsEarned,
       streak: isCorrect ? prev.streak + 1 : 0
     }))
 
@@ -581,7 +656,66 @@ export default function MCQs() {
       </Head>
 
       <DashboardLayout user={user}>
-        <div className={styles.pageLayout}>
+        <div className={styles.pageLayout} style={{ position: 'relative' }}>
+          {/* Floating Document Badge */}
+          {activeDocument && (
+            <div
+              style={{
+                position: 'fixed',
+                top: '80px',
+                right: '24px',
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'white',
+                padding: '8px 16px',
+                borderRadius: '12px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                border: '2px solid #10B981',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(16,185,129,0.2)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'
+              }}
+              title={`Using context from: ${activeDocument.filename}`}
+            >
+              <BookOpen size={16} color="#10B981" />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#10B981' }}>
+                {activeDocument.filename.length > 20
+                  ? activeDocument.filename.substring(0, 20) + '...'
+                  : activeDocument.filename}
+              </span>
+              <button
+                onClick={() => {
+                  setActiveDocument(null)
+                  sessionStorage.removeItem('activeDocument')
+                  router.push('/mcqs')
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  fontSize: '18px',
+                  lineHeight: 1
+                }}
+                title="Clear document context"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           <div className={`${styles.contentArea} ${isSidebarCollapsed ? styles.contentAreaCollapsed : styles.contentAreaExpanded}`}>
             <div className={(questions.length > 0 || generating || quizComplete) ? styles.mainContainer : styles.mainContainerFull}>
               {/* Main Content Area */}
@@ -614,6 +748,62 @@ export default function MCQs() {
                         {error}
                       </div>
                     )}
+
+                    <div className={styles.countSelectorWrapper}>
+                      <span className={styles.countLabel}>Number of questions:</span>
+                      {!isCustomCount ? (
+                        <select
+                          value={[5, 10, 15, 20].includes(mcqCount) ? mcqCount : 'custom'}
+                          onChange={(e) => {
+                            if (e.target.value === 'custom') {
+                              setIsCustomCount(true)
+                            } else {
+                              setMcqCount(Number(e.target.value))
+                            }
+                          }}
+                          className={styles.countSelectExternal}
+                        >
+                          <option value={5}>5 MCQs</option>
+                          <option value={10}>10 MCQs</option>
+                          <option value={15}>15 MCQs</option>
+                          <option value={20}>20 MCQs</option>
+                          <option value="custom">Custom...</option>
+                        </select>
+                      ) : (
+                        <div className={styles.customCountWrapper}>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={mcqCount || ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value)
+                              setMcqCount(isNaN(val) ? 0 : val)
+                            }}
+                            onBlur={() => {
+                              if (mcqCount < 1) setMcqCount(1)
+                              if (mcqCount > 100) setMcqCount(100)
+                            }}
+                            placeholder="Max 100"
+                            className={styles.customCountInput}
+                          />
+                          <button
+                            onClick={() => {
+                              setIsCustomCount(false)
+                              const presetMap = [5, 10, 15, 20]
+                              const closest = presetMap.reduce((prev, curr) =>
+                                Math.abs(curr - mcqCount) < Math.abs(prev - mcqCount) ? curr : prev
+                              )
+                              setMcqCount(closest)
+                            }}
+                            className={styles.cancelCustomBtn}
+                            title="Back to Presets"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                     <div className={styles.searchContainer}>
                       <input
@@ -789,7 +979,7 @@ export default function MCQs() {
                                 {selectedOption === currentQuestion?.correctId && (
                                   <span className={styles.tokenReward}>
                                     <Zap size={14} />
-                                    +15 Tokens Earned
+                                    +15 Points Earned
                                   </span>
                                 )}
                               </div>
@@ -833,8 +1023,8 @@ export default function MCQs() {
                         <div className={styles.scoreLabel}>Accuracy</div>
                       </div>
                       <div className={styles.scoreItem}>
-                        <div className={styles.scoreValue}>{sessionStats.tokensEarned}</div>
-                        <div className={styles.scoreLabel}>Tokens Earned</div>
+                        <div className={styles.scoreValue}>{sessionStats.pointsEarned}</div>
+                        <div className={styles.scoreLabel}>Points Earned</div>
                       </div>
                     </div>
 
@@ -890,12 +1080,12 @@ export default function MCQs() {
                         <Check size={12} />
                       </div>
                       <span className={styles.accuracyValue}>{accuracy}%</span>
-                      <span className={styles.accuracyLabel}>15 Tokens per Correct</span>
+                      <span className={styles.accuracyLabel}>15 Points per Correct</span>
                     </div>
 
                     <div className={styles.tokenDisplay}>
-                      <span className={styles.tokenLabel}>Tokens Earned</span>
-                      <span className={styles.tokenValue}>{sessionStats.tokensEarned}</span>
+                      <span className={styles.tokenLabel}>Points Earned</span>
+                      <span className={styles.tokenValue}>{sessionStats.pointsEarned}</span>
                     </div>
                   </div>
 
@@ -925,9 +1115,9 @@ export default function MCQs() {
                       <div className={`${styles.statsItem} ${styles.statsTotal}`}>
                         <div className={styles.statsItemLabel}>
                           <div className={`${styles.statsDot} ${styles.statsDotYellow}`} />
-                          <span>Total Tokens Today</span>
+                          <span>Total Points Today</span>
                         </div>
-                        <span className={styles.statsItemValue}>{sessionStats.tokensEarned}</span>
+                        <span className={styles.statsItemValue}>{sessionStats.pointsEarned}</span>
                       </div>
                     </div>
                   </div>

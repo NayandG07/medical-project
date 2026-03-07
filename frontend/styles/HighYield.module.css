@@ -3,7 +3,7 @@
    Inspired by: Notion, Linear, Apple Health
    ============================================================ */
 
-:root {
+.hyWrapper {
     --hy-primary: #8B5CF6;
     --hy-primary-soft: #EDE9FE;
     --hy-accent: #F59E0B;
@@ -14,9 +14,6 @@
     --hy-text-muted: #64748B;
     --hy-radius: 20px;
     --hy-radius-sm: 12px;
-}
-
-.hyWrapper {
     height: 100%;
     max-height: 100%;
     background: var(--hy-bg);
@@ -123,7 +120,7 @@
 }
 
 .generateBtn {
-    background: linear-gradient(135deg, var(--hy-primary) 0%, #7C3AED 100%);
+    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
     color: white;
     border: none;
     padding: 12px 28px;
@@ -139,7 +136,7 @@
 
 .generateBtn:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
 }
 
 .generateBtn:disabled {

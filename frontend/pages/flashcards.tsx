@@ -13,20 +13,20 @@ import SessionSidebar, { ChatSession } from '@/components/SessionSidebar'
 const styles = {
   container: "max-w-[1200px] mx-auto",
   mainArea: "flex-1 flex flex-col overflow-y-auto p-4 pt-12 sm:p-8 custom-scrollbar bg-[#fdfbf7]", // Matches chat theme color
-  searchOnlyState: "bg-white rounded-[24px] sm:rounded-[32px] p-6 sm:p-10 text-center shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-[#E2E8F0] mt-4 sm:mt-0 w-full max-w-[750px] mx-auto", // Reduced padding, margin and max-width
+  searchOnlyState: "bg-white rounded-[24px] sm:rounded-[32px] p-6 sm:p-10 text-center border border-[#E2E8F0] mt-4 sm:mt-0 w-full max-w-[750px] mx-auto",
   sparkleIcon: "w-10 h-10 sm:w-14 sm:h-14 bg-[#EEF2FF] rounded-xl sm:rounded-2xl mx-auto mb-3 sm:mb-4 flex items-center justify-center", // Reduced size and margin
   h1: "text-2xl sm:text-2xl font-[800] mb-1 sm:mb-2 text-[#0F172A]", // Reduced text size and margin
   p: "text-sm sm:text-base text-[#64748B] mb-5 sm:mb-6", // Reduced margin
-  largeSearch: "bg-white border-[1.5px] border-[#E2E8F0] p-1.5 pl-4 sm:p-1.5 sm:pl-5 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 shadow-sm focus-within:border-[#6366F1] focus-within:ring-4 focus-within:ring-[#6366F1]/5 transition-all outline-none", // Reduced padding
+  largeSearch: "bg-white border-[1.5px] border-[#E2E8F0] p-1.5 pl-4 sm:p-1.5 sm:pl-5 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 focus-within:border-[#6366F1] focus-within:ring-4 focus-within:ring-[#6366F1]/5 transition-all outline-none", // Reduced padding
   topicInput: "border-none bg-transparent flex-1 text-sm sm:text-base font-medium outline-none text-[#1E293B] placeholder:text-slate-400 min-w-0",
-  generateBtn: "bg-gradient-to-r from-[#6366F1] to-[#4F46E5] text-white border-none px-4 py-2.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl font-bold cursor-pointer hover:shadow-lg hover:shadow-[#6366F1]/25 hover:translate-y-[-2px] transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm sm:text-base",
+  generateBtn: "bg-gradient-to-br from-[#6366F1] to-[#4F46E5] text-white border-none px-4 py-2.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-2xl font-bold cursor-pointer hover:translate-y-[-2px] transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm sm:text-base",
   activeHeader: "flex flex-col gap-3 mb-6 sm:mb-10 w-full",
   breadcrumb: "flex items-center gap-1.5 text-[10px] sm:text-xs font-bold text-[#94A3B8] pl-1 tracking-wider uppercase",
-  miniSearch: "flex items-center justify-between bg-white px-4 py-2.5 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl border-2 border-[#6366F1]/20 shadow-sm w-full",
+  miniSearch: "flex items-center justify-between bg-white px-4 py-2.5 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl border-2 border-[#6366F1]/20 w-full",
   aiMessage: "flex flex-col gap-3 mb-6 sm:mb-10 items-start",
   aiAvatar: "hidden",
-  aiBubble: "bg-white p-6 sm:p-10 rounded-2xl sm:rounded-3xl shadow-[0_10px_30px_rgba(0,0,0,0.04)] border border-[#E2E8F0] w-full text-[#334155] leading-relaxed text-sm sm:text-[17px]",
-  resultCard: "bg-[#FFFFFF] rounded-2xl sm:rounded-3xl p-6 sm:p-12 shadow-[0_25px_60px_-12px_rgba(0,0,0,0.08)] border border-[#E2E8F0] border-2",
+  aiBubble: "bg-white p-6 sm:p-10 rounded-2xl sm:rounded-3xl border border-[#E2E8F0] w-full text-[#334155] leading-relaxed text-sm sm:text-[17px]",
+  resultCard: "bg-[#FFFFFF] rounded-2xl sm:rounded-3xl p-6 sm:p-12 border border-[#E2E8F0] border-2",
   citations: "mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-[#F1F5F9]",
   citation: "bg-[#F8FAFC] px-4 py-3 rounded-xl mb-2 text-[#64748B] font-medium border border-[#F1F5F9] flex items-center gap-2 text-xs sm:text-sm"
 }
@@ -37,6 +37,7 @@ export default function Flashcards() {
   const [loading, setLoading] = useState(true)
   const [topic, setTopic] = useState('')
   const [count, setCount] = useState(5)
+  const [isCustomCount, setIsCustomCount] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
@@ -45,21 +46,47 @@ export default function Flashcards() {
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [sessionsError, setSessionsError] = useState<string | null>(null)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [activeDocument, setActiveDocument] = useState<any>(null)
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
   useEffect(() => {
     checkAuth()
   }, [])
 
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      router.push('/')
-      return
+  // Check for document context
+  useEffect(() => {
+    const documentId = router.query.document as string
+    if (documentId) {
+      const stored = sessionStorage.getItem('activeDocument')
+      if (stored) {
+        try {
+          const docData = JSON.parse(stored)
+          if (docData.id === documentId) {
+            setActiveDocument(docData)
+          }
+        } catch (e) {
+          console.error('Failed to parse document data:', e)
+        }
+      }
     }
-    setUser(session.user as AuthUser)
-    setLoading(false)
-    loadSessions(session.access_token)
+  }, [router.query.document])
+
+  const checkAuth = async () => {
+    try {
+      const { data, error } = await supabase.auth.getSession()
+      if (error || !data.session) {
+        console.warn('Auth session missing or Supabase unreachable')
+        router.push('/')
+        return
+      }
+      setUser(data.session.user as AuthUser)
+      loadSessions(data.session.access_token)
+    } catch (err) {
+      console.error('Supabase auth failure (flashcards):', err)
+      setError('Connection failed: Identity service unreachable.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const getAuthToken = async () => {
@@ -70,19 +97,25 @@ export default function Flashcards() {
   const loadSessions = async (token?: string) => {
     try {
       setSessionsLoading(true)
+      setSessionsError(null)
       const authToken = token || await getAuthToken()
       if (!authToken) return
 
       const response = await fetch(`${API_URL}/api/study-tools/sessions?feature=flashcard`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
+      }).catch(err => {
+        throw new Error('Connection failed: Backend server unreachable.')
       })
 
-      if (response.ok) {
+      if (response && response.ok) {
         const data = await response.json()
         setSessions(data)
+      } else {
+        setSessionsError('Failed to load sessions')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load sessions:', err)
+      setSessionsError(err.message || 'Connection failed: Backend server unreachable.')
     } finally {
       setSessionsLoading(false)
     }
@@ -96,9 +129,12 @@ export default function Flashcards() {
 
       const response = await fetch(`${API_URL}/api/study-tools/sessions/${sessionId}/materials`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
+      }).catch(err => {
+        console.warn('Network error fetching session materials:', err)
+        return null
       })
 
-      if (response.ok) {
+      if (response && response.ok) {
         const materials = await response.json()
         if (materials && materials.length > 0) {
           const material = materials[0]
@@ -170,6 +206,11 @@ export default function Flashcards() {
       return
     }
 
+    let finalCount = count;
+    if (finalCount < 1) finalCount = 1;
+    if (finalCount > 100) finalCount = 100;
+    setCount(finalCount);
+
     setGenerating(true)
     setError(null)
     setResult(null)
@@ -178,8 +219,29 @@ export default function Flashcards() {
       const authToken = await getAuthToken()
       if (!authToken) return
 
+      // If document is active, search for relevant context
+      let documentContext = ''
+      if (activeDocument) {
+        try {
+          const searchResponse = await fetch(
+            `${API_URL}/api/documents/search?query=${encodeURIComponent(topic)}&feature=flashcard&top_k=5`,
+            {
+              headers: { 'Authorization': `Bearer ${authToken}` }
+            }
+          )
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json()
+            if (searchData.results && searchData.results.length > 0) {
+              documentContext = searchData.results.map((r: any) => r.content).join('\n\n')
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch document context:', err)
+        }
+      }
+
       const response = await fetch(
-        `${API_URL}/api/study-tools/flashcards`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/study-tools/flashcards`,
         {
           method: 'POST',
           headers: {
@@ -190,12 +252,15 @@ export default function Flashcards() {
             topic: topic,
             session_id: currentSessionId,
             count: count,
-            format: 'interactive'
+            format: 'interactive',
+            document_context: documentContext || undefined
           })
         }
-      )
+      ).catch(err => {
+        throw new Error('Connection failed. Backend server might be offline.')
+      })
 
-      if (!response.ok) {
+      if (response && !response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.detail?.error?.message || 'Failed to generate flashcards')
       }
@@ -228,7 +293,67 @@ export default function Flashcards() {
         <title>Flashcards - Vaidya AI</title>
       </Head>
       <DashboardLayout user={user}>
-        <div className="page-layout">
+        <div className="page-layout" style={{ position: 'relative' }}>
+          {/* Floating Document Badge */}
+          {activeDocument && (
+            <div
+              style={{
+                position: 'fixed',
+                top: '80px',
+                right: '24px',
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'white',
+                padding: '8px 16px',
+                borderRadius: '12px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                border: '2px solid #6366F1',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(99,102,241,0.2)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'
+              }}
+              title={`Using context from: ${activeDocument.filename}`}
+            >
+              <BookOpen size={16} color="#6366F1" />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#6366F1' }}>
+                {activeDocument.filename.length > 20
+                  ? activeDocument.filename.substring(0, 20) + '...'
+                  : activeDocument.filename}
+              </span>
+              <button
+                onClick={() => {
+                  setActiveDocument(null)
+                  sessionStorage.removeItem('activeDocument')
+                  router.push('/flashcards')
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  fontSize: '18px',
+                  lineHeight: 1
+                }}
+                title="Clear document context"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {/* Main Content */}
           {/* Main Content Area */}
           <div className="content-area">
             {!result && !generating ? (
@@ -246,16 +371,58 @@ export default function Flashcards() {
                 {/* Count selector */}
                 <div className="mb-4 flex items-center justify-center gap-3">
                   <label className="text-sm font-medium text-gray-600">Number of cards:</label>
-                  <select
-                    value={count}
-                    onChange={(e) => setCount(Number(e.target.value))}
-                    className="px-4 py-2 border-2 border-gray-200 rounded-lg font-medium text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none transition-all"
-                  >
-                    <option value={5}>5 cards</option>
-                    <option value={10}>10 cards</option>
-                    <option value={15}>15 cards</option>
-                    <option value={20}>20 cards</option>
-                  </select>
+                  {!isCustomCount ? (
+                    <select
+                      value={[5, 10, 15, 20].includes(count) ? count : 'custom'}
+                      onChange={(e) => {
+                        if (e.target.value === 'custom') {
+                          setIsCustomCount(true)
+                        } else {
+                          setCount(Number(e.target.value))
+                        }
+                      }}
+                      className="px-4 py-2 border-2 border-gray-200 rounded-lg font-medium text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none transition-all"
+                    >
+                      <option value={5}>5 cards</option>
+                      <option value={10}>10 cards</option>
+                      <option value={15}>15 cards</option>
+                      <option value={20}>20 cards</option>
+                      <option value="custom">Custom...</option>
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={count || ''}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value)
+                          setCount(isNaN(val) ? 0 : val)
+                        }}
+                        onBlur={() => {
+                          if (count < 1) setCount(1)
+                          if (count > 100) setCount(100)
+                        }}
+                        placeholder="Max 100"
+                        className="px-4 py-2 border-2 border-gray-200 rounded-lg font-medium text-gray-700 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none transition-all w-[100px]"
+                      />
+                      <button
+                        onClick={() => {
+                          setIsCustomCount(false)
+                          const presetMap = [5, 10, 15, 20]
+                          const closest = presetMap.reduce((prev, curr) =>
+                            Math.abs(curr - count) < Math.abs(prev - count) ? curr : prev
+                          )
+                          setCount(closest)
+                        }}
+                        className="text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center"
+                        title="Back to Presets"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className={styles.largeSearch}>
@@ -270,7 +437,7 @@ export default function Flashcards() {
                   <button
                     className={styles.generateBtn}
                     onClick={handleGenerate}
-                    disabled={generating}
+                    disabled={generating || !topic.trim()}
                   >
                     Generate
                   </button>
@@ -402,8 +569,17 @@ export default function Flashcards() {
           .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
           .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
           .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
-          .animate-spin { animation: spin 1.5s linear infinite; }
           @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          
+          /* Hide number input arrows */
+          input::-webkit-outer-spin-button,
+          input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+          }
+          input[type=number] {
+            -moz-appearance: textfield;
+          }
         `}</style>
       </DashboardLayout>
     </>

@@ -96,6 +96,8 @@ export default function OSCESimulator() {
   const [selectedType, setSelectedType] = useState('history_taking')
   const [selectedSpecialty, setSelectedSpecialty] = useState('general_medicine')
   const [selectedDifficulty, setSelectedDifficulty] = useState('intermediate')
+  const [useCustomCondition, setUseCustomCondition] = useState(false)
+  const [customCondition, setCustomCondition] = useState('')
 
   // Active scenario state
   const [activeScenario, setActiveScenario] = useState<OSCEScenario | null>(null)
@@ -115,6 +117,21 @@ export default function OSCESimulator() {
   // Completion state
   const [completed, setCompleted] = useState(false)
   const [completionData, setCompletionData] = useState<CompletionResult | null>(null)
+  const [dialogConfig, setDialogConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'alert' | 'confirm';
+    onConfirm?: () => void;
+  } | null>(null)
+
+  const showAlert = (title: string, message: string) => {
+    setDialogConfig({ isOpen: true, title, message, type: 'alert' })
+  }
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setDialogConfig({ isOpen: true, title, message, type: 'confirm', onConfirm })
+  }
 
   const chatContainerRef = useRef<HTMLDivElement>(null)
 
@@ -225,6 +242,11 @@ export default function OSCESimulator() {
   }
 
   const startScenario = async () => {
+    if (useCustomCondition && !customCondition.trim()) {
+      showAlert('Input Required', 'Please enter a condition or select random case')
+      return
+    }
+    
     setGenerating(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -239,7 +261,9 @@ export default function OSCESimulator() {
         body: JSON.stringify({
           scenario_type: selectedType,
           specialty: selectedSpecialty,
-          difficulty: selectedDifficulty
+          difficulty: selectedDifficulty,
+          use_custom_condition: useCustomCondition,
+          custom_condition: useCustomCondition ? customCondition : null
         })
       })
 
@@ -269,7 +293,7 @@ export default function OSCESimulator() {
       }
     } catch (error) {
       console.error('Failed to start OSCE:', error)
-      alert('Failed to generate OSCE scenario. Please try again.')
+      showAlert('Station Error', 'Failed to generate OSCE scenario. Please try again.')
     } finally {
       setGenerating(false)
     }
@@ -553,6 +577,64 @@ export default function OSCESimulator() {
                           {diff.name}
                         </button>
                       ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.optionsRow}>
+                  <div className={styles.optionSection}>
+                    <h3>Case Selection</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', background: 'white', borderRadius: '12px', border: '2px solid #e2e8f0' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="case-type"
+                          checked={!useCustomCondition}
+                          onChange={() => {
+                            setUseCustomCondition(false)
+                            setCustomCondition('')
+                          }}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#667eea' }}
+                        />
+                        <span style={{ fontSize: '0.95rem', fontWeight: '600', color: '#334155' }}>
+                          Random Case (AI selects condition)
+                        </span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="case-type"
+                          checked={useCustomCondition}
+                          onChange={() => setUseCustomCondition(true)}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#667eea' }}
+                        />
+                        <span style={{ fontSize: '0.95rem', fontWeight: '600', color: '#334155' }}>
+                          Custom Condition
+                        </span>
+                      </label>
+                      {useCustomCondition && (
+                        <div style={{ marginLeft: '2rem', marginTop: '0.5rem' }}>
+                          <input
+                            type="text"
+                            placeholder="Enter condition (e.g., acute asthma exacerbation)"
+                            value={customCondition}
+                            onChange={(e) => setCustomCondition(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '0.75rem 1rem',
+                              border: '2px solid #cbd5e1',
+                              borderRadius: '8px',
+                              fontSize: '0.95rem',
+                              transition: 'border-color 0.2s'
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                            onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                          />
+                          <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.5rem' }}>
+                            Enter the specific medical condition you want to practice
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -919,6 +1001,44 @@ export default function OSCESimulator() {
             )}
           </div>
         </div>
+        {dialogConfig?.isOpen && (
+          <div className="modal-overlay" style={{
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px'
+          }}>
+            <div className="modal-content" style={{
+              background: 'white', borderRadius: '32px', padding: '40px', maxWidth: '400px', width: '100%',
+              textAlign: 'center', boxShadow: '0 40px 80px -20px rgba(0, 0, 0, 0.35)', border: '1px solid rgba(0,0,0,0.05)'
+            }}>
+              <div style={{
+                width: '64px', height: '64px', borderRadius: '20px', background: dialogConfig.type === 'confirm' ? '#EEF2FF' : '#FEF2F2',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px',
+                color: dialogConfig.type === 'confirm' ? '#5C67F2' : '#EA4335'
+              }}>
+                <span style={{ fontSize: '32px' }}>{dialogConfig.title === 'Success' ? '✅' : '⚠️'}</span>
+              </div>
+              <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '12px', color: '#1e293b' }}>{dialogConfig.title}</h3>
+              <p style={{ color: '#64748b', marginBottom: '32px', fontSize: '15px', lineHeight: '1.6', fontWeight: '500' }}>{dialogConfig.message}</p>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                {dialogConfig.type === 'confirm' && (
+                  <button style={{
+                    flex: 1, padding: '14px', borderRadius: '16px', border: '1px solid #e2e8f0', background: 'white',
+                    fontWeight: '700', cursor: 'pointer'
+                  }} onClick={() => setDialogConfig({ ...dialogConfig, isOpen: false })}>Cancel</button>
+                )}
+                <button style={{
+                  flex: 1.5, padding: '14px', borderRadius: '16px', border: 'none', background: '#333',
+                  color: 'white', fontWeight: '700', cursor: 'pointer', boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
+                }} onClick={() => {
+                  dialogConfig.onConfirm?.();
+                  setDialogConfig({ ...dialogConfig, isOpen: false });
+                }}>
+                  {dialogConfig.type === 'confirm' ? 'Confirm' : 'OK'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </DashboardLayout>
     </>
   )

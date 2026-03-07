@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { supabase, AuthUser } from '@/lib/supabase'
 import DashboardLayout from '@/components/DashboardLayout'
+import FloatingTimer from '@/components/FloatingTimer'
 import { Calendar, Clock, Plus, ChevronLeft, ChevronRight, Check, X, Play, Pause, Target, Flame, Zap, Brain, Edit3, Trash2, Download, TrendingUp, Award, Settings } from 'lucide-react'
 import html2canvas from 'html2canvas'
 
@@ -426,32 +427,46 @@ export default function StudyPlanner() {
         return session?.access_token
     }
 
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
     const fetchEntries = async () => {
         try {
             const token = await getToken()
             const weekStart = weekDates[0]?.date
             if (!weekStart) return
 
-            const res = await fetch(`http://localhost:8000/api/planner/entries/weekly/${weekStart}`, {
+            const res = await fetch(`${API_URL}/api/planner/entries/weekly/${weekStart}`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
+
+            if (!res.ok) {
+                throw new Error('Failed to fetch entries')
+            }
+
             const data = await res.json()
             setEntries(data.entries || [])
         } catch (err) {
             console.error('Failed to fetch entries:', err)
+            showAlert('Error', 'Failed to load study plan entries')
         }
     }
 
     const fetchDailyBrief = async () => {
         try {
             const token = await getToken()
-            const res = await fetch('http://localhost:8000/api/planner/daily-brief', {
+            const res = await fetch(`${API_URL}/api/planner/daily-brief`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
+
+            if (!res.ok) {
+                throw new Error('Failed to fetch daily brief')
+            }
+
             const data = await res.json()
             setDailyBrief(data)
         } catch (err) {
             console.error('Failed to fetch daily brief:', err)
+            // Don't show error for daily brief as it's not critical
         }
     }
 
@@ -485,12 +500,13 @@ export default function StudyPlanner() {
 
     const performSubmit = async () => {
         const endHour = formData.start_hour + formData.duration
+        setLoading(true)
         try {
             const token = await getToken()
             const method = editingEntry ? 'PUT' : 'POST'
             const url = editingEntry
-                ? `http://localhost:8000/api/planner/entries/${editingEntry.id}`
-                : 'http://localhost:8000/api/planner/entries'
+                ? `${API_URL}/api/planner/entries/${editingEntry.id}`
+                : `${API_URL}/api/planner/entries`
 
             const payload = {
                 subject: formData.subject,
@@ -515,31 +531,49 @@ export default function StudyPlanner() {
 
             if (!res.ok) {
                 const error = await res.json()
-                alert(error.detail || 'Failed to save entry')
+                showAlert('Error', error.detail || 'Failed to save entry')
                 return
             }
 
             setShowModal(false)
             setEditingEntry(null)
             resetForm()
-            fetchEntries()
+
+            // Refresh data without resetting the week view
+            await Promise.all([fetchEntries(), fetchDailyBrief()])
+
+            showAlert('Success', editingEntry ? 'Entry updated successfully' : 'Entry created successfully')
         } catch (err) {
             console.error('Failed to save entry:', err)
+            showAlert('Error', 'Failed to save entry. Please try again.')
+        } finally {
+            setLoading(false)
         }
     }
 
     const handleComplete = async (entryId: string) => {
         try {
             const token = await getToken()
-            await fetch(`http://localhost:8000/api/planner/entries/${entryId}/complete`, {
+            const res = await fetch(`${API_URL}/api/planner/entries/${entryId}/complete`, {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
             })
-            fetchEntries()
-            fetchDailyBrief()
+
+            if (!res.ok) {
+                throw new Error('Failed to complete entry')
+            }
+
+            // Refresh data
+            await Promise.all([fetchEntries(), fetchDailyBrief()])
             setActiveCellMenu(null)
+            showAlert('Success', 'Session completed!')
         } catch (err) {
             console.error('Failed to complete entry:', err)
+            showAlert('Error', 'Failed to mark session as complete')
         }
     }
 
@@ -548,11 +582,16 @@ export default function StudyPlanner() {
             const token = await getToken()
             // Only start if not already in progress
             if (entry.status !== 'in_progress') {
-                await fetch(`http://localhost:8000/api/planner/entries/${entry.id}/start`, {
+                const res = await fetch(`${API_URL}/api/planner/entries/${entry.id}/start`, {
                     method: 'POST',
                     headers: { Authorization: `Bearer ${token}` }
                 })
-                fetchEntries()
+
+                if (!res.ok) {
+                    throw new Error('Failed to start entry')
+                }
+
+                await fetchEntries()
             }
             setActiveCellMenu(null)
 
@@ -564,7 +603,7 @@ export default function StudyPlanner() {
 
             let diffSeconds = Math.floor((target.getTime() - now.getTime()) / 1000)
 
-            // If the time is in the past or way in filter, use planned duration
+            // If the time is in the past or way in future, use planned duration
             if (diffSeconds <= 0 || diffSeconds > 86400) {
                 const [startH, startM] = entry.start_time.split(':').map(Number)
                 const durationMinutes = (endH * 60 + endM) - (startH * 60 + startM)
@@ -576,6 +615,7 @@ export default function StudyPlanner() {
             setTimerRunning(false) // Don't start instantly
         } catch (err) {
             console.error('Failed to start entry:', err)
+            showAlert('Error', 'Failed to start session')
         }
     }
 
@@ -592,14 +632,22 @@ export default function StudyPlanner() {
         showConfirm('Delete Session', 'Are you sure you want to delete this study session?', async () => {
             try {
                 const token = await getToken()
-                await fetch(`http://localhost:8000/api/planner/entries/${entryId}`, {
+                const res = await fetch(`${API_URL}/api/planner/entries/${entryId}`, {
                     method: 'DELETE',
                     headers: { Authorization: `Bearer ${token}` }
                 })
-                fetchEntries()
+
+                if (!res.ok) {
+                    throw new Error('Failed to delete entry')
+                }
+
+                // Refresh data
+                await Promise.all([fetchEntries(), fetchDailyBrief()])
                 setActiveCellMenu(null)
+                showAlert('Success', 'Session deleted successfully')
             } catch (err) {
                 console.error('Failed to delete entry:', err)
+                showAlert('Error', 'Failed to delete session')
             }
         })
     }
@@ -698,7 +746,9 @@ export default function StudyPlanner() {
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
             const spaceBelow = window.innerHeight - rect.bottom
             // Menu height is approx 200px. If less than 250px space below, and more space above, flip it.
-            if (spaceBelow < 250 && rect.top > 250) {
+            if (rect.top < 200) {
+                setMenuPosition('bottom')
+            } else if (spaceBelow < 250) {
                 setMenuPosition('top')
             } else {
                 setMenuPosition('bottom')
@@ -1016,112 +1066,19 @@ export default function StudyPlanner() {
                     )}
                 </div>
 
-                {/* Timer Modal */}
+                {/* Floating Timer */}
                 {timerEntry && (
-                    <div className="timer-overlay">
-                        <div className="timer-modal redesigned">
-                            <button className="timer-close-btn" onClick={() => { setTimerEntry(null); setTimerRunning(false); }} title="Close">
-                                <X size={20} />
-                            </button>
-                            <div className="timer-header">
-                                <div className="timer-badge">
-                                    <span className="timer-type-icon">{getStudyTypeInfo(timerEntry.study_type).icon}</span>
-                                    <span className="timer-type-label">{getStudyTypeInfo(timerEntry.study_type).label}</span>
-                                </div>
-                                <h3>{timerEntry.subject}</h3>
-                                {timerEntry.topic && <p className="timer-topic">{timerEntry.topic}</p>}
-                            </div>
-
-                            <div className="timer-main">
-                                {!timerRunning ? (
-                                    <div className="timer-edit-zone">
-                                        <div className="time-input-group">
-                                            <div className="time-unit">
-                                                <input
-                                                    type="number"
-                                                    value={Math.floor(timerSeconds / 3600)}
-                                                    onChange={(e) => {
-                                                        const h = Math.max(0, parseInt(e.target.value) || 0)
-                                                        const m = Math.floor((timerSeconds % 3600) / 60)
-                                                        const s = timerSeconds % 60
-                                                        setTimerSeconds(h * 3600 + m * 60 + s)
-                                                    }}
-                                                />
-                                                <span>HRS</span>
-                                            </div>
-                                            <span className="time-separator">:</span>
-                                            <div className="time-unit">
-                                                <input
-                                                    type="number"
-                                                    value={Math.floor((timerSeconds % 3600) / 60)}
-                                                    onChange={(e) => {
-                                                        const h = Math.floor(timerSeconds / 3600)
-                                                        const m = Math.min(59, Math.max(0, parseInt(e.target.value) || 0))
-                                                        const s = timerSeconds % 60
-                                                        setTimerSeconds(h * 3600 + m * 60 + s)
-                                                    }}
-                                                />
-                                                <span>MIN</span>
-                                            </div>
-                                            <span className="time-separator">:</span>
-                                            <div className="time-unit">
-                                                <input
-                                                    type="number"
-                                                    value={timerSeconds % 60}
-                                                    onChange={(e) => {
-                                                        const h = Math.floor(timerSeconds / 3600)
-                                                        const m = Math.floor((timerSeconds % 3600) / 60)
-                                                        const s = Math.min(59, Math.max(0, parseInt(e.target.value) || 0))
-                                                        setTimerSeconds(h * 3600 + m * 60 + s)
-                                                    }}
-                                                />
-                                                <span>SEC</span>
-                                            </div>
-                                        </div>
-                                        <p className="timer-hint">Adjust the time if needed before starting</p>
-                                    </div>
-                                ) : (
-                                    <div className="timer-active-zone">
-                                        <div className="timer-display-modern">
-                                            {formatTimer(timerSeconds)}
-                                        </div>
-                                        <div className="timer-progress-container">
-                                            <div
-                                                className="timer-progress-bar"
-                                                style={{ width: `${Math.min(100, (timerSeconds / (60 * 60)) * 100)}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="timer-actions-redesigned">
-                                {!timerRunning ? (
-                                    <button className="timer-btn-primary" onClick={() => setTimerRunning(true)}>
-                                        <Play size={24} fill="currentColor" />
-                                        <span>Start Timer</span>
-                                    </button>
-                                ) : (
-                                    <button className="timer-btn-secondary pause" onClick={() => setTimerRunning(false)}>
-                                        <Pause size={20} />
-                                        <span>Pause</span>
-                                    </button>
-                                )}
-
-                                {timerRunning && (
-                                    <button className="timer-btn-primary complete" onClick={handleTimerComplete}>
-                                        <Check size={20} />
-                                        <span>Complete Session</span>
-                                    </button>
-                                )}
-
-                                <button className="timer-btn-discard" onClick={() => { setTimerEntry(null); setTimerRunning(false); }}>
-                                    <X size={20} />
-                                    <span>Discard</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <FloatingTimer
+                        entry={timerEntry}
+                        initialSeconds={timerSeconds}
+                        isRunning={timerRunning}
+                        onToggleRunning={() => setTimerRunning(!timerRunning)}
+                        onComplete={handleTimerComplete}
+                        onDiscard={() => {
+                            setTimerEntry(null)
+                            setTimerRunning(false)
+                        }}
+                    />
                 )}
 
                 {/* Add/Edit Modal */}
@@ -1334,8 +1291,8 @@ export default function StudyPlanner() {
                     .stats-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; margin-bottom: 32px; }
                     .stat-card { 
                         background: white;
-                        border-radius: 24px; padding: 24px 20px; 
-                        display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 24px; 
+                        border-radius: 20px; padding: 16px 20px; 
+                        display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 12px; 
                         border: 1px solid rgba(0,0,0,0.1); 
                         box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.03);
                         transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1726,11 +1683,11 @@ export default function StudyPlanner() {
                     }
                     .cancel-btn:hover { background: #F1F5F9; border-color: #E2E8F0; }
                     .submit-btn { 
-                        flex: 1.5; padding: 16px; border: none; background: #5C67F2; color: white; 
+                        flex: 1.5; padding: 16px; border: none; background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%); color: white; 
                         border-radius: 16px; font-weight: 700; font-size: 16px; cursor: pointer; transition: all 0.2s;
-                        box-shadow: 0 8px 20px rgba(92, 103, 242, 0.3);
+                        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
                     }
-                    .submit-btn:hover { background: #4F46E5; transform: translateY(-2px); box-shadow: 0 12px 24px rgba(92, 103, 242, 0.4); }
+                    .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(99, 102, 241, 0.45); }
                     
                     @media (max-width: 1200px) {
                         .stats-row { grid-template-columns: repeat(3, 1fr); }
@@ -1820,6 +1777,178 @@ export default function StudyPlanner() {
                     @keyframes pulse-border {
                         0%, 100% { box-shadow: 0 0 0 3px #10B981, 0 8px 24px rgba(16, 185, 129, 0.25); }
                         50% { box-shadow: 0 0 0 5px #10B981, 0 8px 32px rgba(16, 185, 129, 0.4); }
+                    }
+
+                    /* =========================================================================
+                        FLOATING TIMER - Global Styles
+                        ========================================================================= */
+                    .floating-timer {
+                        position: fixed;
+                        bottom: 24px;
+                        right: 24px;
+                        background: white;
+                        border-radius: 20px;
+                        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+                        padding: 20px;
+                        width: 320px;
+                        z-index: 999;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                        border-top: 4px solid #5C67F2;
+                    }
+                    .floating-timer.minimized {
+                        width: 200px;
+                        padding: 12px 16px;
+                    }
+                    .floating-timer-header {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        margin-bottom: 16px;
+                    }
+                    .floating-timer.minimized .floating-timer-header {
+                        margin-bottom: 0;
+                    }
+                    .timer-info {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        flex: 1;
+                    }
+                    .timer-icon {
+                        font-size: 20px;
+                        flex-shrink: 0;
+                    }
+                    .timer-text {
+                        flex: 1;
+                        min-width: 0;
+                    }
+                    .timer-subject {
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: var(--cream-text-main);
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .timer-topic-small {
+                        font-size: 11px;
+                        color: var(--cream-text-muted);
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .timer-minimize-btn {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 8px;
+                        background: #F1F5F9;
+                        border: none;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        flex-shrink: 0;
+                    }
+                    .timer-minimize-btn:hover {
+                        background: #E2E8F0;
+                        transform: scale(1.05);
+                    }
+                    .floating-timer-display {
+                        font-size: 36px;
+                        font-weight: 900;
+                        text-align: center;
+                        color: var(--cream-text-main);
+                        font-variant-numeric: tabular-nums;
+                        margin-bottom: 12px;
+                        letter-spacing: -1px;
+                    }
+                    .floating-timer-progress {
+                        width: 100%;
+                        height: 6px;
+                        background: #F1F5F9;
+                        border-radius: 100px;
+                        overflow: hidden;
+                        margin-bottom: 16px;
+                    }
+                    .progress-bar {
+                        height: 100%;
+                        background: linear-gradient(90deg, #5C67F2, #7C3AED);
+                        transition: width 1s linear;
+                        border-radius: 100px;
+                    }
+                    .floating-timer-actions {
+                        display: flex;
+                        gap: 8px;
+                        justify-content: center;
+                    }
+                    .timer-action-btn {
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 12px;
+                        border: none;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    }
+                    .timer-action-btn.play-pause {
+                        background: var(--cream-text-main);
+                        color: white;
+                    }
+                    .timer-action-btn.play-pause:hover {
+                        background: #5C67F2;
+                        transform: translateY(-2px);
+                    }
+                    .timer-action-btn.complete {
+                        background: #10B981;
+                        color: white;
+                    }
+                    .timer-action-btn.complete:hover {
+                        background: #059669;
+                        transform: translateY(-2px);
+                    }
+                    .timer-action-btn.discard {
+                        background: #FEE2E2;
+                        color: #991B1B;
+                    }
+                    .timer-action-btn.discard:hover {
+                        background: #FECACA;
+                        transform: translateY(-2px);
+                    }
+                    .minimized-content {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 12px;
+                    }
+                    .minimized-time {
+                        font-size: 18px;
+                        font-weight: 800;
+                        color: var(--cream-text-main);
+                        font-variant-numeric: tabular-nums;
+                    }
+                    .minimized-actions {
+                        display: flex;
+                        gap: 6px;
+                    }
+                    .mini-btn {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 8px;
+                        border: none;
+                        background: var(--cream-text-main);
+                        color: white;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    }
+                    .mini-btn:hover {
+                        background: #5C67F2;
+                        transform: scale(1.05);
                     }
                 `}</style>
             </DashboardLayout >

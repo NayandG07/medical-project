@@ -35,13 +35,13 @@ export default function AdminSettings() {
                     headers: {
                         'Authorization': `Bearer ${session.access_token}`
                     }
-                })
+                }).catch(() => null)
 
-                if (response.ok) {
+                if (response && response.ok) {
                     setIsAdmin(true)
                     // Fetch current settings
-                    const settingsRes = await fetch(`${API_URL}/api/system/settings`)
-                    if (settingsRes.ok) {
+                    const settingsRes = await fetch(`${API_URL}/api/system/settings`).catch(() => null)
+                    if (settingsRes && settingsRes.ok) {
                         const settings = await settingsRes.json()
                         setPlatformName(settings.platform_name)
                         setSupportEmail(settings.support_email || 'support@vaidya.ai')
@@ -50,8 +50,12 @@ export default function AdminSettings() {
                         setYearlyDiscount(settings.yearly_discount_percentage)
                     }
                     setLoading(false)
-                } else {
+                } else if (response) {
                     router.push('/chat')
+                } else {
+                    // Network error
+                    console.error('Network error during admin verification')
+                    router.push('/chat') // Fallback
                 }
             } catch (err) {
                 console.error('Admin verification failed:', err)

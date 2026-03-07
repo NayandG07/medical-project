@@ -3,11 +3,12 @@ import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { supabase, AuthUser } from '@/lib/supabase'
 import DashboardLayout from '@/components/DashboardLayout'
+import { motion } from 'framer-motion'
 import {
   Check, Calendar, Clock, BookOpen, Brain, Activity, Heart,
   Zap, ChevronRight, Trophy, Target, TrendingUp, Flame,
   FileText, Stethoscope, Award, BarChart3, PieChart, ArrowUpRight,
-  ArrowDownRight, Sparkles, GraduationCap
+  ArrowDownRight, Sparkles, GraduationCap, Microscope
 } from 'lucide-react'
 
 // Types for API responses
@@ -137,21 +138,32 @@ export default function Dashboard() {
   })
 
   const fetchWithAuth = useCallback(async (endpoint: string) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('No session')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('No session')
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json'
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      }).catch(err => {
+        console.warn(`Network error fetching ${endpoint}:`, err)
+        return null
+      })
+
+      if (!response) {
+        throw new Error('Network unreachable')
       }
-    })
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} `)
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} `)
+      }
+
+      return response.json()
+    } catch (err) {
+      throw err
     }
-
-    return response.json()
   }, [])
 
   const fetchDashboardData = useCallback(async () => {
@@ -162,65 +174,31 @@ export default function Dashboard() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
 
-      // Fetch only the plan first - high priority
+      // Fetch only the plan first - high priority (with caching)
+      const cachedPlan = localStorage.getItem('valdia_user_plan')
+      if (cachedPlan) {
+        setDashboardData(prev => ({ ...prev, userPlan: cachedPlan, loading: false }))
+      }
+
       const { data: planData } = await supabase.from('users').select('plan').eq('id', authUser.id).single()
       if (planData?.plan) {
         setDashboardData(prev => ({ ...prev, userPlan: planData.plan }))
+        localStorage.setItem('valdia_user_plan', planData.plan)
       }
 
-      // Fetch all data in parallel - comprehensive analytics
-      const results = await Promise.allSettled([
-        fetchWithAuth('/api/planner/performance/summary?days=30'),
+      // Fetch critical data first (streak and daily brief)
+      const criticalResults = await Promise.allSettled([
         fetchWithAuth('/api/planner/streak'),
-        fetchWithAuth('/api/planner/performance/subjects?days=30'),
-        fetchWithAuth('/api/planner/goals?status=active'),
-        fetchWithAuth('/api/clinical/performance'),
         fetchWithAuth('/api/planner/daily-brief'),
-        fetchWithAuth('/api/study-tools/sessions?feature=flashcard'),
-        fetchWithAuth('/api/study-tools/sessions?feature=mcq'),
-        fetchWithAuth('/api/study-tools/sessions?feature=map'),
-        fetchWithAuth('/api/clinical/performance/history?days=7'),
-        // Get metrics for the last 7 days using start_date
-        fetchWithAuth(`/api/planner/performance/metrics?start_date=${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`)
       ])
 
-      // Map results
-      const performanceRes = results[0]
-      const streakRes = results[1]
-      const subjectsRes = results[2]
-      const goalsRes = results[3]
-      const clinicalRes = results[4]
-      const dailyBriefRes = results[5]
-      const flashcardSessions = results[6]
-      const mcqSessions = results[7]
-      const mapSessions = results[8]
-      const clinicalHistoryRes = results[9]
-      const performanceMetricsRes = results[10]
+      const streakRes = criticalResults[0]
+      const dailyBriefRes = criticalResults[1]
 
-      // Process results with fallbacks
-      const performance = performanceRes.status === 'fulfilled' ? performanceRes.value : null
       const streak = streakRes.status === 'fulfilled' ? streakRes.value : null
-      const subjects = subjectsRes.status === 'fulfilled' ? subjectsRes.value?.subjects || [] : []
-      const goals = goalsRes.status === 'fulfilled' ? goalsRes.value?.goals || [] : []
-      const clinical = clinicalRes.status === 'fulfilled' ? clinicalRes.value : null
       const dailyBriefData = dailyBriefRes.status === 'fulfilled' ? dailyBriefRes.value : null
 
-      // Count sessions
-      const flashcardCount = flashcardSessions.status === 'fulfilled'
-        ? (flashcardSessions.value?.sessions?.length || 0) : 0
-      const mcqCount = mcqSessions.status === 'fulfilled'
-        ? (mcqSessions.value?.sessions?.length || 0) : 0
-      const mapCount = mapSessions.status === 'fulfilled'
-        ? (mapSessions.value?.sessions?.length || 0) : 0
-
-      // Assign colors to subjects
-      const coloredSubjects = (subjects as SubjectBreakdown[]).map((s, i) => ({
-        ...s,
-        total_minutes: (s as any).total_hours ? (s as any).total_hours * 60 : s.total_minutes || 0,
-        color: SUBJECT_COLORS[i % SUBJECT_COLORS.length]
-      }))
-
-      // Transform daily brief to expected format
+      // Transform daily brief early
       const transformedDailyBrief: DailyBrief | null = dailyBriefData ? {
         greeting: dailyBriefData.greeting || '',
         today_entries: (dailyBriefData.today?.sessions || []).map((e: any) => ({
@@ -237,6 +215,57 @@ export default function Dashboard() {
         streak_status: dailyBriefData.streak?.current > 0 ? 'active' : 'inactive',
         recommendations: dailyBriefData.top_recommendation ? [dailyBriefData.top_recommendation.description] : []
       } : null
+
+      // Update with critical data immediately
+      setDashboardData(prev => ({
+        ...prev,
+        streak,
+        dailyBrief: transformedDailyBrief,
+        loading: false
+      }))
+
+      // Fetch remaining data in background
+      const remainingResults = await Promise.allSettled([
+        fetchWithAuth('/api/planner/performance/summary?days=30'),
+        fetchWithAuth('/api/planner/performance/subjects?days=30'),
+        fetchWithAuth('/api/planner/goals?status=active'),
+        fetchWithAuth('/api/clinical/performance'),
+        fetchWithAuth('/api/study-tools/sessions?feature=flashcard'),
+        fetchWithAuth('/api/study-tools/sessions?feature=mcq'),
+        fetchWithAuth('/api/study-tools/sessions?feature=map'),
+        fetchWithAuth(`/api/planner/performance/metrics?start_date=${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`)
+      ])
+
+      // Map results
+      const performanceRes = remainingResults[0]
+      const subjectsRes = remainingResults[1]
+      const goalsRes = remainingResults[2]
+      const clinicalRes = remainingResults[3]
+      const flashcardSessions = remainingResults[4]
+      const mcqSessions = remainingResults[5]
+      const mapSessions = remainingResults[6]
+      const performanceMetricsRes = remainingResults[7]
+
+      // Process results with fallbacks
+      const performance = performanceRes.status === 'fulfilled' ? performanceRes.value : null
+      const subjects = subjectsRes.status === 'fulfilled' ? subjectsRes.value?.subjects || [] : []
+      const goals = goalsRes.status === 'fulfilled' ? goalsRes.value?.goals || [] : []
+      const clinical = clinicalRes.status === 'fulfilled' ? clinicalRes.value : null
+
+      // Count sessions
+      const flashcardCount = flashcardSessions.status === 'fulfilled'
+        ? (flashcardSessions.value?.sessions?.length || 0) : 0
+      const mcqCount = mcqSessions.status === 'fulfilled'
+        ? (mcqSessions.value?.sessions?.length || 0) : 0
+      const mapCount = mapSessions.status === 'fulfilled'
+        ? (mapSessions.value?.sessions?.length || 0) : 0
+
+      // Assign colors to subjects
+      const coloredSubjects = (subjects as SubjectBreakdown[]).map((s, i) => ({
+        ...s,
+        total_minutes: (s as any).total_hours ? (s as any).total_hours * 60 : s.total_minutes || 0,
+        color: SUBJECT_COLORS[i % SUBJECT_COLORS.length]
+      }))
 
       // Transform performance summary to dashboard format
       const transformedPerformance: PerformanceSummary | null = performance ? {
@@ -257,7 +286,6 @@ export default function Dashboard() {
       const metricsData = performanceMetricsRes.status === 'fulfilled' ? performanceMetricsRes.value?.metrics || [] : []
       const weeklyActivity = calculateWeeklyActivity(metricsData)
 
-      // Use the plan we fetched (it was already set by checkAuth or the independent fetch)
       const userPlan = planData?.plan || dashboardData.userPlan || 'free'
 
       const usageStats = {
@@ -267,25 +295,22 @@ export default function Dashboard() {
         flashcardsGenerated: flashcardCount
       }
 
-      setDashboardData({
+      setDashboardData(prev => ({
+        ...prev,
         performanceSummary: transformedPerformance,
-        streak: streak,
         subjectBreakdown: coloredSubjects,
         goals: goals,
         clinicalPerformance: clinical,
-        dailyBrief: transformedDailyBrief,
         studyToolStats: {
           flashcards: flashcardCount,
           mcqs: mcqCount,
           conceptmaps: mapCount,
           highyield: (transformedDailyBrief?.today_entries?.length || 0)
         },
-        loading: false,
-        error: null,
         weeklyActivity: weeklyActivity,
         usageStats: usageStats,
         userPlan: userPlan
-      })
+      }))
     } catch (err) {
       console.error('Dashboard fetch error:', err)
       setDashboardData(prev => ({
@@ -343,36 +368,66 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="loading-screen">
-        <div className="spinner"></div>
-        <p>Preparing your workspace...</p>
-        <style jsx>{`
-  .loading - screen {
-  display: flex;
-  flex - direction: column;
-  justify - content: center;
-  align - items: center;
-  min - height: 100vh;
-  background - color: var(--cream - bg);
-  gap: 16px;
-}
-          .spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--cream - accent - soft);
-  border - top - color: var(--cream - text - main);
-  border - radius: 50 %;
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-            to { transform: rotate(360deg); }
-}
-          p {
-  font - size: 14px;
-  font - weight: 600;
-  color: var(--cream - text - muted);
-}
-`}</style>
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--cream-bg)] overflow-hidden">
+        {/* Background Ambient Glows */}
+        <motion.div
+          animate={{
+            scale: [1, 1.1, 1],
+            opacity: [0.2, 0.4, 0.2],
+          }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute w-[400px] h-[400px] bg-blue-200/40 rounded-full blur-[100px]"
+        />
+
+        {/* Abstract Loading Visual */}
+        <div className="relative mb-8">
+          {/* Outer Pulsing Rings */}
+          {[...Array(3)].map((_, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: [0, 1, 0], scale: [0.5, 1.2, 1.5] }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                delay: i * 1,
+                ease: "easeOut"
+              }}
+              className="absolute inset-0 bg-blue-500/20 rounded-full blur-sm"
+            />
+          ))}
+
+          {/* Core Glowing Orb */}
+          <motion.div
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-[0_0_40px_-10px_rgba(59,130,246,0.6)] border border-blue-100 z-10 relative"
+          >
+            <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-full blur-[2px]" />
+            <Sparkles className="absolute text-white" size={18} />
+          </motion.div>
+        </div>
+
+        {/* Loading Typography */}
+        <div className="text-center z-10">
+          <motion.h2
+            animate={{ opacity: [0.6, 1, 0.6] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="text-[22px] font-black text-[var(--cream-text-main)] tracking-tight mb-2"
+          >
+            Preparing Workspace
+          </motion.h2>
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-[12px] font-bold text-[var(--cream-text-muted)] tracking-wider uppercase">
+              Initializing AI Engine
+            </span>
+            <motion.span
+              animate={{ opacity: [0, 1, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+              className="w-1.5 h-1.5 bg-blue-500 rounded-full inline-block"
+            />
+          </div>
+        </div>
       </div>
     )
   }
@@ -576,6 +631,14 @@ export default function Dashboard() {
                   color="#EA4335"
                   bgColor="#FEF2F2"
                   href="/clinical-cases"
+                />
+                <ToolCard
+                  icon={<Microscope size={20} />}
+                  title="Image Analysis"
+                  sessions={0}
+                  color="#06B6D4"
+                  bgColor="#ECFEFF"
+                  href="/image-analysis"
                 />
                 <ToolCard
                   icon={<Brain size={20} />}

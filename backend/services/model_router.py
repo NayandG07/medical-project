@@ -323,7 +323,8 @@ class ModelRouterService:
         prompt: str,
         system_prompt: Optional[str] = None,
         max_retries: int = 3,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        image_data: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Execute a request with automatic fallback to next available key on failure
@@ -340,6 +341,7 @@ class ModelRouterService:
             system_prompt: Optional system prompt for context
             max_retries: Maximum number of retry attempts (default: 3)
             user_id: Optional user ID to check for personal API key
+            image_data: Optional base64-encoded image data for vision models
             
         Returns:
             Dict containing:
@@ -387,7 +389,8 @@ class ModelRouterService:
                     provider=provider,
                     feature=feature,
                     prompt=prompt,
-                    system_prompt=system_prompt
+                    system_prompt=system_prompt,
+                    image_data=image_data
                 )
                 
                 response_time = int((time.time() - start_time) * 1000)
@@ -493,18 +496,35 @@ class ModelRouterService:
             start_time = time.time()
             
             try:
-                # Use OpenRouter for all providers
-                from services.providers.openrouter import get_openrouter_provider
-                provider_instance = get_openrouter_provider()
-                
-                # Call OpenRouter
-                result = await provider_instance.call_openrouter(
-                    api_key=api_key,
-                    provider=provider,
-                    feature=feature,
-                    prompt=prompt,
-                    system_prompt=system_prompt
-                )
+                # Route to appropriate provider
+                if provider == "huggingface":
+                    # Use HuggingFace provider directly
+                    from services.providers.huggingface import get_huggingface_provider
+                    provider_instance = get_huggingface_provider()
+                    
+                    # Call HuggingFace
+                    result = await provider_instance.call_huggingface(
+                        feature=feature,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        max_tokens=4096,
+                        temperature=0.9,
+                        image_data=image_data
+                    )
+                else:
+                    # Use OpenRouter for all other providers
+                    from services.providers.openrouter import get_openrouter_provider
+                    provider_instance = get_openrouter_provider()
+                    
+                    # Call OpenRouter
+                    result = await provider_instance.call_openrouter(
+                        api_key=api_key,
+                        provider=provider,
+                        feature=feature,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        image_data=image_data
+                    )
                 
                 response_time = int((time.time() - start_time) * 1000)
                 
@@ -560,12 +580,28 @@ class ModelRouterService:
                     error_msg = result.get("error", "Unknown error")
                     is_token_limit = result.get("is_token_limit_error", False)
                     
+                    # Clean up error message for logging - truncate HTML
+                    log_error_msg = error_msg
+                    if isinstance(error_msg, str) and (error_msg.startswith('<!DOCTYPE') or '<html' in error_msg[:100]):
+                        # Extract just the key info from HTML error
+                        if '504' in error_msg:
+                            log_error_msg = "Gateway Timeout (504)"
+                        elif '502' in error_msg:
+                            log_error_msg = "Bad Gateway (502)"
+                        elif '503' in error_msg:
+                            log_error_msg = "Service Unavailable (503)"
+                        else:
+                            log_error_msg = "API returned HTML error page"
+                    elif isinstance(error_msg, str) and len(error_msg) > 200:
+                        # Truncate long error messages
+                        log_error_msg = error_msg[:200] + "..."
+                    
                     logger.warning(
-                        f"Key {key_id} failed on attempt {actual_attempt}: {error_msg}"
+                        f"Key {key_id} failed on attempt {actual_attempt}: {log_error_msg}"
                     )
                     
-                    # Record the failure
-                    await self.record_failure(key_id, error_msg)
+                    # Record the failure (use truncated message)
+                    await self.record_failure(key_id, log_error_msg)
                     
                     # If this is a token limit error, skip remaining paid APIs and go straight to Hugging Face
                     if is_token_limit:

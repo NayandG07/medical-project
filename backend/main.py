@@ -79,18 +79,25 @@ async def get_current_user(request: Request) -> Dict[str, Any]:
     token = auth_header.split(" ")[1]
     
     try:
-        # Verify token with Supabase
+        # Verify token with Supabase using the service role client
+        # The get_user method verifies the JWT token and returns user info
         user_response = supabase.auth.get_user(token)
+        
         if not user_response or not user_response.user:
-            logger.warning("Authentication failed: Invalid token")
-            raise HTTPException(status_code=401, detail="Invalid token")
+            logger.warning("Authentication failed: Invalid or expired token")
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
         
         user_id = user_response.user.id
-        logger.debug(f"User authenticated: {user_id[:8]}...")
-        return {"id": user_response.user.id, "email": user_response.user.email}
+        user_email = user_response.user.email
+        logger.debug(f"User authenticated: {user_id[:8]}... ({user_email})")
+        
+        return {"id": user_id, "email": user_email}
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        logger.error(f"Authentication error: {str(e)}")
-        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+        logger.error(f"Authentication error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 
 # Dependency to verify admin access
@@ -206,6 +213,10 @@ async def update_system_settings(
 class StudyToolRequest(BaseModel):
     topic: str
     session_id: Optional[str] = None
+    document_context: Optional[str] = None
+    format: Optional[str] = None
+    count: Optional[int] = None
+    count: Optional[int] = 5  # Number of MCQs to generate
     count: Optional[int] = 5  # Number of items to generate per batch
     format: Optional[str] = "interactive"  # interactive or static
 
@@ -223,7 +234,8 @@ async def generate_flashcards(
             topic=request.topic,
             session_id=request.session_id,
             count=request.count or 5,
-            format=request.format or "interactive"
+            format=request.format or "interactive",
+            document_context=request.document_context
         )
         return result
     except Exception as e:
@@ -242,7 +254,9 @@ async def generate_mcqs(
         result = await study_tools_service.generate_mcq(
             user_id=user["id"],
             topic=request.topic,
-            session_id=request.session_id
+            session_id=request.session_id,
+            count=request.count or 5,
+            document_context=request.document_context
         )
         return result
     except Exception as e:
@@ -280,7 +294,8 @@ async def generate_explanation(
         result = await study_tools_service.generate_explanation(
             user_id=user["id"],
             topic=request.topic,
-            session_id=request.session_id
+            session_id=request.session_id,
+            document_context=request.document_context
         )
         return result
     except Exception as e:
@@ -954,11 +969,35 @@ async def get_documents(
 @app.delete("/api/documents/{document_id}")
 async def delete_document(
     document_id: str,
-    user: Dict[str, Any] = Depends(get_current_user)
+    user: Dict[str, Any] = Depends(get_current_user),
+    force: bool = False
 ):
     """Delete a document"""
     try:
         document_service = get_document_service(supabase)
+        
+        # If force=true, bypass user check (for admin cleanup)
+        if force:
+            logger.warning(f"Force deleting document {document_id}")
+            # Get document without user filter
+            doc_result = supabase.table("documents").select("*").eq("id", document_id).execute()
+            if doc_result.data and len(doc_result.data) > 0:
+                document = doc_result.data[0]
+                # Delete storage
+                try:
+                    if document.get("storage_path"):
+                        supabase.storage.from_("documents").remove([document["storage_path"]])
+                except Exception as e:
+                    logger.warning(f"Storage deletion failed: {str(e)}")
+                # Delete chunks
+                supabase.table("document_chunks").delete().eq("document_id", document_id).execute()
+                # Delete document
+                supabase.table("documents").delete().eq("id", document_id).execute()
+                return {"message": "Document force deleted successfully"}
+            else:
+                raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Normal deletion with user check
         await document_service.delete_document(user["id"], document_id)
         return {"message": "Document deleted successfully"}
     except Exception as e:
@@ -985,6 +1024,51 @@ async def search_documents(
         return {"results": results, "count": len(results)}
     except Exception as e:
         logger.error(f"Document search failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/documents/{document_id}/diagnostics")
+async def get_document_diagnostics(
+    document_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get diagnostic information about a document"""
+    try:
+        # Get document info
+        doc_result = supabase.table("documents").select("*").eq("id", document_id).eq("user_id", user["id"]).execute()
+        
+        if not doc_result.data:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        document = doc_result.data[0]
+        
+        # Get chunks info
+        chunks_result = supabase.table("document_chunks").select("id, chunk_index, embedding").eq("document_id", document_id).execute()
+        
+        chunks_info = {
+            "total_chunks": len(chunks_result.data or []),
+            "chunks_with_embeddings": sum(1 for c in (chunks_result.data or []) if c.get("embedding") is not None),
+            "chunks_without_embeddings": sum(1 for c in (chunks_result.data or []) if c.get("embedding") is None)
+        }
+        
+        return {
+            "document": {
+                "id": document["id"],
+                "filename": document["filename"],
+                "processing_status": document.get("processing_status"),
+                "created_at": document.get("created_at"),
+                "processed_at": document.get("processed_at"),
+                "error_message": document.get("error_message"),
+                "file_size": document.get("file_size"),
+                "feature": document.get("feature")
+            },
+            "chunks": chunks_info,
+            "rag_ready": chunks_info["chunks_with_embeddings"] > 0
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get document diagnostics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1310,8 +1394,8 @@ class CompletePlanEntryRequest(BaseModel):
 @app.post("/api/planner/entries/{entry_id}/complete")
 async def complete_plan_entry(
     entry_id: str,
-    request: CompletePlanEntryRequest,
-    user: Dict[str, Any] = Depends(get_current_user)
+    user: Dict[str, Any] = Depends(get_current_user),
+    request: Optional[CompletePlanEntryRequest] = None
 ):
     """Mark a study plan entry as completed"""
     try:
@@ -1319,9 +1403,9 @@ async def complete_plan_entry(
         entry = await planner_service.complete_entry(
             user_id=user["id"],
             entry_id=entry_id,
-            performance_score=request.performance_score,
-            accuracy_percentage=request.accuracy_percentage,
-            notes=request.notes
+            performance_score=request.performance_score if request else None,
+            accuracy_percentage=request.accuracy_percentage if request else None,
+            notes=request.notes if request else None
         )
         return entry
     except Exception as e:
@@ -1531,6 +1615,8 @@ class CreateClinicalCaseRequest(BaseModel):
     specialty: str = "general_medicine"
     difficulty: str = "intermediate"
     case_type: str = "clinical_reasoning"
+    use_custom_condition: bool = False
+    custom_condition: Optional[str] = None
 
 
 class SubmitReasoningStepRequest(BaseModel):
@@ -1543,6 +1629,8 @@ class CreateOSCERequest(BaseModel):
     scenario_type: str = "history_taking"
     specialty: str = "general_medicine"
     difficulty: str = "intermediate"
+    use_custom_condition: bool = False
+    custom_condition: Optional[str] = None
 
 
 class OSCEInteractionRequest(BaseModel):
@@ -1566,7 +1654,9 @@ async def create_clinical_case(
             user_id=user["id"],
             specialty=request.specialty,
             difficulty=request.difficulty,
-            case_type=request.case_type
+            case_type=request.case_type,
+            use_custom_condition=request.use_custom_condition,
+            custom_condition=request.custom_condition
         )
         return case
     except Exception as e:
@@ -1716,7 +1806,9 @@ async def create_osce_scenario(
             user_id=user["id"],
             scenario_type=request.scenario_type,
             specialty=request.specialty,
-            difficulty=request.difficulty
+            difficulty=request.difficulty,
+            use_custom_condition=request.use_custom_condition,
+            custom_condition=request.custom_condition
         )
         return scenario
     except Exception as e:
@@ -1997,3 +2089,285 @@ if __name__ == "__main__":
     import uvicorn
     # Use string reference for app to enable reload
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+
+# ============================================================================
+# MEDICAL IMAGES ENDPOINTS
+# ============================================================================
+
+from services.medical_images import get_medical_image_service
+
+
+@app.post("/api/medical-images", status_code=201)
+async def upload_medical_image(
+    file: UploadFile = File(...),
+    category: Optional[str] = Form(None),
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Upload a medical image for AI analysis
+    
+    Args:
+        file: Image file (JPEG, PNG, etc.)
+        category: Optional category (xray, ct, mri, ultrasound, pathology, etc.)
+    """
+    try:
+        logger.info(f"Medical image upload started - User: {user['id'][:8]}..., Category: {category}, File: {file.filename}")
+        
+        # Validate file type
+        allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/bmp", "image/tiff", "image/webp"]
+        if file.content_type not in allowed_types:
+            logger.warning(f"Invalid file type: {file.content_type} - User: {user['id'][:8]}...")
+            raise HTTPException(status_code=400, detail="Invalid file type. Only images are supported.")
+        
+        # Validate file size (50MB max for medical images)
+        file_content = await file.read()
+        file_size_mb = len(file_content) / (1024 * 1024)
+        if len(file_content) > 50 * 1024 * 1024:
+            logger.warning(f"File too large: {file_size_mb:.2f}MB - User: {user['id'][:8]}...")
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 50MB.")
+        
+        # Upload medical image
+        medical_image_service = get_medical_image_service(supabase)
+        medical_image = await medical_image_service.upload_medical_image(
+            user_id=user["id"],
+            file_content=file_content,
+            filename=file.filename or "unnamed.jpg",
+            file_type=file.content_type or "image/jpeg",
+            category=category
+        )
+        
+        logger.info(f"Medical image uploaded - User: {user['id'][:8]}..., Size: {file_size_mb:.2f}MB, ID: {medical_image.get('id', 'unknown')[:8]}...")
+        return medical_image
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Medical image upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/medical-images")
+async def get_medical_images(
+    category: Optional[str] = None,
+    limit: int = 50,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get user's medical images, optionally filtered by category"""
+    try:
+        medical_image_service = get_medical_image_service(supabase)
+        images = await medical_image_service.get_user_medical_images(user["id"], category, limit)
+        return {"images": images, "count": len(images)}
+    except Exception as e:
+        logger.error(f"Failed to get medical images: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/medical-images/{image_id}")
+async def get_medical_image(
+    image_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get a specific medical image with analysis"""
+    try:
+        medical_image_service = get_medical_image_service(supabase)
+        image = await medical_image_service.get_medical_image(user["id"], image_id)
+        
+        if not image:
+            raise HTTPException(status_code=404, detail="Medical image not found")
+        
+        return image
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get medical image: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/medical-images/{image_id}")
+async def delete_medical_image(
+    image_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete a medical image"""
+    try:
+        medical_image_service = get_medical_image_service(supabase)
+        await medical_image_service.delete_medical_image(user["id"], image_id)
+        return {"message": "Medical image deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete medical image: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/medical-images/search")
+async def search_medical_images(
+    query: str,
+    top_k: int = 10,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Search medical images by text query"""
+    try:
+        medical_image_service = get_medical_image_service(supabase)
+        results = await medical_image_service.query_medical_images(user["id"], query, top_k)
+        return {"results": results, "count": len(results)}
+    except Exception as e:
+        logger.error(f"Medical image search failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/image/analyze")
+async def analyze_medical_image(
+    image: UploadFile = File(...),
+    context: Optional[str] = Form(None),
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Analyze a medical image with AI and save to session history
+    
+    Args:
+        image: Medical image file
+        context: Optional clinical context (patient age, symptoms, etc.)
+    """
+    try:
+        logger.info(f"Image analysis started - User: {user['id'][:8]}..., File: {image.filename}")
+        
+        # Validate file type
+        allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+        if image.content_type not in allowed_types:
+            raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG, PNG, and WebP are supported.")
+        
+        # Validate file size (10MB max)
+        file_content = await image.read()
+        if len(file_content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB.")
+        
+        # Get medical image service
+        medical_image_service = get_medical_image_service(supabase)
+        
+        # Analyze the image
+        analysis = await medical_image_service.analyze_image(
+            user_id=user["id"],
+            image_content=file_content,
+            filename=image.filename or "image.jpg",
+            context=context
+        )
+        
+        # Prepare for session storage
+        import base64
+        image_base64 = base64.b64encode(file_content).decode('utf-8')
+        image_preview = f"data:{image.content_type};base64,{image_base64}"
+        
+        # Save to sessions table for history
+        session_data = {
+            "user_id": user["id"],
+            "image_filename": image.filename or "analysis.jpg",
+            "analysis_result": analysis,
+            "context": context,
+            "image_preview": image_preview
+        }
+        
+        try:
+            stored_session = supabase.table("image_analysis_sessions").insert(session_data).execute()
+            if stored_session.data and len(stored_session.data) > 0:
+                # Add the session ID to the returned analysis so frontend can select it
+                analysis["session_id"] = stored_session.data[0]["id"]
+        except Exception as db_err:
+            logger.error(f"Failed to save image analysis session: {str(db_err)}")
+            # Continue anyway as the analysis itself succeeded
+            
+        logger.info(f"Image analysis completed and saved - User: {user['id'][:8]}...")
+        return analysis
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Image analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# IMAGE ANALYSIS SESSIONS ENDPOINTS
+# ============================================================================
+
+@app.get("/api/image/sessions")
+async def get_image_analysis_sessions(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get user's image analysis history"""
+    try:
+        response = supabase.table("image_analysis_sessions")\
+            .select("id, image_filename, created_at, updated_at")\
+            .eq("user_id", user["id"])\
+            .order("created_at", desc=True)\
+            .execute()
+        
+        # Format for SessionSidebar compatibility
+        sessions = []
+        for s in (response.data or []):
+            sessions.append({
+                "id": s["id"],
+                "title": s["image_filename"],
+                "created_at": s["created_at"],
+                "updated_at": s["updated_at"]
+            })
+        return sessions
+    except Exception as e:
+        logger.error(f"Failed to get image analysis sessions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/image/sessions/{session_id}")
+async def get_image_analysis_session(
+    session_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get a specific image analysis session"""
+    try:
+        response = supabase.table("image_analysis_sessions")\
+            .select("*")\
+            .eq("id", session_id)\
+            .eq("user_id", user["id"])\
+            .single()\
+            .execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        return response.data
+    except Exception as e:
+        logger.error(f"Failed to get image analysis session: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/image/sessions/{session_id}")
+async def delete_image_analysis_session(
+    session_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete an image analysis session"""
+    try:
+        supabase.table("image_analysis_sessions")\
+            .delete()\
+            .eq("id", session_id)\
+            .eq("user_id", user["id"])\
+            .execute()
+        return {"message": "Session deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete image analysis session: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/image/sessions/all")
+async def delete_all_image_analysis_sessions(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Delete all image analysis sessions for a user"""
+    try:
+        supabase.table("image_analysis_sessions")\
+            .delete()\
+            .eq("user_id", user["id"])\
+            .execute()
+        return {"message": "All sessions deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete all image analysis sessions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
