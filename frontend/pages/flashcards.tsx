@@ -139,7 +139,55 @@ export default function Flashcards() {
         if (materials && materials.length > 0) {
           const material = materials[0]
           setTopic(material.topic)
-          setResult(material)
+          
+          // Parse flashcards from content if it's a JSON string
+          if (material.content && typeof material.content === 'string') {
+            try {
+              // Try to parse the JSON content
+              let cleaned = material.content.trim()
+              
+              // Remove markdown code blocks if present
+              if (cleaned.includes('```json')) {
+                const start = cleaned.indexOf('```json') + 7
+                const end = cleaned.indexOf('```', start)
+                if (end !== -1) {
+                  cleaned = cleaned.substring(start, end).trim()
+                }
+              } else if (cleaned.includes('```')) {
+                const start = cleaned.indexOf('```') + 3
+                const end = cleaned.indexOf('```', start)
+                if (end !== -1) {
+                  cleaned = cleaned.substring(start, end).trim()
+                }
+              }
+              
+              // Find JSON object boundaries
+              const firstBrace = cleaned.indexOf('{')
+              const lastBrace = cleaned.lastIndexOf('}')
+              if (firstBrace !== -1 && lastBrace !== -1) {
+                cleaned = cleaned.substring(firstBrace, lastBrace + 1)
+              }
+              
+              const parsed = JSON.parse(cleaned)
+              
+              // If parsed successfully and has flashcards array, use it
+              if (parsed.flashcards && Array.isArray(parsed.flashcards)) {
+                setResult({
+                  ...material,
+                  flashcards: parsed.flashcards
+                })
+              } else {
+                // Fallback to raw content
+                setResult(material)
+              }
+            } catch (parseError) {
+              console.error('Failed to parse flashcards JSON from history:', parseError)
+              // Fallback to raw content display
+              setResult(material)
+            }
+          } else {
+            setResult(material)
+          }
         }
       }
     } catch (err) {
