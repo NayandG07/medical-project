@@ -339,9 +339,9 @@ export default function ImageAnalysis() {
         <title>Medical Image Analysis - Vaidya AI</title>
       </Head>
       <DashboardLayout user={user}>
-        <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] gap-0 overflow-hidden bg-[var(--cream-bg)] relative">
+        <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] gap-0 bg-[var(--cream-bg)] relative">
           {/* Main Main Content */}
-          <div className="flex-1 overflow-y-auto no-scrollbar">
+          <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
             <motion.div
               initial="hidden"
               animate="visible"
@@ -518,6 +518,7 @@ export default function ImageAnalysis() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="grid lg:grid-cols-12 gap-8 items-start pb-20"
+                    style={{ minHeight: 'auto' }}
                   >
                     {/* Left Column: Image Card */}
                     <div className="lg:col-span-5 sticky top-8">

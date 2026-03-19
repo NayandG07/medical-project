@@ -302,14 +302,12 @@ export default function HighYield() {
           height: 'calc(100vh - 64px)',
           display: 'flex',
           backgroundColor: '#fdfbf7',
-          overflow: 'hidden',
           position: 'relative'
         }}>
           <div style={{
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden',
             position: 'relative'
           }}>
             <div className={styles.hyWrapper} data-station-active="true">
@@ -451,7 +449,7 @@ export default function HighYield() {
                           <p style={{ fontWeight: 600, color: '#475569' }}>Synthesizing high-yield content...</p>
                         </div>
                       ) : (
-                        <div className={styles.scrollArea} data-lenis-prevent>
+                        <div className={styles.scrollArea} style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 400px)' }}>
                           <div className={styles.noteContent}>
                             <div dangerouslySetInnerHTML={{ __html: parseMarkdown(result?.content || '') }} />
                           </div>
